@@ -39,17 +39,20 @@ class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(conte
                 }
                 // Always reconcile with the stable client UUID before uploading photos.
                 // A lost submit response can already have committed a valid receipt.
-                val server=try { ApiClient.existingByClient(token,draft.id) }
+                var server=try { ApiClient.existingByClient(token,draft.id) }
                     catch(e:ApiException) {
                         if(e.status!=404) throw e
                         ApiClient.draft(token,payload)
                         ApiClient.existingByClient(token,draft.id)
                     }
                 val serverId=server.getString("id")
-                require(server.getJSONObject("data").getString("client_report_id")==draft.id)
+                if(draft.editRequested && server.getString("status")=="needs_revision" && server.getInt("revision")==draft.serverRevision) {
+                    server=ApiClient.edit(token,serverId,payload,draft.serverRevision,draft.editReason)
+                }
+                if(!ReportPayload.equivalent(payload,server.getJSONObject("data")))throw ApiException(409,"Содержимое сервера отличается. Нужна проверка отчёта")
                 if(server.optString("receipt_id").let { it.isNotEmpty() && it!="null" } &&
                     server.getString("status") in listOf("submitted","reviewed")) {
-                    dao.save(draft.copy(status="delivered",serverId=serverId,receiptId=server.getString("receipt_id"),lastError=null))
+                    dao.save(draft.copy(status="delivered",serverId=serverId,receiptId=server.getString("receipt_id"),lastError=null,serverRevision=server.getInt("revision"),businessStatus=server.getString("status"),editRequested=false))
                     continue
                 }
                 if(server.getString("status")!="draft") throw ApiException(409,"Отчёт возвращён на уточнение; нужна новая ревизия")
@@ -57,7 +60,7 @@ class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(conte
                 val photos=JSONArray(draft.photosJson)
                 for(i in 0 until photos.length()) ApiClient.upload(token,serverId,photos.getJSONObject(i))
                 val receipt=ApiClient.submit(token,serverId,server.getInt("revision")).getString("receipt_id")
-                dao.save(draft.copy(status="delivered",serverId=serverId,receiptId=receipt,lastError=null))
+                dao.save(draft.copy(status="delivered",serverId=serverId,receiptId=receipt,lastError=null,serverRevision=server.getInt("revision"),businessStatus="submitted",editRequested=false))
             } catch(e:CancellationException) { throw e
             } catch (e:Exception) {
                 val permanent=e is ApiException && !SyncPolicy.retryable(e.status)

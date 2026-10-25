@@ -92,7 +92,7 @@ export default function App() {
         {error && <div className="error" role="alert">Ошибка API: {error}</div>}
         <div className="filters"><label>Объект<select value={siteId} onChange={e=>setSiteId(e.target.value)}><option value="all">Все объекты</option>{sites.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}</select></label>
           <label>С<input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></label><label>По<input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}/></label></div>
-        {page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,startDate,endDate])} token={token} siteId={siteId} fromDate={startDate} toDate={endDate} onSource={id=>{void http<Report>('/reports/'+id,token).then(setSelected).catch(e=>setError(e.message));}}/> : <>
+        {page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,startDate,endDate])} token={token} siteId={siteId} fromDate={startDate} toDate={endDate} onSource={id=>{const epoch=generation.current;void http<Report>('/reports/'+id,token).then(r=>{if(epoch===generation.current)setSelected(r);}).catch(e=>{if(epoch===generation.current)setError(e.message);});}}/> : <>
           {page !== 'reports' && <section className="metric-grid">
             <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
             <div className="metric"><span>Полученных отчётов</span><strong>{received.length}</strong><small>Доставлено или проверено</small></div>

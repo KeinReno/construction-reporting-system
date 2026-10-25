@@ -87,6 +87,8 @@ fun ReportApp() {
     var reason by remember { mutableStateOf("") }
     var comment by remember { mutableStateOf("") }
     val photos = remember { mutableStateListOf<JSONObject>() }
+    var editing by remember { mutableStateOf<Draft?>(null) }
+    var editReason by remember { mutableStateOf("") }
     var formError by remember { mutableStateOf("") }
     LaunchedEffect(sites) {if(selectedSite.isBlank() && sites.isNotEmpty()) selectedSite=sites.first().first}
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
@@ -122,9 +124,13 @@ fun ReportApp() {
             TextButton(onClick={val oldToken=token;session.clear();token=null;sites=emptyList();scope.launch(Dispatchers.IO){try{if(oldToken!=null)ApiClient.logout(oldToken)}catch(_:Exception){}}}) {Text("Выход")}
         }
         if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
+        if(editing!=null) {
+            Text("Исправление возвращённого отчёта · версия ${editing!!.serverRevision}")
+            OutlinedTextField(editReason,{editReason=it},label={Text("Причина исправления *")},modifier=Modifier.fillMaxWidth())
+        }
         Text("Объект *")
         sites.forEach { (id,name) ->
-            Row { RadioButton(selectedSite==id,onClick={selectedSite=id});Text(name,modifier=Modifier.padding(top=12.dp)) }
+            Row { RadioButton(selectedSite==id,enabled=editing==null,onClick={selectedSite=id});Text(name,modifier=Modifier.padding(top=12.dp)) }
         }
         if(sites.isEmpty())Text("Нет доступных объектов. Проверьте подключение.")
         OutlinedTextField(workDate,{workDate=it},label={Text("Дата работ YYYY-MM-DD *")},modifier=Modifier.fillMaxWidth())
@@ -144,7 +150,10 @@ fun ReportApp() {
                 if((quantity.isNotBlank() && n==null) || (n==null && description.isBlank()) || (n!=null && n< java.math.BigDecimal.ZERO) || (n!=null && unit.isBlank()) || (workType=="Другое" && description.isBlank()))formError="Укажите корректный объём или описание"
                 else {workEntries.add(JSONObject().apply {put("type",workType);if(n!=null){put("quantity",n.toPlainString());put("unit",unit)};if(description.isNotBlank())put("description",description)});quantity="";description="";formError=""}
             }) {Text("+ Добавить вид работ")}
-            workEntries.forEachIndexed{ i,w -> Text("${i+1}. ${w.getString("type")} — ${w.optString("quantity",w.optString("description"))}") }
+            workEntries.forEachIndexed{ i,w -> Row {
+                Text("${i+1}. ${w.getString("type")} — ${w.optString("quantity",w.optString("description"))}",Modifier.weight(1f))
+                TextButton(onClick={workEntries.removeAt(i)}){Text("Удалить")}
+            }}
         } else OutlinedTextField(reason,{reason=it},label={Text("Причина отсутствия работ *")},modifier=Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
         OutlinedButton(onClick={picker.launch("image/*")}) {Text("Добавить фотографии (${photos.size})")}
@@ -155,14 +164,16 @@ fun ReportApp() {
             try {
                 LocalDate.parse(workDate)
                 if(selectedSite.isBlank() || (kind=="work" && workEntries.isEmpty()) || (kind=="no_work" && reason.isBlank())) throw IllegalArgumentException("Заполните обязательные поля")
-                val saved=Draft(ownerId=ownerId,id=UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,
-                    workEntriesJson=JSONArray(workEntries.toList()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString())
+                if(editing!=null && editReason.trim().length<2)throw IllegalArgumentException("Укажите причину исправления")
+                val saved=Draft(ownerId=ownerId,id=editing?.id?:UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,
+                    workEntriesJson=JSONArray(if(kind=="work")workEntries.toList() else emptyList<JSONObject>()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),serverId=editing?.serverId,
+                    serverRevision=editing?.serverRevision?:1,editRequested=editing!=null,editReason=editReason)
                 busy=true
                 scope.launch {
                     try {
                         withContext(Dispatchers.IO){dao.save(saved)}
                         SyncWorker.schedule(context)
-                        workEntries.clear();photos.clear();reason="";comment="";formError="Отчёт сохранён локально. Отправка — автоматически."
+                        workEntries.clear();photos.clear();reason="";comment="";editing=null;editReason="";formError="Отчёт сохранён локально. Отправка — автоматически."
                     } catch(e:Exception){formError=e.message?:"Ошибка сохранения. Форма сохранена на экране."}
                     finally{busy=false}
                 }
@@ -177,6 +188,32 @@ fun ReportApp() {
                     Text("${draft.siteName} · ${draft.workDate}")
                     val label=when(draft.status){"delivered"->"Доставлен ✓";"uploading"->"Загрузка…";"failed"->"Нужна проверка / повторный вход";else->"Ожидает отправки"}
                     Text(label,color=if(draft.status=="delivered") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
+                    if(draft.businessStatus!=null)Text("На сервере: ${draft.businessStatus} · версия ${draft.serverRevision}")
+                    if(draft.serverId!=null && editing==null)TextButton(enabled=!busy,onClick={
+                        busy=true;scope.launch {
+                            try {
+                                val remote=withContext(Dispatchers.IO){ApiClient.existingByClient(token!!,draft.id)}
+                                val updated=draft.copy(serverRevision=remote.getInt("revision"),businessStatus=remote.getString("status"))
+                                withContext(Dispatchers.IO){dao.save(updated)}
+                                if(remote.getString("status")!="needs_revision") {formError="Статус обновлён: ${remote.getString("status")}"}
+                                else {
+                                    val data=remote.getJSONObject("data")
+                                    val ids=data.getJSONArray("required_photo_ids")
+                                    val localPhotos=JSONArray(draft.photosJson)
+                                    val localIds=(0 until localPhotos.length()).map{localPhotos.getJSONObject(it).getString("id")}.toSet()
+                                    require((0 until ids.length()).map{ids.getString(it)}.toSet()==localIds){"Фото сервера отличаются от локальных"}
+                                    editing=updated;selectedSite=draft.siteId;workDate=data.getString("work_date");kind=data.getString("kind")
+                                    reason=if(data.isNull("no_work_reason"))"" else data.getString("no_work_reason")
+                                    comment=if(data.isNull("comment"))"" else data.getString("comment")
+                                    workEntries.clear();val entries=data.getJSONArray("work_entries")
+                                    for(i in 0 until entries.length())workEntries.add(entries.getJSONObject(i))
+                                    photos.clear();for(i in 0 until localPhotos.length())photos.add(localPhotos.getJSONObject(i))
+                                    formError="Возвращённый отчёт загружен в форму выше"
+                                }
+                            }catch(e:Exception){formError=e.message?:"Не удалось обновить статус"}
+                            finally{busy=false}
+                        }
+                    }){Text("Проверить статус / исправить")}
                     if(draft.lastError!=null)Text("Последняя ошибка: ${draft.lastError}",style=MaterialTheme.typography.bodySmall)
                 }
             }

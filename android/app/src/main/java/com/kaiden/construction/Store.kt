@@ -30,7 +30,11 @@ data class Draft(
     val receiptId: String? = null,
     val lastError: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    val ownerId: String = ""
+    val ownerId: String = "",
+    val serverRevision: Int = 1,
+    val editRequested: Boolean = false,
+    val editReason: String = "",
+    val businessStatus: String? = null
 )
 
 @Dao
@@ -45,7 +49,7 @@ interface DraftDao {
     suspend fun save(draft: Draft)
 }
 
-@Database(entities=[Draft::class], version=2, exportSchema=false)
+@Database(entities=[Draft::class], version=3, exportSchema=false)
 abstract class AppDatabase: RoomDatabase() {
     abstract fun drafts(): DraftDao
     companion object {
@@ -55,6 +59,13 @@ abstract class AppDatabase: RoomDatabase() {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     // Legacy drafts remain unowned; never claim them for whoever signs in next.
                     db.execSQL("ALTER TABLE drafts ADD COLUMN ownerId TEXT NOT NULL DEFAULT ''")
+                }
+            },object: Migration(2,3) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE drafts ADD COLUMN serverRevision INTEGER NOT NULL DEFAULT 1")
+                    db.execSQL("ALTER TABLE drafts ADD COLUMN editRequested INTEGER NOT NULL DEFAULT 0")
+                    db.execSQL("ALTER TABLE drafts ADD COLUMN editReason TEXT NOT NULL DEFAULT ''")
+                    db.execSQL("ALTER TABLE drafts ADD COLUMN businessStatus TEXT")
                 }
             }).build().also { INSTANCE=it }
         }

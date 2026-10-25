@@ -13,13 +13,15 @@ function Photo({id,token}:{id:string;token:string}) {
   return error?<p role="alert">{error}</p>:url?<a href={url} target="_blank" rel="noreferrer"><img className="report-photo" src={url} alt="Фотография из отчёта"/></a>:<p>Загрузка фото…</p>;
 }
 export function ReportDetails({report:r,token,role,siteName,onClose,onChange}:{report:Report;token:string;role:string;siteName:string;onClose:()=>void;onChange:(r:Report)=>void}) {
+  const active=useRef(true);
+  useEffect(()=>{active.current=true;return ()=>{active.current=false;};},[]);
   const dialog=useRef<HTMLDialogElement>(null);const [history,setHistory]=useState<Event[]>([]);
   const [reason,setReason]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);
   useEffect(()=>{dialog.current?.showModal();},[]);
   useEffect(()=>{let active=true;void http<Event[]>(`/reports/${r.id}/history`,token).then(events=>{if(active)setHistory(events);}).catch(e=>{if(active)setError(e.message);});return ()=>{active=false;};},[r.id,r.status,r.revision,token]);
   async function review(decision:string) {
     setBusy(true);setError('');
-    try {onChange(await http<Report>(`/reports/${r.id}/review`,token,{method:'POST',body:JSON.stringify({expected_revision:r.revision,decision,reason:reason||null})}));}
+    try {const updated=await http<Report>(`/reports/${r.id}/review`,token,{method:'POST',body:JSON.stringify({expected_revision:r.revision,decision,reason:reason||null})});if(active.current)onChange(updated);}
     catch(e){setError(e instanceof Error?e.message:'Ошибка проверки');}finally{setBusy(false);}
   }
   return <dialog ref={dialog} className="modal report-dialog" onCancel={onClose} onClick={e=>{if(e.target===dialog.current)onClose();}} aria-label="Просмотр отчёта"><div>

@@ -1,0 +1,47 @@
+import { test,expect, type Page } from '@playwright/test';
+async function login(page:Page,name='manager') {
+  await page.getByLabel('Логин',{exact:true}).fill(name);
+  await page.getByLabel('Пароль',{exact:true}).fill('SyntheticPassword123');
+  await page.getByRole('button',{name:'Войти',exact:true}).click();
+  await expect(page.locator('.topbar-right')).toContainText(name);
+}
+test('real API: filtered volumes, review, sources and logout',async({page})=>{
+  await page.goto('/');await login(page);
+  await expect(page.getByText('4.0 m',{exact:true})).toBeVisible();
+  await page.getByLabel('С',{exact:true}).fill('2026-10-25');
+  await page.getByLabel('По',{exact:true}).fill('2026-10-25');
+  await expect(page.getByText('2.5 m',{exact:true})).toBeVisible();
+  await page.locator('tbody tr').first().click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button',{name:'Проверен',exact:true}).click();
+  await expect(page.getByRole('dialog').getByText('Статус: reviewed · ревизия 1')).toBeVisible();
+  await page.getByRole('button',{name:'Закрыть ✕'}).click();
+  await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
+  await page.getByRole('button',{name:'Сформировать анализ'}).click();
+  await expect(page.getByRole('heading',{name:'Получено отчётов: 1. Без работ: 0.'})).toBeVisible();
+  await page.getByRole('button',{name:'Отчёт 1',exact:true}).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'Выйти',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Вход в систему'})).toBeVisible();
+  await login(page,'other');
+  await expect(page.getByText('Нет подтверждённых количественных работ.')).toBeVisible();
+  await expect(page.getByText('Synthetic site A',{exact:true})).toHaveCount(0);
+});
+test('late response cannot expose previous account data',async({page})=>{
+  await page.goto('/');await login(page);
+  await expect(page.getByText('4.0 m',{exact:true})).toBeVisible();
+  let release!:()=>void;let arrived!:()=>void;
+  const waiting=new Promise<void>(resolve=>{arrived=resolve;});
+  const gate=new Promise<void>(resolve=>{release=resolve;});
+  await page.route('**/api/v1/analytics/summary',async route=>{
+    const response=await route.fetch();arrived();await gate;await route.fulfill({response});
+  },{times:1});
+  await page.getByRole('button',{name:'↻ Обновить'}).click();await waiting;
+  await page.getByRole('button',{name:'Выйти',exact:true}).click();
+  await login(page,'other');
+  await expect(page.getByText('Нет подтверждённых количественных работ.')).toBeVisible();
+  release();await page.waitForResponse('**/api/v1/analytics/summary');
+  await expect(page.getByText('4.0 m',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('Synthetic site A',{exact:true})).toHaveCount(0);
+});

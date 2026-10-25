@@ -57,6 +57,8 @@ object ApiClient {
     }
     fun draft(token:String, data:JSONObject):String = request("/reports","POST",token,data.toString().toByteArray()).getString("id")
     fun existingByClient(token:String,id:String):JSONObject = request("/reports/by-client/$id",token=token)
+    fun edit(token:String,id:String,data:JSONObject,revision:Int,reason:String):JSONObject =
+        request("/reports/$id","PATCH",token,JSONObject().put("expected_revision",revision).put("reason",reason).put("data",data).toString().toByteArray())
     fun submit(token:String,id:String,revision:Int):JSONObject = request("/reports/$id/submit","POST",token,JSONObject().put("expected_revision",revision).toString().toByteArray())
     fun upload(token:String,reportId:String,photo:JSONObject) {
         val content=File(photo.getString("path")).readBytes()
