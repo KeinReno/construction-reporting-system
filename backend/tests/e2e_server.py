@@ -9,10 +9,11 @@ from app.main import create_app, User, Site, Assignment, hash_password, new_id
 scratch=tempfile.TemporaryDirectory(prefix='crs-e2e-')
 api=create_app(database_url=f'sqlite:///{scratch.name}/test.db',storage=f'{scratch.name}/photos',initialize=True)
 with api.state.db() as db:
+    admin=User(login='admin',password_hash=hash_password('SyntheticPassword123'),role='admin')
     manager=User(login='manager',password_hash=hash_password('SyntheticPassword123'),role='manager')
     other=User(login='other',password_hash=hash_password('SyntheticPassword123'),role='manager')
     site=Site(name='Synthetic site A');site_b=Site(name='Synthetic site B')
-    db.add_all([manager,other,site,site_b]);db.flush()
+    db.add_all([admin,manager,other,site,site_b]);db.flush()
     db.add_all([Assignment(user_id=manager.id,site_id=site.id),Assignment(user_id=other.id,site_id=site_b.id)])
     db.commit();sid=site.id
 client=TestClient(api)

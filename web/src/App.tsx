@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { AdminPanel } from './AdminPanel';
 import { AnalysisPanel } from './AnalysisPanel';
 import { ReportDetails } from './ReportDetails';
 import { http, login, ApiError, filterQuery, allReports, type Profile, type Report, type Site, type Summary } from './api';
 
-type Page = 'overview' | 'objects' | 'reports' | 'analytics' | 'ai';
+type Page = 'overview' | 'objects' | 'reports' | 'analytics' | 'ai' | 'admin';
 const labels: Record<Page, string> = {
-  overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', analytics: 'Аналитика', ai: 'ИИ-аналитик'
+  overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', analytics: 'Аналитика', ai: 'ИИ-аналитик', admin:'Управление'
 };
 const statusLabels: Record<Report['status'], string> = {
   draft: 'Черновик', submitted: 'Доставлен', reviewed: 'Проверен', needs_revision: 'На уточнении'
@@ -47,6 +48,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const generation=useRef(0);
+  const endSession=useCallback(()=>{generation.current++;setToken(null);setProfile(null);setSites([]);setReports([]);setSummary(null);setSelected(null);setPage('overview');setSiteId('all');setStartDate('');setEndDate('');setLoading(false);},[]);
   const refresh = useCallback(async () => {
     if (!token) return;
     const requestGeneration=++generation.current;
@@ -64,9 +66,9 @@ export default function App() {
       if(requestGeneration!==generation.current)return;
       const reason = e instanceof Error ? e.message : 'Ошибка загрузки';
       setError(reason);
-      if (e instanceof ApiError && e.status===401) {setToken(null);setReports([]);setSummary(null);setSelected(null);}
+      if (e instanceof ApiError && e.status===401) {endSession();}
     } finally { if(requestGeneration===generation.current)setLoading(false); }
-  }, [token,siteId,startDate,endDate]);
+  }, [token,siteId,startDate,endDate,endSession]);
   useEffect(() => { void refresh(); return ()=>{generation.current++;}; }, [refresh]);
   const siteName = (id: string) => sites.find(s => s.id === id)?.name ?? 'Неизвестный объект';
   const visible = useMemo(() => reports.filter(r => (siteId === 'all' || r.site_id === siteId)
@@ -80,9 +82,9 @@ export default function App() {
   if (!token) return <Login onSuccess={setToken}/>;
   return <div className="app-shell">
     <aside className="sidebar"><div className="brand"><span className="brand-mark">▣</span> СтройКонтроль</div>
-      <nav aria-label="Основная навигация">{(Object.keys(labels) as Page[]).map((key, index) =>
+      <nav aria-label="Основная навигация">{(Object.keys(labels) as Page[]).filter(key=>key!=='admin'||profile?.role==='admin').map((key, index) =>
         <button key={key} className={page === key ? 'nav-item active' : 'nav-item'} onClick={() => setPage(key)}>
-          <span className="nav-icon" aria-hidden="true">{['▦','▤','▣','▥','✧'][index]}</span>{labels[key]}</button>)}</nav>
+          <span className="nav-icon" aria-hidden="true">{['▦','▤','▣','▥','✧','⚙'][index]}</span>{labels[key]}</button>)}</nav>
       <div className="sidebar-foot"><span className="online-dot"/> Серверные данные</div>
     </aside>
     <div className="workspace">
@@ -90,9 +92,9 @@ export default function App() {
       <main className="content">
         <div className="heading"><div><h1>{pageTitle}</h1><p>Статистика формируется из подтверждённых записей сервера.</p></div><button className="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Обновление…' : '↻ Обновить'}</button></div>
         {error && <div className="error" role="alert">Ошибка API: {error}</div>}
-        <div className="filters"><label>Объект<select value={siteId} onChange={e=>setSiteId(e.target.value)}><option value="all">Все объекты</option>{sites.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}</select></label>
-          <label>С<input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></label><label>По<input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}/></label></div>
-        {page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,startDate,endDate])} token={token} siteId={siteId} fromDate={startDate} toDate={endDate} onSource={id=>{const epoch=generation.current;void http<Report>('/reports/'+id,token).then(r=>{if(epoch===generation.current)setSelected(r);}).catch(e=>{if(epoch===generation.current)setError(e.message);});}}/> : <>
+        {page!=='admin' && <div className="filters"><label>Объект<select value={siteId} onChange={e=>setSiteId(e.target.value)}><option value="all">Все объекты</option>{sites.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}</select></label>
+          <label>С<input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></label><label>По<input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}/></label></div>}
+        {page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> : page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,startDate,endDate])} token={token} siteId={siteId} fromDate={startDate} toDate={endDate} onSource={id=>{const epoch=generation.current;void http<Report>('/reports/'+id,token).then(r=>{if(epoch===generation.current)setSelected(r);}).catch(e=>{if(epoch===generation.current)setError(e.message);});}}/> : <>
           {page !== 'reports' && <section className="metric-grid">
             <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
             <div className="metric"><span>Полученных отчётов</span><strong>{received.length}</strong><small>Доставлено или проверено</small></div>
@@ -114,7 +116,7 @@ export default function App() {
         </>}
       </main>
       <footer>СтройКонтроль · MVP · Источник данных: API заказчика</footer>
-      <nav className="bottom-nav" aria-label="Мобильная навигация">{(['overview','objects','reports','analytics','ai'] as Page[]).map(key=><button key={key} className={page===key?'active':''} onClick={()=>setPage(key)}>{labels[key]}</button>)}</nav>
+      <nav className="bottom-nav" aria-label="Мобильная навигация">{(['overview','objects','reports','analytics','ai',...(profile?.role==='admin'?['admin']:[])] as Page[]).map(key=><button key={key} className={page===key?'active':''} onClick={()=>setPage(key)}>{labels[key]}</button>)}</nav>
     </div>
     {selected && <ReportDetails key={selected.id} report={selected} token={token} role={profile?.role||''} siteName={siteName(selected.site_id)} onClose={()=>setSelected(null)} onChange={r=>{setSelected(r);void refresh();}}/>}
   </div>;

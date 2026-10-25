@@ -38,3 +38,6 @@ Thumbs.db
 
 web/test-results/
 web/playwright-report/
+
+construction-windows-runtime.zip
+config.local.json

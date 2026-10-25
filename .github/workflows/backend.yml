@@ -27,7 +27,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.lock.txt
       - name: SQLite regression and migration roundtrip
         run: python -m pytest -q
       - name: PostgreSQL schema migration
@@ -37,4 +37,4 @@ jobs:
       - name: PostgreSQL API and concurrency regression
         env:
           TEST_DATABASE_URL: postgresql+psycopg://crs:synthetic-ci-only@localhost:5432/crs_test
-        run: python -m pytest -q tests/test_api.py tests/test_reliability.py tests/test_backup_postgres.py
+        run: python -m pytest -q tests/test_api.py tests/test_reliability.py tests/test_admin.py tests/test_backup_postgres.py

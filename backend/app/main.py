@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Request, Response, 
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, model_validator, ConfigDict
-from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer
+from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer, UniqueConstraint, delete, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError
@@ -34,6 +34,7 @@ class Site(Base):
     name:Mapped[str]=mapped_column(String(255))
 class Assignment(Base):
     __tablename__='assignments'
+    __table_args__=(UniqueConstraint('user_id','site_id',name='uq_assignment_user_site'),)
     id:Mapped[str]=mapped_column(String(36),primary_key=True,default=new_id)
     user_id:Mapped[str]=mapped_column(ForeignKey('users.id'))
     site_id:Mapped[str]=mapped_column(ForeignKey('sites.id'))
@@ -75,6 +76,32 @@ class Change(Base):
     reason:Mapped[str|None]=mapped_column(String(500),nullable=True)
     occurred_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True),default=utcnow,nullable=True)
     receipt_id:Mapped[str|None]=mapped_column(String(36),nullable=True)
+
+class AdminEvent(Base):
+    __tablename__='admin_events'
+    id:Mapped[str]=mapped_column(String(36),primary_key=True,default=new_id)
+    actor_id:Mapped[str]=mapped_column(ForeignKey('users.id'))
+    action:Mapped[str]=mapped_column(String(40))
+    target_id:Mapped[str]=mapped_column(String(36))
+    details:Mapped[dict]=mapped_column(JSON)
+    occurred_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=utcnow)
+
+class CreateUser(Input):
+    login:str=Field(min_length=1,max_length=128,pattern=r'^\S+$')
+    password:str=Field(min_length=12,max_length=1024,repr=False)
+    role:Literal['admin','manager','foreman']='foreman'
+class UpdateUser(Input):
+    active:bool|None=None
+    password:str|None=Field(default=None,min_length=12,max_length=1024,repr=False)
+class CreateSite(Input):
+    name:str=Field(min_length=1,max_length=255)
+    @model_validator(mode='after')
+    def valid(self):
+        if not self.name.strip():raise ValueError('Name required')
+        return self
+class Grant(Input):
+    user_id:uuid.UUID
+    site_id:uuid.UUID
 
 def hash_password(p:str)->str:
     salt=secrets.token_bytes(16)
@@ -155,6 +182,10 @@ def create_app(database_url=None, storage=None, initialize=False):
     if initialize or os.environ.get('AUTO_CREATE_SCHEMA')=='1': Base.metadata.create_all(engine)
     api=FastAPI(title='Construction Reporting API',version='0.1.0')
     api.state.db=SessionLocal
+    from fastapi.exceptions import RequestValidationError
+    @api.exception_handler(RequestValidationError)
+    async def validation_handler(request,exc):
+        return JSONResponse(status_code=422,content={'detail':[{'loc':list(e['loc']),'msg':e['msg'],'type':e['type']} for e in exc.errors()]})
     @api.exception_handler(StaleDataError)
     async def stale_handler(request, exc):
         return JSONResponse(status_code=409,content={'detail':'Concurrent update; reload report'})
@@ -187,6 +218,71 @@ def create_app(database_url=None, storage=None, initialize=False):
         return r
     def log(db,r,u,event,before=None,reason=None):
         db.add(Change(report_id=r.id,actor_id=u.id,revision=r.revision,event=event,payload_before=before if before is not None else r.payload,reason=reason,receipt_id=r.receipt_id))
+    def admin_only(u:User=Depends(current)):
+        if u.role!='admin':raise HTTPException(403,'Admin role required')
+        return u
+    def admin_log(db,u,action,target,details):
+        db.add(AdminEvent(actor_id=u.id,action=action,target_id=target,details=details))
+    def user_view(u):return {'id':u.id,'login':u.login,'role':u.role,'active':u.active}
+    @api.get('/api/v1/admin/users')
+    def admin_users(db:Session=Depends(dbdep),u:User=Depends(admin_only)):
+        return [user_view(x) for x in db.scalars(select(User).order_by(User.login))]
+    @api.post('/api/v1/admin/users',status_code=201)
+    def admin_create_user(data:CreateUser,db:Session=Depends(dbdep),u:User=Depends(admin_only)):
+        target=User(login=data.login,password_hash=hash_password(data.password),role=data.role)
+        db.add(target);db.flush();admin_log(db,u,'user_created',target.id,{'role':target.role});db.commit()
+        return user_view(target)
+    @api.patch('/api/v1/admin/users/{uid}')
+    def admin_update_user(uid:uuid.UUID,data:UpdateUser,db:Session=Depends(dbdep),u:User=Depends(admin_only)):
+        target=db.get(User,str(uid))
+        if not target:raise HTTPException(404,'Unknown user')
+        # Admin lifecycles are kept in the local bootstrap CLI; HTTP cannot remove any admin.
+        # This avoids concurrent last-admin deletion, not just a vulnerable count-then-update.
+        if target.role=='admin' and data.active is False:raise HTTPException(409,'Admin deactivation is not allowed through HTTP')
+        details={}
+        if data.active is not None:target.active=data.active;details['active']=data.active
+        if data.password is not None:target.password_hash=hash_password(data.password);details['password_reset']=True
+        if data.password is not None or data.active is False:db.execute(delete(Token).where(Token.user_id==target.id))
+        admin_log(db,u,'user_updated',target.id,details);db.commit()
+        return user_view(target)
+    @api.post('/api/v1/admin/sites',status_code=201)
+    def admin_create_site(data:CreateSite,db:Session=Depends(dbdep),u:User=Depends(admin_only)):
+        site=Site(name=data.name.strip());db.add(site);db.flush();admin_log(db,u,'site_created',site.id,{});db.commit()
+        return {'id':site.id,'name':site.name}
+    @api.get('/api/v1/admin/assignments')
+    def admin_assignments(db:Session=Depends(dbdep),u:User=Depends(admin_only)):
+        return [{'id':x.id,'user_id':x.user_id,'site_id':x.site_id} for x in db.scalars(select(Assignment).order_by(Assignment.id))]
+    @api.post('/api/v1/admin/assignments',status_code=201)
+    def admin_grant(data:Grant,response:Response,db:Session=Depends(dbdep),u:User=Depends(admin_only)):
+        if not db.get(User,str(data.user_id)) or not db.get(Site,str(data.site_id)):raise HTTPException(404,'Unknown user/site')
+        def find():return db.scalar(select(Assignment).where(Assignment.user_id==str(data.user_id),Assignment.site_id==str(data.site_id)))
+        item=find()
+        if item:response.status_code=200
+        else:
+            try:
+                item=Assignment(user_id=str(data.user_id),site_id=str(data.site_id));db.add(item);db.flush()
+                admin_log(db,u,'access_granted',item.id,{'user_id':item.user_id,'site_id':item.site_id});db.commit()
+            except IntegrityError:
+                db.rollback();item=find()
+                if not item:raise HTTPException(409,'Assignment changed; retry')
+                response.status_code=200
+        return {'id':item.id,'user_id':item.user_id,'site_id':item.site_id}
+    @api.delete('/api/v1/admin/assignments/{aid}')
+    def admin_revoke(aid:uuid.UUID,db:Session=Depends(dbdep),u:User=Depends(admin_only)):
+        item=db.get(Assignment,str(aid))
+        if not item:raise HTTPException(404,'Unknown assignment')
+        admin_log(db,u,'access_revoked',item.id,{'user_id':item.user_id,'site_id':item.site_id})
+        db.delete(item);db.commit();return {'revoked':True}
+    @api.get('/api/v1/admin/audit')
+    def admin_audit(db:Session=Depends(dbdep),u:User=Depends(admin_only)):
+        return [{'id':x.id,'actor_id':x.actor_id,'action':x.action,'target_id':x.target_id,'details':x.details,'occurred_at':stamp(x.occurred_at)} for x in db.scalars(select(AdminEvent).order_by(AdminEvent.occurred_at.desc()).limit(200))]
+    @api.get('/ready')
+    def ready(db:Session=Depends(dbdep)):
+        try:
+            for table in Base.metadata.sorted_tables:db.execute(select(*table.c).limit(0))
+            return {'status':'ready'}
+        except Exception:
+            return JSONResponse(status_code=503,content={'status':'not_ready'})
     @api.get('/health')
     def health(): return {'status':'ok'}
     @api.post('/api/v1/auth/login')
@@ -216,7 +312,7 @@ def create_app(database_url=None, storage=None, initialize=False):
     def sites(db:Session=Depends(dbdep),u:User=Depends(current)):
         q=select(Site)
         if u.role!='admin': q=q.join(Assignment,Assignment.site_id==Site.id).where(Assignment.user_id==u.id)
-        return [{'id':s.id,'name':s.name} for s in db.scalars(q).all()]
+        return [{'id':s.id,'name':s.name} for s in db.scalars(q).unique().all()]
     @api.post('/api/v1/reports',status_code=201)
     def draft(data:ReportData,response:Response,db:Session=Depends(dbdep),u:User=Depends(current)):
         sid=str(data.site_id); allowed(db,u,sid)
@@ -377,5 +473,12 @@ def create_app(database_url=None, storage=None, initialize=False):
     def history(rid:uuid.UUID,db:Session=Depends(dbdep),u:User=Depends(current)):
         fetch(db,u,str(rid))
         return [{'id':x.id,'revision':x.revision,'event':x.event,'reason':x.reason,'actor_id':x.actor_id,'occurred_at':stamp(x.occurred_at),'payload_before':x.payload_before,'receipt_id':x.receipt_id} for x in db.scalars(select(Change).where(Change.report_id==str(rid)).order_by(Change.occurred_at,Change.id)).all()]
+    web_dir=os.environ.get('WEB_DIR')
+    if web_dir:
+        from fastapi.staticfiles import StaticFiles
+        public=Path(web_dir).resolve()
+        if not (public/'index.html').is_file():raise RuntimeError('WEB_DIR must contain a built index.html')
+        if public==folder or public in folder.parents or folder in public.parents:raise RuntimeError('WEB_DIR and UPLOAD_DIR must be separate')
+        api.mount('/',StaticFiles(directory=public,html=True),name='web')
     return api
 app=create_app()

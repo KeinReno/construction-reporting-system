@@ -1,0 +1,7 @@
+# Set CRS_DOMAIN outside Git, configure DNS/firewall, and validate customer networks.
+{$CRS_DOMAIN} {
+    encode gzip
+    reverse_proxy 127.0.0.1:8000
+    header X-Content-Type-Options nosniff
+    header Referrer-Policy same-origin
+}

@@ -45,3 +45,19 @@ test('late response cannot expose previous account data',async({page})=>{
   await expect(page.getByText('4.0 m',{exact:true})).toHaveCount(0);
   await expect(page.getByText('Synthetic site A',{exact:true})).toHaveCount(0);
 });
+test('admin creates user and object, grants and revokes access',async({page})=>{
+  await page.goto('/');await login(page,'admin');
+  await page.getByRole('button',{name:'Управление',exact:true}).first().click();
+  await page.getByLabel('Логин нового пользователя').fill('synthetic-new');
+  await page.getByLabel('Первичный пароль').fill('SyntheticPassword123');
+  await page.getByRole('button',{name:'Создать пользователя',exact:true}).click();
+  await expect(page.getByRole('cell',{name:'synthetic-new',exact:true})).toBeVisible();
+  await page.getByLabel('Название объекта').fill('Synthetic managed site');
+  await page.getByRole('button',{name:'Создать объект',exact:true}).click();
+  await page.getByLabel('Пользователь',{exact:true}).selectOption({label:'synthetic-new'});
+  await page.getByLabel('Объект',{exact:true}).selectOption({label:'Synthetic managed site'});
+  await page.getByRole('button',{name:'Выдать доступ',exact:true}).click();
+  const grant=page.locator('li').filter({hasText:'synthetic-new → Synthetic managed site'});
+  await expect(grant).toBeVisible();
+  await grant.getByRole('button',{name:'Отозвать доступ'}).click();await expect(grant).toHaveCount(0);
+});
