@@ -42,3 +42,7 @@ UUID, версионированный экспорт и стабильные с
 ## Реализованная локальная Android-модель (26.10.2026)
 Room 4 хранит `drafts` (транспортная очередь/доставленные отчёты) и отдельно `report_forms(ownerId PRIMARY KEY,sessionId,payload)`. `payload` версии 1 — локальный FormSnapshot, не серверный ReportData: сырой невалидный/неоконченный ввод сохраняется без отправки. В него входят pending work inputs, массивы работ/приватных путей фото и исходный Draft исправления с owner/revision.
 `open(owner)` восстанавливает единственную форму аккаунта; autosave делает UPDATE только при совпадении owner+session. `enqueue` в одной Room-транзакции consumes session и записывает очередь. Если запись очереди падает, удаление формы откатывается; поздний autosave старой session не создаёт строку заново. Исторические drafts без owner не присваиваются следующему аккаунту.
+
+## Реализованная серверная схема 0.3
+Текущий исполняемый контракт — app/contracts.py, модели app/main.py и Alembic0001–0005. Логическая модель выше описывает также OPEN-бизнес-разделы и не означает наличие этих таблиц в поставке.
+User.auth_version и Token.auth_version связывают token с поколением credentials; reset/deactivate выполняют атомарный SQL increment и отзыв. Assignment текущего ядра — уникальная пара user_id/site_id для ACL, не план смены/expected report. AdminEvent содержит actor/action/target/details/timestamp без пароля/токена. ReportData хранит структурированный JSON; история и receipt фиксируются отдельно по revision.

@@ -35,3 +35,14 @@
 | ADR-018 | Незавершённая Android-форма отдельно от очереди; owner+session nonce и атомарный enqueue/consume | ACCEPTED | Сохранять частичный ввод без автоотправки; не восстанавливать старую форму после принятой отправки; при отказе записи сохранить форму |
 
 26.10.2026: Android поддерживает один активный редактор/форму аккаунта (`singleTask`). При переходе к исправлению другого отчёта замена текущей формы подтверждается пользователем. Это техническая защита данных, не утверждение открытых полей SPEC-00.
+
+
+| ID | Решение | Статус | Обоснование |
+|---|---|---|---|
+| ADR-019 | Endpoint внутри encrypted session, immutable client; установка закреплена после первого login | ACCEPTED | Не отправлять локальные данные на незаметно заменённый сервер |
+| ADR-020 | User/Token auth_version, SQL increment при reset/deactivate | ACCEPTED | Закрыть конкурентный выпуск token старого пароля |
+| ADR-021 | Admin UI без разрушительного удаления, role immutable и admin deactivation HTTP forbidden | ACCEPTED | История и доступ оператора сохраняются |
+| ADR-022 | Windows runtime за локальным HTTPS proxy, manifest и один worker | ACCEPTED технически | Воспроизводимая поставка; actual ENV-00 ещё открыт |
+| ADR-023 | Ручной структурированный импорт, server POST для author/idempotency | ACCEPTED технически | Не угадывать дату/автора/фото и не присваивать чужую receipt |
+
+B01–B14 всё ещё OPEN. Технические решения не утверждают business finance/catalog/schedule/LLM-policy или юридическую приёмку.

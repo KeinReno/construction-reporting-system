@@ -14,7 +14,7 @@
 | DEV-03 | 3 | FastAPI + PostgreSQL + роли + финансы + вложения | IN_PROGRESS | Миграции, тесты API, совместимость с mock |
 | DEV-04 | 4 | Web UI + отчётность + фильтры + графики | IN_PROGRESS | Синтетические цифры сверяются с БД |
 | DEV-05 | 5 | Интеграция Android/API/Web, минимальная AI-аналитика, test deploy | IN_PROGRESS | E2E на реальном API |
-| QA-06 | 6 | Сквозные сценарии | TODO | Отчёт → БД → Web |
+| QA-06 | 6 | Технический сквозной сценарий | DONE | Android HTTPS Worker → API → БД → настоящий Web; CI 850635b |
 | QA-07 | 7 | Обрывы, повторы, фото, ревизии | TODO | Нет потерь и ложной доставки |
 | QA-08 | 8 | ACL, доступ с VPN/без, backup/restore | TODO | Протокол испытаний |
 | QA-09 | 9 | Полевые сценарии сотрудников | TODO | Замечания с приоритетами |
@@ -32,16 +32,16 @@
 |---|---|---|---|
 | TECH-01 | API-конкурентность, идемпотентность и история | DONE | pytest: одновременные create/edit/submit, receipts, ACL |
 | TECH-02 | Фото: валидация, повтор, конфликт UUID без порчи файла | DONE | Pillow + SHA + race regression |
-| TECH-03 | Alembic 0001–0003 и сохранение старой строки | DONE | SQLite upgrade/downgrade/upgrade; PostgreSQL CI |
+| TECH-03 | Alembic 0001–0005 и сохранение старой строки | DONE | SQLite upgrade/downgrade/upgrade; PostgreSQL CI |
 | TECH-04 | Фильтрованные Decimal-сводки и whitelist аналитик | DONE | API-тесты периода/ACL/prompt injection |
-| TECH-05 | Web review/источники/история/фото и защита от старой сессии | DONE | build PASS; Playwright 2/2 на реальном API |
-| TECH-06 | Android owner isolation, recovery receipt, revisions | IN_PROGRESS | CI unit/APK; полевой прогон NOT_TESTED |
-| TECH-09 | Web/API: пользователи, объекты, доступы, аудит | IN_PROGRESS | Admin ACL, session revoke, real API E2E |
-| TECH-12 | Ручной импорт исторических структурированных пакетов | IN_PROGRESS | Preflight, dates/photos, ACL, идемпотентность |
-| TECH-13 | Локальный аналитик: ограниченные вопросы/причины/хронология | IN_PROGRESS | Нет выдуманных метрик/скрытых текстовых фильтров |
-| TECH-11 | Android: HTTPS endpoint и реальный API/Worker E2E | IN_PROGRESS | TLS, origin binding, receipt/revision через FastAPI |
-| TECH-10 | Windows runtime package/startup/readiness | IN_PROGRESS | PowerShell install/run/lock + Windows CI |
+| TECH-05 | Web review/источники/история/фото и защита от старой сессии | DONE | build PASS; Playwright 3/3 на реальном API |
+| TECH-06 | Android owner isolation, recovery receipt, revisions | DONE | 13 JVM + 11 Android35; физический полевой прогон NOT_TESTED |
+| TECH-09 | Web/API: пользователи, объекты, доступы, аудит | DONE | Admin ACL, session revoke, real API E2E |
+| TECH-12 | Ручной импорт исторических структурированных пакетов | DONE | Preflight, dates/photos, ACL, идемпотентность |
+| TECH-13 | Локальный аналитик: ограниченные вопросы/причины/хронология | DONE | Нет выдуманных метрик/скрытых текстовых фильтров |
+| TECH-11 | Android: HTTPS endpoint и реальный API/Worker E2E | DONE | TLS, origin binding, receipt/revision через FastAPI |
+| TECH-10 | Windows runtime package/startup/readiness | DONE | PowerShell install/run/lock + Windows CI |
 | TECH-08 | Android: автосохранение частичной формы и emulator Room/recreation | DONE | Room 4; 11 JVM + 8 Android 35 tests PASS; raw input, nonce/rollback, migration 1/2/3→4, recreation |
 | TECH-07 | Offline backup+restore и контроль целостности | DONE | SQLite drill PASS; PostgreSQL pg_dump/restore PASS |
 
-DEV-01…05 остаются IN_PROGRESS: полная форма, расписания, бизнес-каталоги и эксплуатационная приёмка не завершены. SPEC/ENV/QA не отмечены DONE заочно. [Точный статус](docs/IMPLEMENTATION_STATUS.md), [проверки](docs/QA_2026-10-25.md).
+DEV-01…05 остаются IN_PROGRESS: полная форма, расписания, бизнес-каталоги и эксплуатационная приёмка не завершены. SPEC/ENV и полевые QA не отмечены DONE заочно. [Точный статус](docs/IMPLEMENTATION_STATUS.md), [проверки](docs/QA_RELEASE_2026-10-26.md).

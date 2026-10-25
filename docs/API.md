@@ -64,7 +64,11 @@
 - Повтор ранее сохранённого фото допустим после submit/review. Новые фото только для draft. Содержимое проверяется Pillow и SHA256; пути UUID+SHA исключают порчу файла проигравшим конкурентным запросом.
 - `GET reports`: `site_id?,from_date?,to_date?,page=1,page_size=100` (1…200), массив в стабильном порядке date desc/id. Клиент перебирает страницы до неполной.
 - `GET analytics/summary`: те же site/from_date/to_date; подтверждённые отчёты, точные объёмы отдельно по объекту/типу/единице, `daily`, `source_report_ids`, `period`, `limitations`.
-- `POST analytics/ask`: явный intent + фильтры, режим local_analytics, без внешней LLM. См. AI_ANALYTICS.
+- `POST analytics/ask`: явный intent либо auto с конечными шаблонами + фильтры, режим local_analytics, без внешней LLM. См. AI_ANALYTICS.
 - `GET reports/{id}/history`: события, revision, actor_id, occurred_at, reason, payload_before, receipt_id. Снимки истории защищены тем же ACL.
-- `POST auth/logout` отзывает текущий токен. Login выдаёт сессию на 8 часов; refresh отсутствует. Технические ошибки используют FastAPI `detail`; единая целевая схема field_errors ещё не реализована.
-- Пока отсутствуют: expected reports/compliance, assignments/reference API, materials/incidents/finance API и админские HTTP-записи. Не считать их частью реализованного OpenAPI.
+- `POST auth/logout` отзывает текущий токен. Login выдаёт сессию на 8 часов; refresh отсутствует. Token привязан к auth_version пользователя: reset/deactivate отзывают в том числе гонку уже проверенного старого входа. Технические ошибки используют FastAPI `detail`; единая целевая схема field_errors ещё не реализована.
+- Пока отсутствуют: expected reports/compliance, бизнес-справочники работ/материалов и materials/incidents/finance API. Не считать их частью реализованного OpenAPI.
+
+## Администрирование и runtime 0.3
+`GET/POST admin/users`, `PATCH admin/users/{id}` (active/password; role immutable), `POST admin/sites`, `GET/POST admin/assignments`, `DELETE admin/assignments/{id}`, `GET admin/audit` — только admin. Пароли/hash/token digest не возвращаются и не пишутся в audit. Отключение admin через HTTP запрещено; assignment unique(user,site), повтор grant идемпотентен. Физическое удаление users/sites/reports не реализовано.
+`GET /ready` проверяет доступность полной схемы;503 без раскрытия DSN. `/health` — liveness. `WEB_DIR` отдаёт только built index/assets отдельно от private uploads/БД. Auto ask — конечные шаблоны, supported=false/metrics=null для неподдерживаемого.

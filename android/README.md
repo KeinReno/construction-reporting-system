@@ -1,4 +1,4 @@
-# Android — offline-first
+# Android 0.3.0 — offline-first
 
 Compose + Room + WorkManager. Формы `work`/`no_work`, несколько работ, фото, очередь, receipt, авторская привязка локальных данных, кэш объектов, возврат и исправление отчётов. Транспорт и бизнес-статус показываются отдельно.
 
@@ -8,9 +8,9 @@ gradle :app:testDebugUnitTest :app:assembleDebug -PapiBaseUrl=https://example.or
 # при подключённом эмуляторе/устройстве Android:
 gradle :app:connectedDebugAndroidTest -PapiBaseUrl=https://example.org/api/v1
 ```
-Требуются JDK 17, Gradle 8.13, Android SDK 35. Указать реальный согласованный HTTPS endpoint; стандартный example.invalid не подключается к серверу. APK GitHub Actions — debug, не подписанный производственный релиз. Gradle установлен CI, wrapper пока отсутствует.
+Требуются JDK 17, Gradle 8.13, Android SDK 35. HTTPS-адрес задаётся перед первым входом; типовой debug APK не требует пересборки. После успешного входа сервер установки закреплён; Worker использует endpoint из одной encrypted session, отдельный immutable client и не следует redirects. Старые сессии без endpoint отклоняются; при несвязанных legacy данных нужен ручной перенос. GitHub Actions даёт debug APK и release-unsigned APK. Подпись постоянным ключом выполняется владельцем вне Git; debug не производственный релиз. Gradle установлен CI, wrapper пока отсутствует.
 
-Тесты проверяют retry-классификацию, сравнение payload и независимую от UI машину отправки: повторные исправления после ошибки фото, потерю PATCH/submit-response и защиту от изменения серверного документа. Добавлены instrumented tests на Android 35: реальные SQLite/Room migration, закрытие/повторное открытие БД, nonce/rollback/ACL локальных форм и Compose Activity recreation. Они не заменяют killed-process/relaunch, WorkManager/network fault injection и испытание OPPO Reno8 5G.
+Тесты проверяют retry-классификацию, сравнение payload и независимую от UI машину отправки: повторные исправления после ошибки фото, потерю PATCH/submit-response и защиту от изменения серверного документа. Добавлены instrumented tests на Android 35: реальные SQLite/Room migration, закрытие/повторное открытие БД, nonce/rollback/ACL локальных форм и Compose Activity recreation. Они не заменяют killed-process/relaunch, планирование WorkManager ОС и физические обрывы связи и испытание OPPO Reno8 5G. CI также проверяет реальный TLS Worker и Web-readback того же отчёта; тестовый CA не входит в production APK.
 
 После первого успешного входа объекты кэшируются для офлайн-формы. Сохранение подтверждается только после Room commit. После истечения токена войти заново и нажать «Повторить отправку». Постоянные ошибки требуют проверки; отклонённый локальный отчёт можно исправить. Для возвращённого сервером отчёта нажать «Проверить статус / исправить», внести правки с причиной и отправить новую revision.
 
