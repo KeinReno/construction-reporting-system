@@ -10,12 +10,13 @@ import java.security.MessageDigest
 /** Must only be called from Dispatchers.IO / Worker, never directly on the UI thread. */
 class ApiException(val status:Int, message:String): Exception(message)
 
-object ApiClient {
-    private val root = BuildConfig.API_BASE_URL.trimEnd('/')
+class ApiClient(endpoint:String=BuildConfig.API_BASE_URL) {
+    private val root = HttpsEndpoint.normalize(endpoint)
     private fun request(path:String,method:String="GET",token:String?=null,body:ByteArray?=null,mime:String="application/json",sha:String?=null): JSONObject {
         require(root.startsWith("https://")) { "A HTTPS API endpoint must be configured at build time" }
         val connection=URL(root + path).openConnection() as HttpURLConnection
         try {
+            connection.instanceFollowRedirects=false
             connection.requestMethod=method
             connection.connectTimeout=15000
             connection.readTimeout=30000
@@ -45,6 +46,7 @@ object ApiClient {
         val endpoint = URL(root + "/sites")
         val connection=endpoint.openConnection() as HttpURLConnection
         try {
+            connection.instanceFollowRedirects=false
             connection.connectTimeout=15000;connection.readTimeout=15000
             connection.setRequestProperty("Authorization","Bearer $token")
             if(connection.responseCode !in 200..299) throw ApiException(connection.responseCode,"Cannot load objects: HTTP ${connection.responseCode}")

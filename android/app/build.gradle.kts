@@ -12,8 +12,9 @@ android {
         minSdk = 26
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = 2
-        versionName = "0.2.0"
+        testInstrumentationRunnerArguments["crsApiBase"]=providers.gradleProperty("crsTestApiBase").orElse("").get()
+        versionCode = 3
+        versionName = "0.3.0"
         val baseUrl = providers.gradleProperty("apiBaseUrl").orElse("https://example.invalid/api/v1").get()
         buildConfigField("String", "API_BASE_URL", "\"$baseUrl\"")
     }
@@ -22,6 +23,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
+    androidTestImplementation("androidx.work:work-testing:2.10.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:core-ktx:1.6.1")

@@ -20,15 +20,16 @@ class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(conte
     override suspend fun doWork():Result = withContext(Dispatchers.IO) {
         val session=SecureSession(applicationContext)
         val identity=session.snapshot() ?: return@withContext Result.success()
+        val api=ApiClient(identity.endpoint)
         val token=identity.token
         val owner=identity.userId
         val dao=AppDatabase.get(applicationContext).drafts()
         val transport=object: ReportTransport {
-            override fun existing(clientId:String)=ApiClient.existingByClient(token,clientId)
-            override fun create(payload:JSONObject)=ApiClient.draft(token,payload)
-            override fun edit(id:String,payload:JSONObject,revision:Int,reason:String)=ApiClient.edit(token,id,payload,revision,reason)
-            override fun upload(id:String,photo:JSONObject)=ApiClient.upload(token,id,photo)
-            override fun submit(id:String,revision:Int)=ApiClient.submit(token,id,revision)
+            override fun existing(clientId:String)=api.existingByClient(token,clientId)
+            override fun create(payload:JSONObject)=api.draft(token,payload)
+            override fun edit(id:String,payload:JSONObject,revision:Int,reason:String)=api.edit(token,id,payload,revision,reason)
+            override fun upload(id:String,photo:JSONObject)=api.upload(token,id,photo)
+            override fun submit(id:String,revision:Int)=api.submit(token,id,revision)
         }
         val sync=ReportSync(transport) { dao.save(it) }
         var retry=false

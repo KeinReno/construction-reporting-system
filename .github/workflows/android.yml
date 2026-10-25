@@ -9,6 +9,20 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare disposable HTTPS API and test-only certificate
+        run: |
+          pip install -r backend/requirements.lock.txt
+          mkdir -p android/app/src/androidTest/assets
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout "$RUNNER_TEMP/crs-ci.key" -out android/app/src/androidTest/assets/ci-ca.pem -days 1 -subj "/CN=crs-ci" -addext "subjectAltName=IP:10.0.2.2,DNS:localhost,IP:127.0.0.1"
+          python backend/tests/android_server.py --cert android/app/src/androidTest/assets/ci-ca.pem --key "$RUNNER_TEMP/crs-ci.key" > "$RUNNER_TEMP/crs-api.log" 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -ksf https://127.0.0.1:8443/ready; then break; fi
+            sleep 1
+          done
+          curl -ksf https://127.0.0.1:8443/ready
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -33,7 +47,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
-          script: cd android && gradle :app:connectedDebugAndroidTest -PapiBaseUrl=https://example.invalid/api/v1 --stacktrace
+          script: cd android && gradle :app:connectedDebugAndroidTest -PapiBaseUrl=https://example.invalid/api/v1 -PcrsTestApiBase=https://10.0.2.2:8443/api/v1 --stacktrace
       - uses: actions/upload-artifact@v4
         if: always()
         with:

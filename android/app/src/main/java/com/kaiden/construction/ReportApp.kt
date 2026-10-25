@@ -39,6 +39,17 @@ fun ReportApp() {
     val database=remember { AppDatabase.get(context) }
     val dao=remember { database.drafts() }
     val formRepository=remember { FormRepository(database) }
+    val endpointSettings=remember {EndpointSettings(context,database)}
+    var serverUrl by remember {mutableStateOf(session.snapshot()?.endpoint?:endpointSettings.current())}
+    var serverInput by remember {mutableStateOf(serverUrl)}
+    var serverReady by remember {mutableStateOf(session.snapshot()!=null || endpointSettings.isBound())}
+    val api=remember(serverUrl){ApiClient(serverUrl)}
+    LaunchedEffect(Unit) {
+        if(!serverReady && !serverUrl.contains("example.invalid")) {
+            try {serverUrl=withContext(Dispatchers.IO){endpointSettings.configure(serverUrl)};serverReady=true}
+            catch(e:Exception){error=e.message?:"Укажите адрес сервера"}
+        }
+    }
     val ownerId=session.userId() ?: ""
     val drafts by remember(ownerId) { dao.observeAll(ownerId) }.collectAsState(initial=emptyList())
     val siteCache=remember { context.getSharedPreferences("site-cache",Context.MODE_PRIVATE) }
@@ -52,7 +63,7 @@ fun ReportApp() {
                     val array=JSONArray(cached)
                     sites=(0 until array.length()).map { val s=array.getJSONObject(it); s.getString("id") to s.getString("name") }
                 }
-                sites=withContext(Dispatchers.IO) { ApiClient.sites(token!!) }
+                sites=withContext(Dispatchers.IO) { api.sites(token!!) }
                 siteCache.edit().putString(ownerId,JSONArray(sites.map { JSONObject().put("id",it.first).put("name",it.second) }).toString()).apply()
                 SyncWorker.schedule(context)
             } catch(e:CancellationException){throw e}
@@ -63,18 +74,23 @@ fun ReportApp() {
         Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.Center) {
             Text("СтройКонтроль",style=MaterialTheme.typography.headlineMedium)
             Text("Служебное приложение бригадира",modifier=Modifier.padding(bottom=28.dp))
+            OutlinedTextField(serverInput,{serverInput=it},label={Text("HTTPS-адрес сервера")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+            OutlinedButton(enabled=!busy,onClick={busy=true;scope.launch {
+                try {serverUrl=withContext(Dispatchers.IO){endpointSettings.configure(serverInput)};serverInput=serverUrl;serverReady=true;error=""}
+                catch(e:Exception){error=e.message?:"Не удалось сохранить адрес"}finally{busy=false}
+            }}){Text("Сохранить адрес сервера")}
             OutlinedTextField(login,{login=it},label={Text("Логин")},modifier=Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(password,{password=it},label={Text("Пароль")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
             if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
             Spacer(Modifier.height(16.dp))
-            Button(enabled=!busy && login.isNotBlank() && password.isNotBlank(),onClick={
+            Button(enabled=!busy && serverReady && login.isNotBlank() && password.isNotBlank(),onClick={
                 busy=true;error=""
                 scope.launch {
                     try {
-                        val result=withContext(Dispatchers.IO){ApiClient.login(login,password)}
-                        val userId=withContext(Dispatchers.IO){ApiClient.me(result)}
-                        session.save(result,userId);token=result;password=""
+                        val result=withContext(Dispatchers.IO){api.login(login,password)}
+                        val userId=withContext(Dispatchers.IO){api.me(result)}
+                        endpointSettings.bindAfterLogin(serverUrl);session.save(result,userId,serverUrl);token=result;password=""
                     }catch(e:Exception){error=e.message?:"Неверные данные"}
                     finally{busy=false}
                 }
@@ -179,7 +195,7 @@ fun ReportApp() {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()) {
             Text("Новый отчёт",style=MaterialTheme.typography.headlineSmall)
-            TextButton(enabled=!busy,onClick={val oldToken=token;session.clear();token=null;sites=emptyList();scope.launch(Dispatchers.IO){try{if(oldToken!=null)ApiClient.logout(oldToken)}catch(_:Exception){}}}) {Text("Выход")}
+            TextButton(enabled=!busy,onClick={val oldToken=token;session.clear();token=null;sites=emptyList();scope.launch(Dispatchers.IO){try{if(oldToken!=null)api.logout(oldToken)}catch(_:Exception){}}}) {Text("Выход")}
         }
         if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
         Text(autosaveStatus,style=MaterialTheme.typography.bodySmall)
@@ -263,7 +279,7 @@ fun ReportApp() {
                     if(draft.serverId!=null && editing==null)TextButton(enabled=!busy,onClick={
                         busy=true;scope.launch {
                             try {
-                                val remote=withContext(Dispatchers.IO){ApiClient.existingByClient(token!!,draft.id)}
+                                val remote=withContext(Dispatchers.IO){api.existingByClient(token!!,draft.id)}
                                 val updated=draft.copy(serverRevision=remote.getInt("revision"),businessStatus=remote.getString("status"))
                                 withContext(Dispatchers.IO){dao.save(updated)}
                                 if(remote.getString("status")!="needs_revision") {formError="Статус обновлён: ${remote.getString("status")}"}

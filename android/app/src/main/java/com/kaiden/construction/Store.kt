@@ -40,6 +40,8 @@ data class Draft(
 
 @Dao
 interface DraftDao {
+    @Query("SELECT COUNT(*) FROM drafts")
+    suspend fun countAll():Int
     @Query("SELECT * FROM drafts WHERE ownerId = :ownerId ORDER BY createdAt DESC")
     fun observeAll(ownerId: String): Flow<List<Draft>>
     @Query("SELECT * FROM drafts WHERE ownerId = :ownerId AND status IN ('queued','uploading') ORDER BY createdAt ASC")
@@ -56,6 +58,8 @@ data class FormRecord(@PrimaryKey val ownerId:String,val sessionId:String,val pa
 
 @Dao
 interface FormDao {
+    @Query("SELECT COUNT(*) FROM report_forms")
+    suspend fun countAll():Int
     @Query("SELECT * FROM report_forms WHERE ownerId = :ownerId")
     suspend fun get(ownerId:String):FormRecord?
     @Insert(onConflict=OnConflictStrategy.ABORT)
