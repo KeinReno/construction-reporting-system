@@ -8,6 +8,7 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Request, Response, 
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, model_validator, ConfigDict
+from app.contracts import Input, Work, ReportData
 from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer, UniqueConstraint, delete, text, update
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
 from sqlalchemy.orm.exc import StaleDataError
@@ -18,9 +19,6 @@ def new_id(): return str(uuid.uuid4())
 def utcnow(): return datetime.now(timezone.utc)
 
 class Base(DeclarativeBase): pass
-class Input(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
 class User(Base):
     __tablename__='users'
     id:Mapped[str]=mapped_column(String(36),primary_key=True,default=new_id)
@@ -119,33 +117,6 @@ def password_ok(p:str, stored:str)->bool:
 class Login(Input):
     login:str=Field(min_length=1,max_length=128)
     password:str=Field(min_length=1,max_length=1024)
-class Work(Input):
-    type:str=Field(min_length=1,max_length=200)
-    quantity:Decimal|None=Field(default=None,ge=0,max_digits=20,decimal_places=6,allow_inf_nan=False)
-    unit:str|None=Field(default=None,max_length=50)
-    description:str|None=Field(default=None,max_length=2000)
-    @model_validator(mode='after')
-    def valid(self):
-        if not self.type.strip(): raise ValueError('type required')
-        if self.quantity is None and not (self.description or '').strip(): raise ValueError('quantity or description required')
-        if self.quantity is not None and not (self.unit or '').strip(): raise ValueError('unit required')
-        return self
-class ReportData(Input):
-    client_report_id:uuid.UUID
-    site_id:uuid.UUID
-    work_date:date
-    kind:Literal['work','no_work']
-    no_work_reason:str|None=Field(default=None,max_length=2000)
-    work_entries:list[Work]=Field(default_factory=list,max_length=100)
-    comment:str|None=Field(default=None,max_length=5000)
-    required_photo_ids:list[uuid.UUID]=Field(default_factory=list,max_length=30)
-    @model_validator(mode='after')
-    def valid(self):
-        if self.kind=='work' and not self.work_entries: raise ValueError('work_entries required')
-        if self.kind=='no_work' and not (self.no_work_reason or '').strip(): raise ValueError('no_work_reason required')
-        if self.kind=='no_work' and self.work_entries: raise ValueError('no_work cannot contain work entries')
-        if len(set(self.required_photo_ids)) != len(self.required_photo_ids): raise ValueError('duplicate photo ids')
-        return self
 class Revision(Input):
     expected_revision:int=Field(ge=1)
 class Edit(Revision):

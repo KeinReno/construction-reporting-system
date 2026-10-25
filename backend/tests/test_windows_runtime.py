@@ -15,15 +15,19 @@ def test_windows_release_lifecycle(tmp_path):
         return subprocess.run([str(ps),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(root/'scripts/windows'/script),*map(str,args)],capture_output=True,text=True,timeout=timeout)
     installed=run('Install-Runtime.ps1','-Python',sys.executable)
     assert installed.returncode==0,installed.stdout+installed.stderr
-    data=tmp_path/'private data';data.mkdir();database=tmp_path/'runtime.db';config=data/'config.local.json'
-    config.write_text(json.dumps({'database_url':'sqlite:///'+database.as_posix(),'data_dir':str(data)}),encoding='utf-8')
+    data=tmp_path/'private данные';data.mkdir();database=tmp_path/'runtime.db';config=data/'config.local.json'
+    config.write_text(json.dumps({'database_url':'sqlite:///'+database.as_posix(),'data_dir':str(data)},ensure_ascii=False),encoding='utf-8')
     args=['-ConfigPath',str(config),'-AllowSqliteForTests','-Port','8043']
     # Normal production mode rejects SQLite before any mutation; credentials are never printed.
     denied=run('Run.ps1','-ConfigPath',config,'-ValidateOnly')
     assert denied.returncode!=0 and 'sqlite:///' not in denied.stdout+denied.stderr
     valid=run('Run.ps1',*args,'-ValidateOnly');assert valid.returncode==0,valid.stderr
+    asset=root/'web/index.html';original=asset.read_bytes();asset.write_bytes(b'corrupt')
+    corrupt=run('Run.ps1',*args,'-ValidateOnly')
+    assert corrupt.returncode!=0 and 'checksum mismatch' in corrupt.stderr
+    asset.write_bytes(original)
     assert run('Run.ps1',*args,'-MigrateOnly').returncode==0
-    cfg_pg=data/'task-config.json';cfg_pg.write_text(json.dumps({'database_url':'postgresql+psycopg://user:SecretNotPrinted123@localhost/test','data_dir':str(data)}),encoding='utf-8')
+    cfg_pg=data/'task-config.json';cfg_pg.write_text(json.dumps({'database_url':'postgresql+psycopg://user:SecretNotPrinted123@localhost/test','data_dir':str(data)},ensure_ascii=False),encoding='utf-8')
     task=run('Register-Startup.ps1','-ConfigPath',cfg_pg,'-ValidateOnly')
     assert task.returncode==0,task.stderr
     assert 'SecretNotPrinted123' not in task.stdout+task.stderr

@@ -37,6 +37,8 @@
 | TECH-05 | Web review/источники/история/фото и защита от старой сессии | DONE | build PASS; Playwright 2/2 на реальном API |
 | TECH-06 | Android owner isolation, recovery receipt, revisions | IN_PROGRESS | CI unit/APK; полевой прогон NOT_TESTED |
 | TECH-09 | Web/API: пользователи, объекты, доступы, аудит | IN_PROGRESS | Admin ACL, session revoke, real API E2E |
+| TECH-12 | Ручной импорт исторических структурированных пакетов | IN_PROGRESS | Preflight, dates/photos, ACL, идемпотентность |
+| TECH-13 | Локальный аналитик: ограниченные вопросы/причины/хронология | IN_PROGRESS | Нет выдуманных метрик/скрытых текстовых фильтров |
 | TECH-11 | Android: HTTPS endpoint и реальный API/Worker E2E | IN_PROGRESS | TLS, origin binding, receipt/revision через FastAPI |
 | TECH-10 | Windows runtime package/startup/readiness | IN_PROGRESS | PowerShell install/run/lock + Windows CI |
 | TECH-08 | Android: автосохранение частичной формы и emulator Room/recreation | DONE | Room 4; 11 JVM + 8 Android 35 tests PASS; raw input, nonce/rollback, migration 1/2/3→4, recreation |

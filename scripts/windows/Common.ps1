@@ -16,6 +16,12 @@ function Read-AppSettings([string]$ConfigPath,[switch]$AllowSqliteForTests) {
     if ($configFull.StartsWith($web+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Private configuration must not be in public Web directory' }
     return @{ Root=$root; DatabaseUrl=[string]$cfg.database_url; DataDir=$data; WebDir=$web }
 }
+function Get-ReleaseHash([string]$Path) {
+    $algorithm=[Security.Cryptography.SHA256]::Create()
+    $stream=[IO.File]::OpenRead($Path)
+    try { return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-','').ToLowerInvariant() }
+    finally { $stream.Dispose();$algorithm.Dispose() }
+}
 function Test-ReleaseIntegrity([string]$Root) {
     $manifestPath=Join-Path $Root 'release-manifest.json'
     if (-not (Test-Path -LiteralPath $manifestPath)) { throw 'Use a packaged release with release-manifest.json' }
@@ -25,6 +31,6 @@ function Test-ReleaseIntegrity([string]$Root) {
     foreach($entry in $manifest.sha256.PSObject.Properties) {
         $path=[IO.Path]::GetFullPath((Join-Path $Root $entry.Name))
         if (-not $path.StartsWith($base,[StringComparison]::OrdinalIgnoreCase) -or $entry.Value -notmatch '^[0-9a-f]{64}$') { throw 'Invalid release manifest entry' }
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.Value) { throw 'Release checksum mismatch' }
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Get-ReleaseHash $path) -ne $entry.Value) { throw 'Release checksum mismatch' }
     }
 }

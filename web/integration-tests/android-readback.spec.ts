@@ -1,0 +1,22 @@
+import { test,expect } from '@playwright/test';
+test('Android-created report persists through real API into Web and review',async({page})=>{
+  await page.goto('/');
+  await page.getByLabel('Логин',{exact:true}).fill('manager');
+  await page.getByLabel('Пароль',{exact:true}).fill('SyntheticPassword123');
+  await page.getByRole('button',{name:'Войти',exact:true}).click();
+  await expect(page.getByText('2.25 m',{exact:true})).toBeVisible();
+  await page.locator('tbody tr').first().click();
+  const report=page.getByRole('dialog');
+  await expect(report.getByText('Комментарий: Corrected synthetic comment')).toBeVisible();
+  await expect(report.getByText('Статус: submitted · ревизия 2')).toBeVisible();
+  await expect(report.locator('img')).toHaveJSProperty('naturalWidth',2);
+  await expect(report.locator('li').filter({hasText:'submitted'})).toHaveCount(2);
+  await report.getByRole('button',{name:'Проверен',exact:true}).click();
+  await expect(report.getByText('Статус: reviewed · ревизия 2')).toBeVisible();
+  await report.getByRole('button',{name:'Закрыть ✕'}).click();
+  await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
+  await page.getByRole('button',{name:'Сформировать анализ'}).click();
+  await expect(page.getByRole('heading',{name:'Получено отчётов: 1. Без работ: 0.'})).toBeVisible();
+  await page.getByRole('button',{name:'Отчёт 1',exact:true}).click();
+  await expect(page.getByRole('dialog').getByText('Статус: reviewed · ревизия 2')).toBeVisible();
+});
