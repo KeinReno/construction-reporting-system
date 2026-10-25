@@ -74,6 +74,7 @@ class Change(Base):
     payload_before:Mapped[dict|None]=mapped_column(JSON,nullable=True)
     reason:Mapped[str|None]=mapped_column(String(500),nullable=True)
     occurred_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True),default=utcnow,nullable=True)
+    receipt_id:Mapped[str|None]=mapped_column(String(36),nullable=True)
 
 def hash_password(p:str)->str:
     salt=secrets.token_bytes(16)
@@ -185,7 +186,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         if u.role=='foreman' and r.author_id!=u.id: raise HTTPException(403,'Author access denied')
         return r
     def log(db,r,u,event,before=None,reason=None):
-        db.add(Change(report_id=r.id,actor_id=u.id,revision=r.revision,event=event,payload_before=before,reason=reason))
+        db.add(Change(report_id=r.id,actor_id=u.id,revision=r.revision,event=event,payload_before=before if before is not None else r.payload,reason=reason,receipt_id=r.receipt_id))
     @api.get('/health')
     def health(): return {'status':'ok'}
     @api.post('/api/v1/auth/login')
@@ -375,6 +376,6 @@ def create_app(database_url=None, storage=None, initialize=False):
     @api.get('/api/v1/reports/{rid}/history')
     def history(rid:uuid.UUID,db:Session=Depends(dbdep),u:User=Depends(current)):
         fetch(db,u,str(rid))
-        return [{'id':x.id,'revision':x.revision,'event':x.event,'reason':x.reason,'actor_id':x.actor_id,'occurred_at':stamp(x.occurred_at),'payload_before':x.payload_before} for x in db.scalars(select(Change).where(Change.report_id==str(rid)).order_by(Change.occurred_at,Change.id)).all()]
+        return [{'id':x.id,'revision':x.revision,'event':x.event,'reason':x.reason,'actor_id':x.actor_id,'occurred_at':stamp(x.occurred_at),'payload_before':x.payload_before,'receipt_id':x.receipt_id} for x in db.scalars(select(Change).where(Change.report_id==str(rid)).order_by(Change.occurred_at,Change.id)).all()]
     return api
 app=create_app()

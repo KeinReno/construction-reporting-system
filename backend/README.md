@@ -1,18 +1,30 @@
-# Backend — первый реализованный модуль (development)
+# Backend
 
-Функции: Bearer-сессии и PBKDF2 пароли, назначение доступа к объектам, проверка роли, черновик отчёта с client UUID, идемпотентность, изменение по revision, фиксация полного получения с receipt_id, фото с sha256, возврат на исправление, серверные объёмы по типу/единице, аудит и тесты. Не готово к публичному production deployment: требуется Alembic, rate limiting, review безопасности, бизнес-правила SPEC-00.
+FastAPI + SQLAlchemy; SQLite для разработки, PostgreSQL для рабочего контура. Полный статус и ограничения: [IMPLEMENTATION_STATUS](../docs/IMPLEMENTATION_STATUS.md).
 
-## Локальная проверка
-```
+## Запуск
+```bash
 cd backend
 python -m venv .venv
-# активировать окружение
+# активировать .venv
 pip install -r requirements.txt
-python -m app.cli init-db
+# DATABASE_URL и UPLOAD_DIR задать вне Git
+python -m alembic upgrade head
 python -m app.cli create-admin admin
-uvicorn app.main:app --host 127.0.0.1 --port 8000
-PYTHONPATH=. pytest -q
+python -m app.cli create-user employee foreman
+python -m app.cli create-user supervisor manager
+python -m app.cli create-site "Синтетический объект"
+python -m app.cli grant employee SITE_UUID
+python -m app.cli grant supervisor SITE_UUID
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+python -m pytest -q
 ```
-По умолчанию SQLite — исключительно development. Для эксплуатации PostgreSQL задайте DATABASE_URL; установка и миграции будут добавлены следующим этапом. Никогда не публикуйте uvicorn наружу и не используйте реальные данные заказчика в открытом GitHub.
+CLI запрашивает пароль через getpass; пароли не передаются аргументами. Администратор видит все объекты, manager/foreman получают назначения явно. Foreman видит только собственные отчёты. API слушает localhost за HTTPS reverse proxy. Ограничитель входа in-memory рассчитан на один процесс; перед несколькими workers нужен общий limiter. При истечении восьмичасовой сессии требуется новый вход; refresh не реализован.
 
-Создать объект: `python -m app.cli create-site "Объект 1"`; назначить пользователя: `python -m app.cli grant admin SITE_UUID`. Для тестирования рабочих аккаунтов создавайте их безопасным локальным скриптом/админ-инструментом. Справочники и финансовый журнал до подтверждения в SPEC-00 не реализованы.
+Схема OpenAPI: `/openapi.json`, интерактивный контракт `/docs`. Неизвестные входные поля запрещены. Поля финансов/материалов/инцидентов не включены до SPEC-00.
+
+## Проверки
+- `python -m pytest -q` — SQLite API, конкурентность, миграции, backup/restore.
+- CI задаёт `TEST_DATABASE_URL` **отдельной одноразовой БД** и запускает API/гонки/pg_dump-restore. Fixture удаляет тестовые таблицы; никогда не указывать рабочую БД.
+- Обновление исходной bootstrap-БД: [DEPLOY](../docs/DEPLOY.md).
+- Резервные копии: `python -m app.backup --help`; API должен быть остановлен. Копии содержат БД/токены/фото и хранятся приватно вне репозитория.

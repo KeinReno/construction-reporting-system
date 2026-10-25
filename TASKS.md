@@ -1,7 +1,7 @@
 # TASKS — контроль работ
 
 Статусы: TODO / IN_PROGRESS / BLOCKED / DONE. Нельзя менять TODO→DONE без проверки.
-**Текущая фаза: SPEC-00, бизнес-решения не утверждены; реализация ещё не начиналась.**
+**Текущая фаза: технический MVP в PR #2; SPEC-00 OPEN блокирует спорные бизнес-правила, не технические исправления.**
 
 | ID | Когда | Задача | Статус | Критерий |
 |---|---|---|---|---|
@@ -13,7 +13,7 @@
 | DEV-02 | 2 | Android: очередь, вложения, конфликты, статусы | IN_PROGRESS | Mock API, повтор без дублирования |
 | DEV-03 | 3 | FastAPI + PostgreSQL + роли + финансы + вложения | IN_PROGRESS | Миграции, тесты API, совместимость с mock |
 | DEV-04 | 4 | Web UI + отчётность + фильтры + графики | IN_PROGRESS | Синтетические цифры сверяются с БД |
-| DEV-05 | 5 | Интеграция Android/API/Web, минимальная AI-аналитика, test deploy | TODO | E2E на реальном API |
+| DEV-05 | 5 | Интеграция Android/API/Web, минимальная AI-аналитика, test deploy | IN_PROGRESS | E2E на реальном API |
 | QA-06 | 6 | Сквозные сценарии | TODO | Отчёт → БД → Web |
 | QA-07 | 7 | Обрывы, повторы, фото, ревизии | TODO | Нет потерь и ложной доставки |
 | QA-08 | 8 | ACL, доступ с VPN/без, backup/restore | TODO | Протокол испытаний |
@@ -26,8 +26,16 @@
 
 Изменения scope и решения фиксировать в `docs/DECISIONS.md`. С дня 6 — только испытания и исправления; новые функции в backlog.
 
-## Реальный прогресс ветки feat/mvp-core-bootstrap
-- DEV-01/02/03/04 помечены IN_PROGRESS: код загружен, но полный контракт PRODUCT/SPEC-00 не реализован. CI зелёный: backend pytest, web build, Android assembleDebug.
-- APK отладочной сборки сформирован GitHub Actions; в нём указан example.invalid API, до настройки HTTPS заказчика вход невозможен.
-- DEV-05 и QA пока не завершены; интеграционные и реальные полевые тесты NOT_TESTED.
-- Детально: [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
+## Проверенные технические подзадачи PR #2
+
+| ID | Результат | Статус | Доказательство |
+|---|---|---|---|
+| TECH-01 | API-конкурентность, идемпотентность и история | DONE | pytest: одновременные create/edit/submit, receipts, ACL |
+| TECH-02 | Фото: валидация, повтор, конфликт UUID без порчи файла | DONE | Pillow + SHA + race regression |
+| TECH-03 | Alembic 0001–0003 и сохранение старой строки | DONE | SQLite upgrade/downgrade/upgrade; PostgreSQL CI |
+| TECH-04 | Фильтрованные Decimal-сводки и whitelist аналитик | DONE | API-тесты периода/ACL/prompt injection |
+| TECH-05 | Web review/источники/история/фото и защита от старой сессии | DONE | build PASS; Playwright 2/2 на реальном API |
+| TECH-06 | Android owner isolation, recovery receipt, revisions | IN_PROGRESS | CI unit/APK; полевой прогон NOT_TESTED |
+| TECH-07 | Offline backup+restore и контроль целостности | DONE | SQLite drill PASS; PostgreSQL pg_dump/restore PASS |
+
+DEV-01…05 остаются IN_PROGRESS: полная форма, расписания, бизнес-каталоги и эксплуатационная приёмка не завершены. SPEC/ENV/QA не отмечены DONE заочно. [Точный статус](docs/IMPLEMENTATION_STATUS.md), [проверки](docs/QA_2026-10-25.md).

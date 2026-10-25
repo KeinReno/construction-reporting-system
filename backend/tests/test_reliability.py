@@ -145,6 +145,7 @@ def test_new_revision_receipt_and_history(env):
     edited=next(x for x in history if x['event']=='edited')
     assert edited['payload_before']['comment'] is None
     assert edited['occurred_at'] and edited['actor_id']
+    assert [x['receipt_id'] for x in history if x['event']=='submitted']==[first['receipt_id'],second['receipt_id']]
 
 
 def test_concurrent_create_returns_same_report(env):

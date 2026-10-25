@@ -1,5 +1,7 @@
 # API v1 — единый контракт (draft, требует SPEC-00)
 
+**Это целевой расширенный контракт. Фактически реализованное подмножество описано ниже и в `/openapi.json`; поля, ещё не реализованные, возвращают 422.**
+
 **JSON:** snake_case, UUID строкой, даты `YYYY-MM-DD`, timestamps ISO-8601 UTC, Decimal как строка (`"12.50"`), суммы integer minor units. Автор берётся из сессии. Все endpoints проверяют роль/доступ к объекту. Входная модель должна совпадать с генерацией OpenAPI FastAPI и client-DTO Android/Web.
 
 ## Аутентификация и справочники
@@ -52,3 +54,17 @@
 
 ## Зафиксировать после SPEC-00
 Наличие финансовых полей (B05), обязательные фото (B06), расписания (B02), единицу отчёта (B01). Затем генерировать OpenAPI, типизированные DTO и контрактные тесты; этот файл — draft, не официальный OpenAPI JSON.
+
+## Фактический wire-контракт PR #2 (25.10.2026)
+- `ReportData`: `client_report_id,site_id,work_date,kind,no_work_reason?,work_entries[],comment?,required_photo_ids[]`. `work_entries`: `type,quantity?` (Decimal string, максимум 20 цифр/6 десятичных мест, целая часть до 14), `unit?,description?`. `no_work` не содержит выполненных работ. Верхние лимиты: 100 операций, 30 фото, фото 8 MiB, комментарий 5000, причина 2000 знаков. Это технические лимиты, не утверждение B03/B06.
+- Неизвестные поля и неподдерживаемые секции отвергаются 422: они не должны молча теряться.
+- Ответ отчёта: `id,client_report_id,site_id,revision,status,receipt_id,created_at,submitted_at,data`. Поле называется `status`, не `business_status`; Android/Web используют это имя. Время UTC, legacy timestamp может быть null.
+- Повтор идентичного create: 200; новый: 201; другое содержимое/владелец: 409. Одновременный идентичный create также возвращает один id.
+- PATCH: `{expected_revision,data:<полный ReportData>,reason}`; сохраняет исходный payload в истории. Новая revision сбрасывает старую квитанцию; следующий submit выдаёт квитанцию именно этой версии; квитанции предыдущих версий остаются в журнале событий (migration 0003, legacy значения могут быть null). Конкурирующий edit/submit → 409; перечитать состояние и повторить при необходимости.
+- Повтор ранее сохранённого фото допустим после submit/review. Новые фото только для draft. Содержимое проверяется Pillow и SHA256; пути UUID+SHA исключают порчу файла проигравшим конкурентным запросом.
+- `GET reports`: `site_id?,from_date?,to_date?,page=1,page_size=100` (1…200), массив в стабильном порядке date desc/id. Клиент перебирает страницы до неполной.
+- `GET analytics/summary`: те же site/from_date/to_date; подтверждённые отчёты, точные объёмы отдельно по объекту/типу/единице, `daily`, `source_report_ids`, `period`, `limitations`.
+- `POST analytics/ask`: явный intent + фильтры, режим local_analytics, без внешней LLM. См. AI_ANALYTICS.
+- `GET reports/{id}/history`: события, revision, actor_id, occurred_at, reason, payload_before, receipt_id. Снимки истории защищены тем же ACL.
+- `POST auth/logout` отзывает текущий токен. Login выдаёт сессию на 8 часов; refresh отсутствует. Технические ошибки используют FastAPI `detail`; единая целевая схема field_errors ещё не реализована.
+- Пока отсутствуют: expected reports/compliance, assignments/reference API, materials/incidents/finance API и админские HTTP-записи. Не считать их частью реализованного OpenAPI.
