@@ -17,6 +17,7 @@ class FormRecreationTest {
     @Test fun rawInputRestoresAfterActivityRecreationWithoutSending() {
         val context:Context=ApplicationProvider.getApplicationContext()
         val db=AppDatabase.get(context);db.clearAllTables()
+        runBlocking {db.drafts().save(Draft(id="synthetic-failed",ownerId="synthetic-owner",siteId="synthetic-site",siteName="Synthetic offline site",workDate="2026-10-25",kind="work",workEntriesJson="[]",noWorkReason="",comment="Old report",photosJson="[]",status="failed"))}
         SecureSession(context).save("synthetic-offline-token","synthetic-owner")
         context.getSharedPreferences("site-cache",Context.MODE_PRIVATE).edit().putString("synthetic-owner","""[{"id":"synthetic-site","name":"Synthetic offline site"}]""").commit()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -33,6 +34,11 @@ class FormRecreationTest {
             compose.waitUntil(10_000) {compose.onAllNodesWithText("Дата работ YYYY-MM-DD *").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("Дата работ YYYY-MM-DD *").assertTextContains("2026-1")
             compose.onNodeWithText("Выполненный объём").assertTextContains("1,")
+            compose.onNodeWithText("Исправить локальный отчёт").performScrollTo().performClick()
+            compose.onNodeWithText("Открыть другой отчёт?").assertExists()
+            compose.onNodeWithText("Продолжить текущую форму").performClick()
+            compose.onNodeWithText("Выполненный объём").assertTextContains("1,")
+            compose.onNodeWithText("Дата работ YYYY-MM-DD *").assertTextContains("2026-1")
             assertTrue(runBlocking {db.drafts().pending("synthetic-owner").isEmpty()})
         }
         SecureSession(context).clear();db.clearAllTables()

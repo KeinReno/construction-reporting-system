@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -97,6 +98,13 @@ fun ReportApp() {
     var formReload by remember(ownerId) {mutableStateOf(0)}
     var restoreError by remember(ownerId) {mutableStateOf("")}
     var autosaveStatus by remember(ownerId) {mutableStateOf("Восстановление формы…")}
+    var pendingReplacement by remember(ownerId) {mutableStateOf<(() -> Unit)?>(null)}
+    fun currentForm()=FormSnapshot(siteId=selectedSite,workDate=workDate,kind=kind,workType=workType,quantity=quantity,unit=unit,description=description,
+        workEntriesJson=JSONArray(workEntries.toList()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),editing=editing,editReason=editReason)
+    fun replaceForm(action:()->Unit) {
+        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
+        if(hasInput)pendingReplacement=action else action()
+    }
     LaunchedEffect(ownerId,formReload) {
         try {
             val record=withContext(Dispatchers.IO){formRepository.open(ownerId)}
@@ -113,13 +121,12 @@ fun ReportApp() {
     }
     LaunchedEffect(formSession?.sessionId) {
         val record=formSession?:return@LaunchedEffect
-        snapshotFlow { FormSnapshot(siteId=selectedSite,workDate=workDate,kind=kind,workType=workType,quantity=quantity,unit=unit,description=description,
-            workEntriesJson=JSONArray(workEntries.toList()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),editing=editing,editReason=editReason) }
+        snapshotFlow {currentForm()}
             .collect { snapshot ->
                 autosaveStatus="Сохранение формы…"
                 try {
                     val saved=withContext(Dispatchers.IO){formRepository.save(record.copy(payload=snapshot.encode()))}
-                    if(saved)autosaveStatus="Форма сохранена на устройстве"
+                    if(saved && formSession?.sessionId==record.sessionId && currentForm()==snapshot)autosaveStatus="Форма сохранена на устройстве"
                 }catch(e:CancellationException){throw e}
                 catch(e:Exception){autosaveStatus="Автосохранение не выполнено: ${e.message?:"ошибка хранилища"}"}
             }
@@ -218,14 +225,14 @@ fun ReportApp() {
                 if(editing!=null && editReason.trim().length<2)throw IllegalArgumentException("Укажите причину исправления")
                 val saved=Draft(ownerId=ownerId,id=editing?.id?:UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,
                     workEntriesJson=JSONArray(if(kind=="work")workEntries.toList() else emptyList<JSONObject>()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),serverId=editing?.serverId,
-                    serverRevision=editing?.serverRevision?:1,editRequested=editing!=null,editReason=editReason)
+                    serverRevision=editing?.serverRevision?:1,editRequested=editing!=null,editReason=editReason,createdAt=editing?.createdAt?:System.currentTimeMillis())
                 val consumed=formSession?:throw IllegalStateException("Форма ещё не загружена")
                 busy=true
                 scope.launch {
                     try {
                         withContext(Dispatchers.IO){formRepository.enqueue(consumed,saved)}
-                        SyncWorker.schedule(context)
                         workEntries.clear();photos.clear();reason="";comment="";quantity="";description="";editing=null;editReason="";formSession=null;formReload++;formError="Отчёт сохранён локально. Отправка — автоматически."
+                        try {SyncWorker.schedule(context)}catch(e:Exception){formError="Отчёт сохранён в очереди. Не удалось запланировать отправку: ${e.message}"}
                     } catch(e:Exception){formError=e.message?:"Ошибка сохранения. Форма сохранена на экране."}
                     finally{busy=false}
                 }
@@ -240,7 +247,7 @@ fun ReportApp() {
                     Text("${draft.siteName} · ${draft.workDate}")
                     val label=when(draft.status){"delivered"->"Доставлен ✓";"uploading"->"Загрузка…";"failed"->"Нужна проверка / повторный вход";else->"Ожидает отправки"}
                     Text(label,color=if(draft.status=="delivered") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
-                    if(draft.status=="failed" && editing==null)TextButton(enabled=!busy,onClick={
+                    if(draft.status=="failed" && editing==null)TextButton(enabled=!busy,onClick={replaceForm {
                         editing=draft;editReason="Исправление отклонённого отчёта";selectedSite=draft.siteId;workDate=draft.workDate
                         kind=draft.kind;reason=draft.noWorkReason;comment=draft.comment
                         workEntries.clear();val entries=JSONArray(draft.workEntriesJson)
@@ -248,7 +255,7 @@ fun ReportApp() {
                         photos.clear();val localPhotos=JSONArray(draft.photosJson)
                         for(i in 0 until localPhotos.length())photos.add(localPhotos.getJSONObject(i))
                         formError="Отчёт загружен в форму. Исправьте ошибку и сохраните."
-                    }){Text("Исправить локальный отчёт")}
+                    }}){Text("Исправить локальный отчёт")}
                     if(draft.businessStatus!=null)Text("На сервере: ${draft.businessStatus} · версия ${draft.serverRevision}")
                     if(draft.serverId!=null && editing==null)TextButton(enabled=!busy,onClick={
                         busy=true;scope.launch {
@@ -263,6 +270,7 @@ fun ReportApp() {
                                     val localPhotos=JSONArray(draft.photosJson)
                                     val localIds=(0 until localPhotos.length()).map{localPhotos.getJSONObject(it).getString("id")}.toSet()
                                     require((0 until ids.length()).map{ids.getString(it)}.toSet()==localIds){"Фото сервера отличаются от локальных"}
+                                    replaceForm {
                                     editing=updated;selectedSite=draft.siteId;workDate=data.getString("work_date");kind=data.getString("kind")
                                     reason=if(data.isNull("no_work_reason"))"" else data.getString("no_work_reason")
                                     comment=if(data.isNull("comment"))"" else data.getString("comment")
@@ -270,6 +278,7 @@ fun ReportApp() {
                                     for(i in 0 until entries.length())workEntries.add(entries.getJSONObject(i))
                                     photos.clear();for(i in 0 until localPhotos.length())photos.add(localPhotos.getJSONObject(i))
                                     formError="Возвращённый отчёт загружен в форму выше"
+                                    }
                                 }
                             }catch(e:Exception){formError=e.message?:"Не удалось обновить статус"}
                             finally{busy=false}
@@ -280,5 +289,11 @@ fun ReportApp() {
             }
         }
         Spacer(Modifier.height(24.dp))
+    }
+    pendingReplacement?.let { action ->
+        AlertDialog(onDismissRequest={pendingReplacement=null},title={Text("Открыть другой отчёт?")},
+            text={Text("Текущая незавершённая форма будет заменена. Продолжите её заполнение или откройте выбранный отчёт для исправления.")},
+            confirmButton={TextButton(onClick={pendingReplacement=null;action()}){Text("Открыть отчёт")}},
+            dismissButton={TextButton(onClick={pendingReplacement=null}){Text("Продолжить текущую форму")}})
     }
 }
