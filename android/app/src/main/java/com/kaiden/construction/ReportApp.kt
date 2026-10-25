@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,7 +35,9 @@ fun ReportApp() {
     var login by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    val dao=remember { AppDatabase.get(context).drafts() }
+    val database=remember { AppDatabase.get(context) }
+    val dao=remember { database.drafts() }
+    val formRepository=remember { FormRepository(database) }
     val ownerId=session.userId() ?: ""
     val drafts by remember(ownerId) { dao.observeAll(ownerId) }.collectAsState(initial=emptyList())
     val siteCache=remember { context.getSharedPreferences("site-cache",Context.MODE_PRIVATE) }
@@ -76,21 +79,62 @@ fun ReportApp() {
         }
         return
     }
-    var selectedSite by remember { mutableStateOf("") }
-    var workDate by remember { mutableStateOf(LocalDate.now().toString()) }
-    var kind by remember { mutableStateOf("work") }
-    var workType by remember { mutableStateOf("Сварка металлоконструкций") }
-    var quantity by remember { mutableStateOf("") }
-    var unit by remember { mutableStateOf("шт") }
-    var description by remember { mutableStateOf("") }
-    val workEntries = remember { mutableStateListOf<JSONObject>() }
-    var reason by remember { mutableStateOf("") }
-    var comment by remember { mutableStateOf("") }
-    val photos = remember { mutableStateListOf<JSONObject>() }
-    var editing by remember { mutableStateOf<Draft?>(null) }
-    var editReason by remember { mutableStateOf("") }
-    var formError by remember { mutableStateOf("") }
-    LaunchedEffect(sites) {if(selectedSite.isBlank() && sites.isNotEmpty()) selectedSite=sites.first().first}
+    var selectedSite by remember(ownerId) { mutableStateOf("") }
+    var workDate by remember(ownerId) { mutableStateOf(LocalDate.now().toString()) }
+    var kind by remember(ownerId) { mutableStateOf("work") }
+    var workType by remember(ownerId) { mutableStateOf("Сварка металлоконструкций") }
+    var quantity by remember(ownerId) { mutableStateOf("") }
+    var unit by remember(ownerId) { mutableStateOf("шт") }
+    var description by remember(ownerId) { mutableStateOf("") }
+    val workEntries = remember(ownerId) { mutableStateListOf<JSONObject>() }
+    var reason by remember(ownerId) { mutableStateOf("") }
+    var comment by remember(ownerId) { mutableStateOf("") }
+    val photos = remember(ownerId) { mutableStateListOf<JSONObject>() }
+    var editing by remember(ownerId) { mutableStateOf<Draft?>(null) }
+    var editReason by remember(ownerId) { mutableStateOf("") }
+    var formError by remember(ownerId) { mutableStateOf("") }
+    var formSession by remember(ownerId) {mutableStateOf<FormRecord?>(null)}
+    var formReload by remember(ownerId) {mutableStateOf(0)}
+    var restoreError by remember(ownerId) {mutableStateOf("")}
+    var autosaveStatus by remember(ownerId) {mutableStateOf("Восстановление формы…")}
+    LaunchedEffect(ownerId,formReload) {
+        try {
+            val record=withContext(Dispatchers.IO){formRepository.open(ownerId)}
+            val saved=FormSnapshot.decode(record.payload,ownerId)
+            selectedSite=saved.siteId;workDate=saved.workDate;kind=saved.kind;workType=saved.workType
+            quantity=saved.quantity;unit=saved.unit;description=saved.description;reason=saved.noWorkReason;comment=saved.comment
+            workEntries.clear();val entries=JSONArray(saved.workEntriesJson)
+            for(i in 0 until entries.length())workEntries.add(entries.getJSONObject(i))
+            photos.clear();val images=JSONArray(saved.photosJson)
+            for(i in 0 until images.length())photos.add(images.getJSONObject(i))
+            editing=saved.editing;editReason=saved.editReason;restoreError="";formSession=record
+        }catch(e:CancellationException){throw e}
+        catch(e:Exception){restoreError=e.message?:"Не удалось восстановить форму"}
+    }
+    LaunchedEffect(formSession?.sessionId) {
+        val record=formSession?:return@LaunchedEffect
+        snapshotFlow { FormSnapshot(siteId=selectedSite,workDate=workDate,kind=kind,workType=workType,quantity=quantity,unit=unit,description=description,
+            workEntriesJson=JSONArray(workEntries.toList()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),editing=editing,editReason=editReason) }
+            .collect { snapshot ->
+                autosaveStatus="Сохранение формы…"
+                try {
+                    val saved=withContext(Dispatchers.IO){formRepository.save(record.copy(payload=snapshot.encode()))}
+                    if(saved)autosaveStatus="Форма сохранена на устройстве"
+                }catch(e:CancellationException){throw e}
+                catch(e:Exception){autosaveStatus="Автосохранение не выполнено: ${e.message?:"ошибка хранилища"}"}
+            }
+    }
+    LaunchedEffect(sites,formSession?.sessionId) {if(formSession!=null && selectedSite.isBlank() && sites.isNotEmpty()) selectedSite=sites.first().first}
+    if(formSession==null) {
+        Column(Modifier.fillMaxSize().padding(24.dp)) {
+            Text("Восстановление формы…")
+            if(restoreError.isNotBlank()) {
+                Text(restoreError,color=MaterialTheme.colorScheme.error)
+                TextButton(onClick={formReload++}){Text("Повторить загрузку формы")}
+            }
+        }
+        return
+    }
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         busy=true
         scope.launch {
@@ -114,18 +158,21 @@ fun ReportApp() {
                         }
                     }
                     if(file.exists() && file.length() in 1..(8L*1024*1024)) {
+                        if(session.userId()!=ownerId) {file.delete();return@forEach}
                         photos.add(JSONObject().put("id",id).put("path",file.absolutePath).put("mime",mime))
                     } else file.delete()
-                }catch(e:Exception){formError=e.message?:"Не удалось добавить фото"}
+                }catch(e:CancellationException){throw e}
+                catch(e:Exception){formError=e.message?:"Не удалось добавить фото"}
             }} finally {busy=false}
         }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()) {
             Text("Новый отчёт",style=MaterialTheme.typography.headlineSmall)
-            TextButton(onClick={val oldToken=token;session.clear();token=null;sites=emptyList();scope.launch(Dispatchers.IO){try{if(oldToken!=null)ApiClient.logout(oldToken)}catch(_:Exception){}}}) {Text("Выход")}
+            TextButton(enabled=!busy,onClick={val oldToken=token;session.clear();token=null;sites=emptyList();scope.launch(Dispatchers.IO){try{if(oldToken!=null)ApiClient.logout(oldToken)}catch(_:Exception){}}}) {Text("Выход")}
         }
         if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
+        Text(autosaveStatus,style=MaterialTheme.typography.bodySmall)
         if(editing!=null) {
             Text("Исправление возвращённого отчёта · версия ${editing!!.serverRevision}")
             OutlinedTextField(editReason,{editReason=it},label={Text("Причина исправления *")},modifier=Modifier.fillMaxWidth())
@@ -172,19 +219,20 @@ fun ReportApp() {
                 val saved=Draft(ownerId=ownerId,id=editing?.id?:UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,
                     workEntriesJson=JSONArray(if(kind=="work")workEntries.toList() else emptyList<JSONObject>()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),serverId=editing?.serverId,
                     serverRevision=editing?.serverRevision?:1,editRequested=editing!=null,editReason=editReason)
+                val consumed=formSession?:throw IllegalStateException("Форма ещё не загружена")
                 busy=true
                 scope.launch {
                     try {
-                        withContext(Dispatchers.IO){dao.save(saved)}
+                        withContext(Dispatchers.IO){formRepository.enqueue(consumed,saved)}
                         SyncWorker.schedule(context)
-                        workEntries.clear();photos.clear();reason="";comment="";editing=null;editReason="";formError="Отчёт сохранён локально. Отправка — автоматически."
+                        workEntries.clear();photos.clear();reason="";comment="";quantity="";description="";editing=null;editReason="";formSession=null;formReload++;formError="Отчёт сохранён локально. Отправка — автоматически."
                     } catch(e:Exception){formError=e.message?:"Ошибка сохранения. Форма сохранена на экране."}
                     finally{busy=false}
                 }
             }catch(e:Exception){formError=e.message?:"Проверьте форму"}
         },modifier=Modifier.fillMaxWidth()){Text("Сохранить и отправить")}
         Spacer(Modifier.height(20.dp))
-        TextButton(onClick={scope.launch{dao.retryFailed(ownerId);SyncWorker.schedule(context)}}){Text("Повторить отправку")}
+        TextButton(enabled=!busy && editing==null,onClick={scope.launch{dao.retryFailed(ownerId);SyncWorker.schedule(context)}}){Text("Повторить отправку")}
         Text("Мои отчёты",style=MaterialTheme.typography.titleMedium)
         drafts.forEach { draft ->
             Card(Modifier.fillMaxWidth().padding(vertical=5.dp)) {

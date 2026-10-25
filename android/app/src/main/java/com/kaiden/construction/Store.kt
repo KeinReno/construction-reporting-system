@@ -10,6 +10,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.withTransaction
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
@@ -49,25 +50,65 @@ interface DraftDao {
     suspend fun save(draft: Draft)
 }
 
-@Database(entities=[Draft::class], version=3, exportSchema=false)
+/** Partial input is intentionally separate from queued, API-valid reports. */
+@Entity(tableName="report_forms")
+data class FormRecord(@PrimaryKey val ownerId:String,val sessionId:String,val payload:String)
+
+@Dao
+interface FormDao {
+    @Query("SELECT * FROM report_forms WHERE ownerId = :ownerId")
+    suspend fun get(ownerId:String):FormRecord?
+    @Insert(onConflict=OnConflictStrategy.ABORT)
+    suspend fun insert(record:FormRecord)
+    @Query("UPDATE report_forms SET payload = :payload WHERE ownerId = :ownerId AND sessionId = :sessionId")
+    suspend fun persist(ownerId:String,sessionId:String,payload:String):Int
+    @Query("DELETE FROM report_forms WHERE ownerId = :ownerId AND sessionId = :sessionId")
+    suspend fun consume(ownerId:String,sessionId:String):Int
+}
+
+@Database(entities=[Draft::class,FormRecord::class], version=4, exportSchema=false)
 abstract class AppDatabase: RoomDatabase() {
     abstract fun drafts(): DraftDao
+    abstract fun forms(): FormDao
     companion object {
-        @Volatile private var INSTANCE: AppDatabase? = null
-        fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
-            INSTANCE ?: Room.databaseBuilder(context.applicationContext,AppDatabase::class.java,"construction-local.db").addMigrations(object: Migration(1,2) {
-                override fun migrate(db: SupportSQLiteDatabase) {
-                    // Legacy drafts remain unowned; never claim them for whoever signs in next.
-                    db.execSQL("ALTER TABLE drafts ADD COLUMN ownerId TEXT NOT NULL DEFAULT ''")
-                }
-            },object: Migration(2,3) {
-                override fun migrate(db: SupportSQLiteDatabase) {
-                    db.execSQL("ALTER TABLE drafts ADD COLUMN serverRevision INTEGER NOT NULL DEFAULT 1")
-                    db.execSQL("ALTER TABLE drafts ADD COLUMN editRequested INTEGER NOT NULL DEFAULT 0")
-                    db.execSQL("ALTER TABLE drafts ADD COLUMN editReason TEXT NOT NULL DEFAULT ''")
-                    db.execSQL("ALTER TABLE drafts ADD COLUMN businessStatus TEXT")
-                }
-            }).build().also { INSTANCE=it }
+        val MIGRATION_1_2=object:Migration(1,2) {
+            override fun migrate(db:SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE drafts ADD COLUMN ownerId TEXT NOT NULL DEFAULT ''")
+            }
         }
+        val MIGRATION_2_3=object:Migration(2,3) {
+            override fun migrate(db:SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE drafts ADD COLUMN serverRevision INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE drafts ADD COLUMN editRequested INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE drafts ADD COLUMN editReason TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE drafts ADD COLUMN businessStatus TEXT")
+            }
+        }
+        val MIGRATION_3_4=object:Migration(3,4) {
+            override fun migrate(db:SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS report_forms (ownerId TEXT NOT NULL PRIMARY KEY, sessionId TEXT NOT NULL, payload TEXT NOT NULL)")
+            }
+        }
+        fun build(context:Context,name:String):AppDatabase =
+            Room.databaseBuilder(context.applicationContext,AppDatabase::class.java,name)
+                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4).build()
+        @Volatile private var INSTANCE:AppDatabase?=null
+        fun get(context:Context):AppDatabase = INSTANCE ?: synchronized(this) {
+            INSTANCE ?: build(context,"construction-local.db").also {INSTANCE=it}
+        }
+    }
+}
+
+/** Session IDs make late autosaves harmless after an atomic enqueue+consume. */
+class FormRepository(private val database:AppDatabase) {
+    suspend fun open(ownerId:String):FormRecord=database.withTransaction {
+        require(ownerId.isNotBlank()) {"Owner required"}
+        database.forms().get(ownerId) ?: FormRecord(ownerId,java.util.UUID.randomUUID().toString(),"{}").also {database.forms().insert(it)}
+    }
+    suspend fun save(record:FormRecord):Boolean = database.forms().persist(record.ownerId,record.sessionId,record.payload)==1
+    suspend fun enqueue(record:FormRecord,draft:Draft)=database.withTransaction {
+        require(record.ownerId==draft.ownerId && draft.ownerId.isNotBlank()) {"Owner mismatch"}
+        check(database.forms().consume(record.ownerId,record.sessionId)==1) {"Form already submitted or replaced"}
+        database.drafts().save(draft)
     }
 }
