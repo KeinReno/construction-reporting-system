@@ -1,0 +1,36 @@
+# Secrets and configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+# Real customer records and media
+data/
+uploads/
+attachments/
+customer-data/
+private/
+*.db
+*.sqlite
+*.sqlite3
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+*.pyc
+# Node
+node_modules/
+dist/
+coverage/
+# Android
+.gradle/
+.idea/
+**/build/
+*.apk
+*.aab
+local.properties
+# OS and editors
+.DS_Store
+Thumbs.db
