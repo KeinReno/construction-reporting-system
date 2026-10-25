@@ -19,8 +19,9 @@ import java.util.concurrent.TimeUnit
 class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(context,params) {
     override suspend fun doWork():Result = withContext(Dispatchers.IO) {
         val session=SecureSession(applicationContext)
-        val token=session.get() ?: return@withContext Result.success()
-        val owner=session.userId() ?: return@withContext Result.success()
+        val identity=session.snapshot() ?: return@withContext Result.success()
+        val token=identity.token
+        val owner=identity.userId
         val dao=AppDatabase.get(applicationContext).drafts()
         var retry=false
         for(draft in dao.pending(owner)) {
@@ -46,7 +47,7 @@ class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(conte
                         ApiClient.existingByClient(token,draft.id)
                     }
                 val serverId=server.getString("id")
-                if(draft.editRequested && server.getString("status")=="needs_revision" && server.getInt("revision")==draft.serverRevision) {
+                if(draft.editRequested && server.getString("status") in listOf("draft","needs_revision") && server.getInt("revision")==draft.serverRevision && (server.getString("status")=="needs_revision" || !ReportPayload.equivalent(payload,server.getJSONObject("data")))) {
                     server=ApiClient.edit(token,serverId,payload,draft.serverRevision,draft.editReason)
                 }
                 if(!ReportPayload.equivalent(payload,server.getJSONObject("data")))throw ApiException(409,"Содержимое сервера отличается. Нужна проверка отчёта")

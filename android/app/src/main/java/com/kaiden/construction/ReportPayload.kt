@@ -19,5 +19,13 @@ object ReportPayload {
         val ids=data.optJSONArray("required_photo_ids")?:JSONArray()
         put("required_photo_ids",JSONArray((0 until ids.length()).map{ids.getString(it)}.sorted()))
     }
-    fun equivalent(local:JSONObject,remote:JSONObject):Boolean = normalized(local).similar(normalized(remote))
+    private fun same(a:Any?,b:Any?):Boolean = when {
+        a is JSONObject && b is JSONObject -> {
+            val keys=a.keys().asSequence().toSet()
+            keys==b.keys().asSequence().toSet() && keys.all{same(a.get(it),b.get(it))}
+        }
+        a is JSONArray && b is JSONArray -> a.length()==b.length() && (0 until a.length()).all{same(a.get(it),b.get(it))}
+        else -> a==b
+    }
+    fun equivalent(local:JSONObject,remote:JSONObject):Boolean = same(normalized(local),normalized(remote))
 }

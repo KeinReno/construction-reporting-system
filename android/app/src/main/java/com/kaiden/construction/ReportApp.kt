@@ -50,7 +50,7 @@ fun ReportApp() {
                 sites=withContext(Dispatchers.IO) { ApiClient.sites(token!!) }
                 siteCache.edit().putString(ownerId,JSONArray(sites.map { JSONObject().put("id",it.first).put("name",it.second) }).toString()).apply()
                 SyncWorker.schedule(context)
-            } catch (e:Exception) {error=e.message?:"Ошибка подключения"}
+            } catch (e:Exception) {error=e.message?:"Ошибка подключения";if(e is ApiException && e.status==401){session.clear();token=null}}
         }
     }
     if(token==null) {
@@ -92,9 +92,11 @@ fun ReportApp() {
     var formError by remember { mutableStateOf("") }
     LaunchedEffect(sites) {if(selectedSite.isBlank() && sites.isNotEmpty()) selectedSite=sites.first().first}
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        busy=true
         scope.launch {
-            uris.forEach { uri ->
+            try { uris.forEach { uri ->
                 try {
+                    if(photos.size>=30)throw IllegalArgumentException("Не больше 30 фото на отчёт")
                     val mime=context.contentResolver.getType(uri) ?: "image/jpeg"
                     if(mime !in listOf("image/jpeg","image/png","image/webp")) return@forEach
                     val id=UUID.randomUUID().toString()
@@ -115,7 +117,7 @@ fun ReportApp() {
                         photos.add(JSONObject().put("id",id).put("path",file.absolutePath).put("mime",mime))
                     } else file.delete()
                 }catch(e:Exception){formError=e.message?:"Не удалось добавить фото"}
-            }
+            }} finally {busy=false}
         }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -147,7 +149,7 @@ fun ReportApp() {
             OutlinedTextField(description,{description=it},label={Text("Описание (для работ без объёма / Другое)")},modifier=Modifier.fillMaxWidth())
             OutlinedButton(onClick={
                 val n=quantity.replace(',','.').toBigDecimalOrNull()
-                if((quantity.isNotBlank() && n==null) || (n==null && description.isBlank()) || (n!=null && n< java.math.BigDecimal.ZERO) || (n!=null && unit.isBlank()) || (workType=="Другое" && description.isBlank()))formError="Укажите корректный объём или описание"
+                if(workEntries.size>=100 || description.length>2000 || unit.length>50 || (n!=null && (n.stripTrailingZeros().scale()>6 || n.precision()-n.scale()>14)) || (quantity.isNotBlank() && n==null) || (n==null && description.isBlank()) || (n!=null && n< java.math.BigDecimal.ZERO) || (n!=null && unit.isBlank()) || (workType=="Другое" && description.isBlank()))formError="Укажите корректный объём или описание"
                 else {workEntries.add(JSONObject().apply {put("type",workType);if(n!=null){put("quantity",n.toPlainString());put("unit",unit)};if(description.isNotBlank())put("description",description)});quantity="";description="";formError=""}
             }) {Text("+ Добавить вид работ")}
             workEntries.forEachIndexed{ i,w -> Row {
@@ -156,13 +158,15 @@ fun ReportApp() {
             }}
         } else OutlinedTextField(reason,{reason=it},label={Text("Причина отсутствия работ *")},modifier=Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
-        OutlinedButton(onClick={picker.launch("image/*")}) {Text("Добавить фотографии (${photos.size})")}
+        OutlinedButton(enabled=!busy,onClick={picker.launch("image/*")}) {Text("Добавить фотографии (${photos.size})")}
+        photos.forEachIndexed { i,_ -> TextButton(enabled=!busy,onClick={photos.removeAt(i)}){Text("Удалить фото ${i+1}")} }
         OutlinedTextField(comment,{comment=it},label={Text("Комментарий (необязательно)")},modifier=Modifier.fillMaxWidth(),minLines=2)
         if(formError.isNotBlank())Text(formError,color=MaterialTheme.colorScheme.error)
         Spacer(Modifier.height(16.dp))
         Button(enabled=!busy,onClick={
             try {
                 LocalDate.parse(workDate)
+                if(comment.length>5000 || reason.length>2000)throw IllegalArgumentException("Комментарий — до 5000 знаков, причина — до 2000")
                 if(selectedSite.isBlank() || (kind=="work" && workEntries.isEmpty()) || (kind=="no_work" && reason.isBlank())) throw IllegalArgumentException("Заполните обязательные поля")
                 if(editing!=null && editReason.trim().length<2)throw IllegalArgumentException("Укажите причину исправления")
                 val saved=Draft(ownerId=ownerId,id=editing?.id?:UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,
@@ -188,6 +192,15 @@ fun ReportApp() {
                     Text("${draft.siteName} · ${draft.workDate}")
                     val label=when(draft.status){"delivered"->"Доставлен ✓";"uploading"->"Загрузка…";"failed"->"Нужна проверка / повторный вход";else->"Ожидает отправки"}
                     Text(label,color=if(draft.status=="delivered") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
+                    if(draft.status=="failed" && editing==null)TextButton(enabled=!busy,onClick={
+                        editing=draft;editReason="Исправление отклонённого отчёта";selectedSite=draft.siteId;workDate=draft.workDate
+                        kind=draft.kind;reason=draft.noWorkReason;comment=draft.comment
+                        workEntries.clear();val entries=JSONArray(draft.workEntriesJson)
+                        for(i in 0 until entries.length())workEntries.add(entries.getJSONObject(i))
+                        photos.clear();val localPhotos=JSONArray(draft.photosJson)
+                        for(i in 0 until localPhotos.length())photos.add(localPhotos.getJSONObject(i))
+                        formError="Отчёт загружен в форму. Исправьте ошибку и сохраните."
+                    }){Text("Исправить локальный отчёт")}
                     if(draft.businessStatus!=null)Text("На сервере: ${draft.businessStatus} · версия ${draft.serverRevision}")
                     if(draft.serverId!=null && editing==null)TextButton(enabled=!busy,onClick={
                         busy=true;scope.launch {

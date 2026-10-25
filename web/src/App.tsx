@@ -86,7 +86,7 @@ export default function App() {
       <div className="sidebar-foot"><span className="online-dot"/> Серверные данные</div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login || 'Пользователь'} <button className="quiet" onClick={() => {generation.current++;void http('/auth/logout',token,{method:'POST'}).catch(()=>{});setToken(null);setProfile(null);setReports([]);setSummary(null);setSelected(null);setSites([]);setSiteId('all');setStartDate('');setEndDate('');setError('');setLoading(false);}}>Выйти</button></span></header>
+      <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login || 'Пользователь'} <button className="quiet" onClick={() => {generation.current++;void http('/auth/logout',token,{method:'POST'}).catch(()=>{});setToken(null);setProfile(null);setReports([]);setSummary(null);setSelected(null);setSites([]);setPage('overview');setSiteId('all');setStartDate('');setEndDate('');setError('');setLoading(false);}}>Выйти</button></span></header>
       <main className="content">
         <div className="heading"><div><h1>{pageTitle}</h1><p>Статистика формируется из подтверждённых записей сервера.</p></div><button className="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Обновление…' : '↻ Обновить'}</button></div>
         {error && <div className="error" role="alert">Ошибка API: {error}</div>}
@@ -116,6 +116,6 @@ export default function App() {
       <footer>СтройКонтроль · MVP · Источник данных: API заказчика</footer>
       <nav className="bottom-nav" aria-label="Мобильная навигация">{(['overview','objects','reports','analytics','ai'] as Page[]).map(key=><button key={key} className={page===key?'active':''} onClick={()=>setPage(key)}>{labels[key]}</button>)}</nav>
     </div>
-    {selected && <ReportDetails report={selected} token={token} role={profile?.role||''} siteName={siteName(selected.site_id)} onClose={()=>setSelected(null)} onChange={r=>{setSelected(r);void refresh();}}/>}
+    {selected && <ReportDetails key={selected.id} report={selected} token={token} role={profile?.role||''} siteName={siteName(selected.site_id)} onClose={()=>setSelected(null)} onChange={r=>{setSelected(r);void refresh();}}/>}
   </div>;
 }

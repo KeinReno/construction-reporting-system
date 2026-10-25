@@ -139,8 +139,12 @@ class Ask(Input):
     intent:Literal["summary","work_volume","no_work","site_timeline"]="summary"
     filters:AnalyticsFilters=Field(default_factory=AnalyticsFilters)
 
+def stamp(value):
+    if value is None:return None
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
 def present(r):
-    return dict(id=r.id,client_report_id=r.client_report_id,site_id=r.site_id,revision=r.revision,status=r.status,receipt_id=r.receipt_id,created_at=r.created_at,submitted_at=r.submitted_at,data=r.payload)
+    return dict(id=r.id,client_report_id=r.client_report_id,site_id=r.site_id,revision=r.revision,status=r.status,receipt_id=r.receipt_id,created_at=stamp(r.created_at),submitted_at=stamp(r.submitted_at),data=r.payload)
 
 def create_app(database_url=None, storage=None, initialize=False):
     url=database_url or os.environ.get('DATABASE_URL','sqlite:///./dev.db')
@@ -222,7 +226,15 @@ def create_app(database_url=None, storage=None, initialize=False):
             response.status_code=200
             return present(saved)
         r=Report(client_report_id=str(data.client_report_id),site_id=sid,author_id=u.id,work_date=str(data.work_date),payload=payload)
-        db.add(r);db.flush();log(db,r,u,'created');db.commit()
+        try:
+            db.add(r);db.flush();log(db,r,u,'created');db.commit()
+        except IntegrityError:
+            db.rollback()
+            saved=db.scalar(select(Report).where(Report.client_report_id==str(data.client_report_id)))
+            if saved and saved.author_id==u.id and saved.payload==payload:
+                response.status_code=200
+                return present(saved)
+            raise HTTPException(409,'UUID collision')
         return present(r)
     @api.get('/api/v1/reports/by-client/{client_id}')
     def by_client(client_id:uuid.UUID,db:Session=Depends(dbdep),u:User=Depends(current)):
@@ -363,6 +375,6 @@ def create_app(database_url=None, storage=None, initialize=False):
     @api.get('/api/v1/reports/{rid}/history')
     def history(rid:uuid.UUID,db:Session=Depends(dbdep),u:User=Depends(current)):
         fetch(db,u,str(rid))
-        return [{'id':x.id,'revision':x.revision,'event':x.event,'reason':x.reason,'actor_id':x.actor_id,'occurred_at':x.occurred_at,'payload_before':x.payload_before} for x in db.scalars(select(Change).where(Change.report_id==str(rid)).order_by(Change.occurred_at,Change.id)).all()]
+        return [{'id':x.id,'revision':x.revision,'event':x.event,'reason':x.reason,'actor_id':x.actor_id,'occurred_at':stamp(x.occurred_at),'payload_before':x.payload_before} for x in db.scalars(select(Change).where(Change.report_id==str(rid)).order_by(Change.occurred_at,Change.id)).all()]
     return api
 app=create_app()

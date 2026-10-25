@@ -105,3 +105,56 @@ def test_period_analytics_and_whitelist(env):
     assert answer['metrics']['volumes'][0]['quantity']=='0.2'
     assert c.get('/api/v1/reports',headers=f).json()==before
     assert c.post('/api/v1/analytics/ask',headers=m,json={'question':'test','intent':'execute_sql'}).status_code==422
+
+
+def test_conflicting_attachment_race_preserves_winner_file(env,tmp_path):
+    from sqlalchemy import select
+    from app.main import Photo
+    c,f,*_=env
+    one,_=create(env);two,_=create(env);aid=uid()
+    barrier=Barrier(2)
+    def before_flush(session,context,instances):
+        if any(isinstance(item,Photo) for item in session.new):barrier.wait(timeout=10)
+    def upload(args):
+        rid,color=args
+        out=io.BytesIO();Image.new('RGB',(2,2),color).save(out,format='PNG');blob=out.getvalue()
+        return c.put(f'/api/v1/reports/{rid}/attachments/{aid}',headers={**f,'Content-Type':'image/png','X-Content-SHA256':hashlib.sha256(blob).hexdigest()},content=blob)
+    event.listen(Session,'before_flush',before_flush)
+    try:
+        with ThreadPoolExecutor(2) as pool:replies=list(pool.map(upload,[(one['id'],'red'),(two['id'],'blue')]))
+    finally:event.remove(Session,'before_flush',before_flush)
+    assert sorted(x.status_code for x in replies)==[200,409]
+    with c.api.state.db() as db:
+        photo=db.scalar(select(Photo).where(Photo.id==aid))
+        downloaded=c.get(f'/api/v1/attachments/{aid}',headers=f)
+        assert downloaded.status_code==200
+        assert hashlib.sha256(downloaded.content).hexdigest()==photo.sha256
+
+
+def test_new_revision_receipt_and_history(env):
+    c,f,m,*_=env;r,data=create(env)
+    path=f"/api/v1/reports/{r['id']}"
+    first=c.post(path+'/submit',headers=f,json={'expected_revision':1}).json()
+    assert c.post(path+'/review',headers=m,json={'expected_revision':1,'decision':'needs_revision','reason':'Clarify'}).status_code==200
+    data['comment']='Corrected'
+    revised=c.patch(path,headers=f,json={'expected_revision':1,'data':data,'reason':'Correction'}).json()
+    assert revised['receipt_id'] is None and revised['submitted_at'] is None
+    second=c.post(path+'/submit',headers=f,json={'expected_revision':2}).json()
+    assert second['receipt_id']!=first['receipt_id'] and second['submitted_at']
+    history=c.get(path+'/history',headers=f).json()
+    edited=next(x for x in history if x['event']=='edited')
+    assert edited['payload_before']['comment'] is None
+    assert edited['occurred_at'] and edited['actor_id']
+
+
+def test_concurrent_create_returns_same_report(env):
+    c,f,m,sid,_=env;data=report(sid);barrier=Barrier(2)
+    def before_flush(session,context,instances):
+        if any(isinstance(item,Report) for item in session.new):barrier.wait(timeout=10)
+    event.listen(Session,'before_flush',before_flush)
+    try:
+        with ThreadPoolExecutor(2) as pool:
+            replies=list(pool.map(lambda i:c.post('/api/v1/reports',headers=f,json=data),range(2)))
+    finally:event.remove(Session,'before_flush',before_flush)
+    assert sorted(x.status_code for x in replies)==[200,201]
+    assert replies[0].json()['id']==replies[1].json()['id']
