@@ -42,9 +42,10 @@ fun ReportApp() {
     val ownerId=session.userId() ?: ""
     val drafts by remember(ownerId) { dao.observeAll(ownerId) }.collectAsState(initial=emptyList())
     val siteCache=remember { context.getSharedPreferences("site-cache",Context.MODE_PRIVATE) }
-    var sites by remember { mutableStateOf<List<Pair<String,String>>>(emptyList()) }
+    var sites by remember(ownerId) { mutableStateOf<List<Pair<String,String>>>(emptyList()) }
     LaunchedEffect(token) {
         if(token != null) {
+            error=""
             try {
                 val cached=siteCache.getString(ownerId,null)
                 if(cached!=null) {
@@ -54,7 +55,8 @@ fun ReportApp() {
                 sites=withContext(Dispatchers.IO) { ApiClient.sites(token!!) }
                 siteCache.edit().putString(ownerId,JSONArray(sites.map { JSONObject().put("id",it.first).put("name",it.second) }).toString()).apply()
                 SyncWorker.schedule(context)
-            } catch (e:Exception) {error=e.message?:"Ошибка подключения";if(e is ApiException && e.status==401){session.clear();token=null}}
+            } catch(e:CancellationException){throw e}
+            catch (e:Exception) {error=e.message?:"Ошибка подключения";if(e is ApiException && e.status==401){session.clear();token=null}}
         }
     }
     if(token==null) {

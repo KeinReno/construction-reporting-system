@@ -11,7 +11,7 @@
 
 ## Проверки
 Подробные команды, дефекты и доказательства: [QA_2026-10-25](QA_2026-10-25.md), [Android-проверки 26.10](QA_2026-10-26.md).
-Локально проверены Backend (SQLite), миграции и восстановление SQLite, Web production build.
+Локально проверены Backend (SQLite), миграции и восстановление SQLite, Web production build. На CI Android 35 подтверждены 8 instrumented сценариев Room/recreation и 11 JVM tests (см. QA_2026-10-26); это не испытания физического OPPO.
 GitHub Actions проверяет PostgreSQL API/конкурентность, миграции, pg_dump/restore, Android unit tests/APK, instrumented Room/Compose-тесты на эмуляторе Android 35 и Playwright на реальном синтетическом API.
 Результат каждой конкретной ревизии смотреть в Actions; незавершённый запуск не считается PASS.
 

@@ -36,7 +36,7 @@
 | TECH-04 | Фильтрованные Decimal-сводки и whitelist аналитик | DONE | API-тесты периода/ACL/prompt injection |
 | TECH-05 | Web review/источники/история/фото и защита от старой сессии | DONE | build PASS; Playwright 2/2 на реальном API |
 | TECH-06 | Android owner isolation, recovery receipt, revisions | IN_PROGRESS | CI unit/APK; полевой прогон NOT_TESTED |
-| TECH-08 | Android: автосохранение частичной формы и emulator Room/recreation | IN_PROGRESS | Room 4, атомарный enqueue/consume, CI Android 35 |
+| TECH-08 | Android: автосохранение частичной формы и emulator Room/recreation | DONE | Room 4; 11 JVM + 8 Android 35 tests PASS; raw input, nonce/rollback, migration 1/2/3→4, recreation |
 | TECH-07 | Offline backup+restore и контроль целостности | DONE | SQLite drill PASS; PostgreSQL pg_dump/restore PASS |
 
 DEV-01…05 остаются IN_PROGRESS: полная форма, расписания, бизнес-каталоги и эксплуатационная приёмка не завершены. SPEC/ENV/QA не отмечены DONE заочно. [Точный статус](docs/IMPLEMENTATION_STATUS.md), [проверки](docs/QA_2026-10-25.md).
