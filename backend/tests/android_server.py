@@ -30,6 +30,10 @@ async def injected_failure(request,call_next):
     return response
 @api.get('/api/v1/test/stats')
 def test_stats():return stats
+# create_app mounts the optional Web at '/'. Keep test-only routes ahead of it.
+web_mount=next((route for route in api.router.routes if route.name=='web'),None)
+if web_mount is not None:
+    api.router.routes.remove(web_mount);api.router.routes.append(web_mount)
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--cert',required=True);p.add_argument('--key',required=True);args=p.parse_args()
     uvicorn.run(api,host='127.0.0.1',port=8443,ssl_certfile=args.cert,ssl_keyfile=args.key)
