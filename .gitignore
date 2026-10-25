@@ -34,3 +34,4 @@ local.properties
 # OS and editors
 .DS_Store
 Thumbs.db
+*.tsbuildinfo

@@ -10,6 +10,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName="drafts")
@@ -27,26 +29,34 @@ data class Draft(
     val serverId: String? = null,
     val receiptId: String? = null,
     val lastError: String? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val ownerId: String = ""
 )
 
 @Dao
 interface DraftDao {
-    @Query("SELECT * FROM drafts ORDER BY createdAt DESC")
-    fun observeAll(): Flow<List<Draft>>
-    @Query("SELECT * FROM drafts WHERE status != 'delivered' ORDER BY createdAt ASC")
-    suspend fun pending(): List<Draft>
+    @Query("SELECT * FROM drafts WHERE ownerId = :ownerId ORDER BY createdAt DESC")
+    fun observeAll(ownerId: String): Flow<List<Draft>>
+    @Query("SELECT * FROM drafts WHERE ownerId = :ownerId AND status IN ('queued','uploading') ORDER BY createdAt ASC")
+    suspend fun pending(ownerId: String): List<Draft>
+    @Query("UPDATE drafts SET status = 'queued', lastError = NULL WHERE ownerId = :ownerId AND status = 'failed'")
+    suspend fun retryFailed(ownerId: String)
     @Insert(onConflict=OnConflictStrategy.REPLACE)
     suspend fun save(draft: Draft)
 }
 
-@Database(entities=[Draft::class], version=1, exportSchema=false)
+@Database(entities=[Draft::class], version=2, exportSchema=false)
 abstract class AppDatabase: RoomDatabase() {
     abstract fun drafts(): DraftDao
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
         fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
-            INSTANCE ?: Room.databaseBuilder(context.applicationContext,AppDatabase::class.java,"construction-local.db").build().also { INSTANCE=it }
+            INSTANCE ?: Room.databaseBuilder(context.applicationContext,AppDatabase::class.java,"construction-local.db").addMigrations(object: Migration(1,2) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    // Legacy drafts remain unowned; never claim them for whoever signs in next.
+                    db.execSQL("ALTER TABLE drafts ADD COLUMN ownerId TEXT NOT NULL DEFAULT ''")
+                }
+            }).build().also { INSTANCE=it }
         }
     }
 }

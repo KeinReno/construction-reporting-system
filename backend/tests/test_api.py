@@ -1,18 +1,23 @@
-import uuid, hashlib
+import uuid, hashlib, io, os
+from PIL import Image
 import pytest
 from fastapi.testclient import TestClient
-from app.main import create_app,User,Site,Assignment,hash_password
+from app.main import create_app,User,Site,Assignment,hash_password,Base
+from sqlalchemy import create_engine
 
 def uid():return str(uuid.uuid4())
 @pytest.fixture
 def env(tmp_path):
-    api=create_app(database_url=f'sqlite:///{tmp_path}/t.db',storage=str(tmp_path/'photos'),initialize=True)
+    if os.getenv('TEST_DATABASE_URL'):
+        engine=create_engine(os.environ['TEST_DATABASE_URL']);Base.metadata.drop_all(engine);engine.dispose()
+    api=create_app(database_url=os.getenv('TEST_DATABASE_URL',f'sqlite:///{tmp_path}/t.db'),storage=str(tmp_path/'photos'),initialize=True)
     with api.state.db() as db:
         s=Site(name='Synthetic object');s2=Site(name='Other object')
         u=User(login='foreman',password_hash=hash_password('StrongPassword123'),role='foreman')
         manager=User(login='manager',password_hash=hash_password('StrongPassword123'),role='manager')
         db.add_all([s,s2,u,manager]);db.flush();db.add_all([Assignment(user_id=u.id,site_id=s.id),Assignment(user_id=manager.id,site_id=s.id)]);db.commit();sid=s.id;forbidden=s2.id
     c=TestClient(api)
+    c.api=api
     def token(name):return {'Authorization':'Bearer '+c.post('/api/v1/auth/login',json={'login':name,'password':'StrongPassword123'}).json()['access_token']}
     return c,token('foreman'),token('manager'),sid,forbidden
 
@@ -48,7 +53,7 @@ def test_revision_no_work(env):
 def test_photos_required(env):
     c,f,m,sid,_=env;pid=uid();r=c.post('/api/v1/reports',headers=f,json=report(sid,photos=[pid])).json();rid=r['id']
     assert c.post(f'/api/v1/reports/{rid}/submit',headers=f,json={'expected_revision':1}).status_code==422
-    blob=b'\xff\xd8\xffsynthetic';sha=hashlib.sha256(blob).hexdigest();headers={**f,'Content-Type':'image/jpeg','X-Content-SHA256':sha}
+    image=io.BytesIO();Image.new('RGB',(2,2)).save(image,format='JPEG');blob=image.getvalue();sha=hashlib.sha256(blob).hexdigest();headers={**f,'Content-Type':'image/jpeg','X-Content-SHA256':sha}
     put=c.put(f'/api/v1/reports/{rid}/attachments/{pid}',headers=headers,content=blob)
     assert put.status_code==200,put.text
     assert c.post(f'/api/v1/reports/{rid}/submit',headers=f,json={'expected_revision':1}).status_code==200

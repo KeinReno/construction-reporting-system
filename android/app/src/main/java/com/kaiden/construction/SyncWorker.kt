@@ -9,6 +9,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.BackoffPolicy
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -17,10 +18,12 @@ import java.util.concurrent.TimeUnit
 
 class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(context,params) {
     override suspend fun doWork():Result = withContext(Dispatchers.IO) {
-        val token=SecureSession(applicationContext).get() ?: return@withContext Result.retry()
+        val session=SecureSession(applicationContext)
+        val token=session.get() ?: return@withContext Result.success()
+        val owner=session.userId() ?: return@withContext Result.success()
         val dao=AppDatabase.get(applicationContext).drafts()
         var retry=false
-        for(draft in dao.pending()) {
+        for(draft in dao.pending(owner)) {
             try {
                 dao.save(draft.copy(status="uploading",lastError=null))
                 val payload=JSONObject().apply {
@@ -34,19 +37,32 @@ class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(conte
                     val photos=JSONArray(draft.photosJson)
                     put("required_photo_ids",JSONArray((0 until photos.length()).map{photos.getJSONObject(it).getString("id")}))
                 }
-                val serverId=draft.serverId ?: try { ApiClient.draft(token,payload) }
-                    catch (e:Exception) {
-                        // Lost response after accepted POST: fetch by stable client id.
-                        try { ApiClient.existingByClient(token,draft.id).getString("id") } catch(_:Exception) { throw e }
+                // Always reconcile with the stable client UUID before uploading photos.
+                // A lost submit response can already have committed a valid receipt.
+                val server=try { ApiClient.existingByClient(token,draft.id) }
+                    catch(e:ApiException) {
+                        if(e.status!=404) throw e
+                        ApiClient.draft(token,payload)
+                        ApiClient.existingByClient(token,draft.id)
                     }
+                val serverId=server.getString("id")
+                require(server.getJSONObject("data").getString("client_report_id")==draft.id)
+                if(server.optString("receipt_id").let { it.isNotEmpty() && it!="null" } &&
+                    server.getString("status") in listOf("submitted","reviewed")) {
+                    dao.save(draft.copy(status="delivered",serverId=serverId,receiptId=server.getString("receipt_id"),lastError=null))
+                    continue
+                }
+                if(server.getString("status")!="draft") throw ApiException(409,"Отчёт возвращён на уточнение; нужна новая ревизия")
                 dao.save(draft.copy(status="uploading",serverId=serverId))
                 val photos=JSONArray(draft.photosJson)
                 for(i in 0 until photos.length()) ApiClient.upload(token,serverId,photos.getJSONObject(i))
-                val receipt=ApiClient.submit(token,serverId).getString("receipt_id")
+                val receipt=ApiClient.submit(token,serverId,server.getInt("revision")).getString("receipt_id")
                 dao.save(draft.copy(status="delivered",serverId=serverId,receiptId=receipt,lastError=null))
+            } catch(e:CancellationException) { throw e
             } catch (e:Exception) {
-                dao.save(draft.copy(status="queued",lastError=e.message?.take(200)))
-                retry=true
+                val permanent=e is ApiException && !SyncPolicy.retryable(e.status)
+                dao.save(draft.copy(status=if(permanent) "failed" else "queued",lastError=e.message?.take(200)))
+                if(!permanent) retry=true
             }
         }
         if(retry) Result.retry() else Result.success()
@@ -56,7 +72,7 @@ class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(conte
             val constraints=Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
             val req=OneTimeWorkRequestBuilder<SyncWorker>().setConstraints(constraints)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL,30,TimeUnit.SECONDS).build()
-            WorkManager.getInstance(context).enqueueUniqueWork("sync-construction-reports",ExistingWorkPolicy.KEEP,req)
+            WorkManager.getInstance(context).enqueueUniqueWork("sync-construction-reports",ExistingWorkPolicy.APPEND_OR_REPLACE,req)
         }
     }
 }

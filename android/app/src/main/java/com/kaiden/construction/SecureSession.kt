@@ -22,11 +22,11 @@ class SecureSession(private val context: Context) {
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
         return generator.generateKey()
     }
-    fun save(token:String) {
+    fun save(token:String, userId:String) {
         val cipher=Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE,secret())
         val bytes = cipher.iv + cipher.doFinal(token.toByteArray(Charsets.UTF_8))
-        prefs.edit().putString("encrypted",Base64.encodeToString(bytes,Base64.NO_WRAP)).apply()
+        prefs.edit().putString("encrypted",Base64.encodeToString(bytes,Base64.NO_WRAP)).putString("user_id",userId).commit()
     }
     fun get():String? { return try {
         val encoded=prefs.getString("encrypted",null)?:return null
@@ -35,5 +35,6 @@ class SecureSession(private val context: Context) {
         cipher.init(Cipher.DECRYPT_MODE,secret(),GCMParameterSpec(128,bytes.copyOfRange(0,12)))
         String(cipher.doFinal(bytes.copyOfRange(12,bytes.size)),Charsets.UTF_8)
     }catch(_:Exception) {clear();null} }
-    fun clear() {prefs.edit().remove("encrypted").apply()}
+    fun userId():String? = if(get()!=null) prefs.getString("user_id",null) else null
+    fun clear() {prefs.edit().remove("encrypted").remove("user_id").commit()}
 }

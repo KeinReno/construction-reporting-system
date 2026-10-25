@@ -28,19 +28,27 @@ import java.util.UUID
 fun ReportApp() {
     val context=LocalContext.current
     val session=remember { SecureSession(context) }
-    var token by remember { mutableStateOf(session.get()) }
+    var token by remember { mutableStateOf(if(session.userId()!=null) session.get() else null) }
     val scope= rememberCoroutineScope()
     var error by remember { mutableStateOf("") }
     var login by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     val dao=remember { AppDatabase.get(context).drafts() }
-    val drafts by dao.observeAll().collectAsState(initial=emptyList())
+    val ownerId=session.userId() ?: ""
+    val drafts by remember(ownerId) { dao.observeAll(ownerId) }.collectAsState(initial=emptyList())
+    val siteCache=remember { context.getSharedPreferences("site-cache",Context.MODE_PRIVATE) }
     var sites by remember { mutableStateOf<List<Pair<String,String>>>(emptyList()) }
     LaunchedEffect(token) {
         if(token != null) {
             try {
+                val cached=siteCache.getString(ownerId,null)
+                if(cached!=null) {
+                    val array=JSONArray(cached)
+                    sites=(0 until array.length()).map { val s=array.getJSONObject(it); s.getString("id") to s.getString("name") }
+                }
                 sites=withContext(Dispatchers.IO) { ApiClient.sites(token!!) }
+                siteCache.edit().putString(ownerId,JSONArray(sites.map { JSONObject().put("id",it.first).put("name",it.second) }).toString()).apply()
                 SyncWorker.schedule(context)
             } catch (e:Exception) {error=e.message?:"Ошибка подключения"}
         }
@@ -59,7 +67,8 @@ fun ReportApp() {
                 scope.launch {
                     try {
                         val result=withContext(Dispatchers.IO){ApiClient.login(login,password)}
-                        session.save(result);token=result;password=""
+                        val userId=withContext(Dispatchers.IO){ApiClient.me(result)}
+                        session.save(result,userId);token=result;password=""
                     }catch(e:Exception){error=e.message?:"Неверные данные"}
                     finally{busy=false}
                 }
@@ -81,25 +90,36 @@ fun ReportApp() {
     var formError by remember { mutableStateOf("") }
     LaunchedEffect(sites) {if(selectedSite.isBlank() && sites.isNotEmpty()) selectedSite=sites.first().first}
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-        scope.launch(Dispatchers.IO) {
+        scope.launch {
             uris.forEach { uri ->
                 try {
                     val mime=context.contentResolver.getType(uri) ?: "image/jpeg"
                     if(mime !in listOf("image/jpeg","image/png","image/webp")) return@forEach
                     val id=UUID.randomUUID().toString()
                     val file=File(context.filesDir,"photo-$id")
-                    context.contentResolver.openInputStream(uri)?.use { it.copyTo(file.outputStream()) }
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            file.outputStream().use { output ->
+                                val buffer=ByteArray(8192);var total=0L
+                                while(true) {
+                                    val count=input.read(buffer);if(count<0) break
+                                    total+=count;if(total>8L*1024*1024) {file.delete();throw IllegalArgumentException("Фото больше 8 МБ")}
+                                    output.write(buffer,0,count)
+                                }
+                            }
+                        }
+                    }
                     if(file.exists() && file.length() in 1..(8L*1024*1024)) {
                         photos.add(JSONObject().put("id",id).put("path",file.absolutePath).put("mime",mime))
                     } else file.delete()
-                }catch(_:Exception){ /* User can retry photo selection */ }
+                }catch(e:Exception){formError=e.message?:"Не удалось добавить фото"}
             }
         }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()) {
             Text("Новый отчёт",style=MaterialTheme.typography.headlineSmall)
-            TextButton(onClick={session.clear();token=null;sites=emptyList()}) {Text("Выход")}
+            TextButton(onClick={val oldToken=token;session.clear();token=null;sites=emptyList();scope.launch(Dispatchers.IO){try{if(oldToken!=null)ApiClient.logout(oldToken)}catch(_:Exception){}}}) {Text("Выход")}
         }
         if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
         Text("Объект *")
@@ -121,7 +141,7 @@ fun ReportApp() {
             OutlinedTextField(description,{description=it},label={Text("Описание (для работ без объёма / Другое)")},modifier=Modifier.fillMaxWidth())
             OutlinedButton(onClick={
                 val n=quantity.replace(',','.').toBigDecimalOrNull()
-                if((n==null && description.isBlank()) || (n!=null && n< java.math.BigDecimal.ZERO) || (n!=null && unit.isBlank()) || (workType=="Другое" && description.isBlank()))formError="Укажите корректный объём или описание"
+                if((quantity.isNotBlank() && n==null) || (n==null && description.isBlank()) || (n!=null && n< java.math.BigDecimal.ZERO) || (n!=null && unit.isBlank()) || (workType=="Другое" && description.isBlank()))formError="Укажите корректный объём или описание"
                 else {workEntries.add(JSONObject().apply {put("type",workType);if(n!=null){put("quantity",n.toPlainString());put("unit",unit)};if(description.isNotBlank())put("description",description)});quantity="";description="";formError=""}
             }) {Text("+ Добавить вид работ")}
             workEntries.forEachIndexed{ i,w -> Text("${i+1}. ${w.getString("type")} — ${w.optString("quantity",w.optString("description"))}") }
@@ -131,23 +151,31 @@ fun ReportApp() {
         OutlinedTextField(comment,{comment=it},label={Text("Комментарий (необязательно)")},modifier=Modifier.fillMaxWidth(),minLines=2)
         if(formError.isNotBlank())Text(formError,color=MaterialTheme.colorScheme.error)
         Spacer(Modifier.height(16.dp))
-        Button(onClick={
+        Button(enabled=!busy,onClick={
             try {
                 LocalDate.parse(workDate)
                 if(selectedSite.isBlank() || (kind=="work" && workEntries.isEmpty()) || (kind=="no_work" && reason.isBlank())) throw IllegalArgumentException("Заполните обязательные поля")
-                val saved=Draft(id=UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,
+                val saved=Draft(ownerId=ownerId,id=UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,
                     workEntriesJson=JSONArray(workEntries.toList()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString())
-                scope.launch(Dispatchers.IO){dao.save(saved);SyncWorker.schedule(context)}
-                workEntries.clear();photos.clear();reason="";comment="";formError="Отчёт сохранён локально. Отправка — автоматически."
+                busy=true
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO){dao.save(saved)}
+                        SyncWorker.schedule(context)
+                        workEntries.clear();photos.clear();reason="";comment="";formError="Отчёт сохранён локально. Отправка — автоматически."
+                    } catch(e:Exception){formError=e.message?:"Ошибка сохранения. Форма сохранена на экране."}
+                    finally{busy=false}
+                }
             }catch(e:Exception){formError=e.message?:"Проверьте форму"}
         },modifier=Modifier.fillMaxWidth()){Text("Сохранить и отправить")}
         Spacer(Modifier.height(20.dp))
+        TextButton(onClick={scope.launch{dao.retryFailed(ownerId);SyncWorker.schedule(context)}}){Text("Повторить отправку")}
         Text("Мои отчёты",style=MaterialTheme.typography.titleMedium)
         drafts.forEach { draft ->
             Card(Modifier.fillMaxWidth().padding(vertical=5.dp)) {
                 Column(Modifier.padding(12.dp)) {
                     Text("${draft.siteName} · ${draft.workDate}")
-                    val label=when(draft.status){"delivered"->"Доставлен ✓";"uploading"->"Загрузка…";else->"Ожидает отправки"}
+                    val label=when(draft.status){"delivered"->"Доставлен ✓";"uploading"->"Загрузка…";"failed"->"Нужна проверка / повторный вход";else->"Ожидает отправки"}
                     Text(label,color=if(draft.status=="delivered") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
                     if(draft.lastError!=null)Text("Последняя ошибка: ${draft.lastError}",style=MaterialTheme.typography.bodySmall)
                 }

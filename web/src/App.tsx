@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { http, login, type Profile, type Report, type Site, type Summary } from './api';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { AnalysisPanel } from './AnalysisPanel';
+import { ReportDetails } from './ReportDetails';
+import { http, login, ApiError, filterQuery, allReports, type Profile, type Report, type Site, type Summary } from './api';
 
 type Page = 'overview' | 'objects' | 'reports' | 'analytics' | 'ai';
 const labels: Record<Page, string> = {
@@ -44,22 +46,28 @@ export default function App() {
   const [selected, setSelected] = useState<Report | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const generation=useRef(0);
   const refresh = useCallback(async () => {
     if (!token) return;
+    const requestGeneration=++generation.current;
     setLoading(true); setError('');
     try {
+      if(startDate && endDate && startDate>endDate)throw new Error('Начало периода позже окончания');
+      const query=filterQuery(siteId,startDate,endDate);
       const [u, s, r, a] = await Promise.all([
         http<Profile>('/me', token), http<Site[]>('/sites', token),
-        http<Report[]>('/reports', token), http<Summary>('/analytics/summary', token)
+        allReports(token, query), http<Summary>('/analytics/summary'+query, token)
       ]);
+      if(requestGeneration!==generation.current)return;
       setProfile(u); setSites(s); setReports(r); setSummary(a);
     } catch (e) {
+      if(requestGeneration!==generation.current)return;
       const reason = e instanceof Error ? e.message : 'Ошибка загрузки';
       setError(reason);
-      if (reason.includes('401') || reason.includes('token')) setToken(null);
-    } finally { setLoading(false); }
-  }, [token]);
-  useEffect(() => { void refresh(); }, [refresh]);
+      if (e instanceof ApiError && e.status===401) {setToken(null);setReports([]);setSummary(null);setSelected(null);}
+    } finally { if(requestGeneration===generation.current)setLoading(false); }
+  }, [token,siteId,startDate,endDate]);
+  useEffect(() => { void refresh(); return ()=>{generation.current++;}; }, [refresh]);
   const siteName = (id: string) => sites.find(s => s.id === id)?.name ?? 'Неизвестный объект';
   const visible = useMemo(() => reports.filter(r => (siteId === 'all' || r.site_id === siteId)
     && (!startDate || r.data.work_date >= startDate) && (!endDate || r.data.work_date <= endDate)),
@@ -78,13 +86,13 @@ export default function App() {
       <div className="sidebar-foot"><span className="online-dot"/> Серверные данные</div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login || 'Пользователь'} <button className="quiet" onClick={() => {setToken(null);setProfile(null);}}>Выйти</button></span></header>
+      <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login || 'Пользователь'} <button className="quiet" onClick={() => {generation.current++;void http('/auth/logout',token,{method:'POST'}).catch(()=>{});setToken(null);setProfile(null);setReports([]);setSummary(null);setSelected(null);setSites([]);setSiteId('all');setStartDate('');setEndDate('');setError('');setLoading(false);}}>Выйти</button></span></header>
       <main className="content">
         <div className="heading"><div><h1>{pageTitle}</h1><p>Статистика формируется из подтверждённых записей сервера.</p></div><button className="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Обновление…' : '↻ Обновить'}</button></div>
         {error && <div className="error" role="alert">Ошибка API: {error}</div>}
         <div className="filters"><label>Объект<select value={siteId} onChange={e=>setSiteId(e.target.value)}><option value="all">Все объекты</option>{sites.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}</select></label>
           <label>С<input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></label><label>По<input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}/></label></div>
-        {page === 'ai' ? <section className="card tall"><h2>ИИ-аналитик</h2><p>Чат будет доступен после утверждения политики передачи данных и подключения серверных read-only аналитических функций.</p><p className="muted">Пока доступны проверяемые серверные сводки. ИИ не должен изменять отчёты или рассчитывать показатели самостоятельно.</p><button className="primary" disabled>Запросить анализ — скоро</button></section> : <>
+        {page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,startDate,endDate])} token={token} siteId={siteId} fromDate={startDate} toDate={endDate} onSource={id=>{void http<Report>('/reports/'+id,token).then(setSelected).catch(e=>setError(e.message));}}/> : <>
           {page !== 'reports' && <section className="metric-grid">
             <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
             <div className="metric"><span>Полученных отчётов</span><strong>{received.length}</strong><small>Доставлено или проверено</small></div>
@@ -93,26 +101,21 @@ export default function App() {
           </section>}
           {(page==='overview' || page==='analytics') && <section className="dashboard-grid">
             <div className="card"><h2>Выполненные объёмы</h2><p className="muted">По видам работ и отдельным единицам измерения</p>
-              {volumes.length ? <div className="volume-list">{volumes.slice(0,8).map((v,i) => <div key={i} className="volume-row"><div><strong>{v.work_type}</strong><small>{siteName(v.site_id)} · {v.unit}</small></div><b>{v.quantity} {v.unit}</b></div>)}</div> : <p className="empty">Нет подтверждённых количественных работ.</p>}
-              <p className="footnote">Сводка по всем датам. Фильтр дат применяется к списку отчётов, но не к этой сводке до появления фильтров API.</p></div>
+              {volumes.length ? <div className="volume-list">{volumes.map((v,i) => <div key={i} className="volume-row"><div><strong>{v.work_type}</strong><small>{siteName(v.site_id)} · {v.unit}</small></div><b>{v.quantity} {v.unit}</b></div>)}</div> : <p className="empty">Нет подтверждённых количественных работ.</p>}
+              <p className="footnote">Сводка и журнал используют одинаковые фильтры объекта и периода.</p></div>
             <div className="card"><h2>Контроль отчётности</h2><p className="muted">Полученные отчёты по текущему фильтру</p>
+              <ul className="daily-chart" aria-label="Количество отчётов по датам">{summary?.daily.map(day=><li key={day.date}><span>{dateText(day.date)}</span><meter min={0} max={Math.max(...summary.daily.map(d=>d.report_count),1)} value={day.report_count}/><b>{day.report_count}</b></li>)}</ul>
               <div className="big-number">{received.length}<span> получено</span></div>
               <p className="footnote">Просрочки не рассчитываются, пока не согласованы графики и ожидаемые отчёты (SPEC-00 B01/B02).</p></div>
           </section>}
           {(page==='overview' || page==='objects') && <section className="card"><h2>Объекты</h2><div className="site-grid">{sites.filter(s=>siteId==='all'||s.id===siteId).map(s=><button className="site-tile" key={s.id} onClick={()=>{setSiteId(s.id);setPage('reports')}}><div className="site-avatar">▧</div><strong>{s.name}</strong><span>{reports.filter(r=>r.site_id===s.id).length} отчётов в журнале</span></button>)}{!sites.length && <p className="empty">Нет назначенных объектов.</p>}</div></section>}
           {(page==='overview' || page==='reports') && <section className="card"><div className="section-heading"><h2>{page==='reports'?'Журнал отчётов':'Последние отчёты'}</h2>{page==='overview'&&<button className="link-button" onClick={()=>setPage('reports')}>Все отчёты →</button>}</div>
-            {visible.length ? <div className="table-wrap"><table><thead><tr><th>Дата</th><th>Объект</th><th>Тип</th><th>Статус</th><th>Версия</th></tr></thead><tbody>{visible.slice(0,page==='overview'?8:100).map(r=><tr key={r.id} tabIndex={0} onClick={()=>setSelected(r)} onKeyDown={e=>{if(e.key==='Enter')setSelected(r)}}><td>{dateText(r.data.work_date)}</td><td>{siteName(r.site_id)}</td><td>{r.data.kind==='no_work'?'Без работ':'Работы'}</td><td><span className={`badge ${r.status}`}>{statusLabels[r.status]}</span></td><td>№{r.revision}</td></tr>)}</tbody></table></div> : <p className="empty">Отчёты по выбранным условиям отсутствуют.</p>}</section>}
+            {visible.length ? <div className="table-wrap"><table><thead><tr><th>Дата</th><th>Объект</th><th>Тип</th><th>Статус</th><th>Версия</th></tr></thead><tbody>{visible.slice(0,page==='overview'?8:visible.length).map(r=><tr key={r.id} tabIndex={0} onClick={()=>setSelected(r)} onKeyDown={e=>{if(e.key==='Enter')setSelected(r)}}><td>{dateText(r.data.work_date)}</td><td>{siteName(r.site_id)}</td><td>{r.data.kind==='no_work'?'Без работ':'Работы'}</td><td><span className={`badge ${r.status}`}>{statusLabels[r.status]}</span></td><td>№{r.revision}</td></tr>)}</tbody></table></div> : <p className="empty">Отчёты по выбранным условиям отсутствуют.</p>}</section>}
         </>}
       </main>
       <footer>СтройКонтроль · MVP · Источник данных: API заказчика</footer>
-      <nav className="bottom-nav" aria-label="Мобильная навигация">{(['overview','objects','reports','analytics'] as Page[]).map(key=><button key={key} className={page===key?'active':''} onClick={()=>setPage(key)}>{labels[key]}</button>)}</nav>
+      <nav className="bottom-nav" aria-label="Мобильная навигация">{(['overview','objects','reports','analytics','ai'] as Page[]).map(key=><button key={key} className={page===key?'active':''} onClick={()=>setPage(key)}>{labels[key]}</button>)}</nav>
     </div>
-    {selected && <div className="modal-backdrop" onClick={()=>setSelected(null)} role="presentation"><section className="modal" role="dialog" aria-modal="true" aria-label="Просмотр отчёта" onClick={e=>e.stopPropagation()}>
-      <div className="section-heading"><h2>Отчёт за {dateText(selected.data.work_date)}</h2><button className="quiet" onClick={()=>setSelected(null)}>Закрыть ✕</button></div>
-      <p><b>Объект:</b> {siteName(selected.site_id)}</p><p><b>Статус:</b> {statusLabels[selected.status]} · ревизия {selected.revision}</p>
-      {selected.data.kind==='no_work' ? <p><b>Работы не выполнялись:</b> {selected.data.no_work_reason}</p> : <div><b>Выполненные работы</b>{selected.data.work_entries.map((w,i)=><div className="work-item" key={i}>{w.type}: {w.quantity===null ? (w.description||'Без объёма') : `${w.quantity} ${w.unit||''}`}</div>)}</div>}
-      {selected.data.comment && <p><b>Комментарий:</b> {selected.data.comment}</p>}
-      {selected.receipt_id && <p className="footnote">Квитанция сервера: {selected.receipt_id}</p>}
-      <button className="primary" onClick={()=>setSelected(null)}>Понятно</button></section></div>}
+    {selected && <ReportDetails report={selected} token={token} role={profile?.role||''} siteName={siteName(selected.site_id)} onClose={()=>setSelected(null)} onChange={r=>{setSelected(r);void refresh();}}/>}
   </div>;
 }
