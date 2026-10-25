@@ -103,7 +103,8 @@ fun ReportApp() {
         workEntriesJson=JSONArray(workEntries.toList()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),editing=editing,editReason=editReason)
     fun replaceForm(action:()->Unit) {
         val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
-        if(hasInput)pendingReplacement=action else action()
+        val replacement={quantity="";description="";workType="Сварка металлоконструкций";unit="шт";editReason="";action()}
+        if(hasInput)pendingReplacement=replacement else replacement()
     }
     LaunchedEffect(ownerId,formReload) {
         try {

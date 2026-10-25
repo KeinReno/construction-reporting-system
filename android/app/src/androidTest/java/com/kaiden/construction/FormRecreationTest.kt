@@ -1,6 +1,7 @@
 package com.kaiden.construction
 import android.content.Context
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -39,6 +40,9 @@ class FormRecreationTest {
             compose.onNodeWithText("Продолжить текущую форму").performClick()
             compose.onNodeWithText("Выполненный объём").assertTextContains("1,")
             compose.onNodeWithText("Дата работ YYYY-MM-DD *").assertTextContains("2026-1")
+            compose.onNodeWithText("Исправить локальный отчёт").performScrollTo().performClick()
+            compose.onNodeWithText("Открыть отчёт").performClick()
+            compose.onNodeWithText("Выполненный объём").assert(SemanticsMatcher("Discarded pending quantity is cleared"){it.config[SemanticsProperties.EditableText].text.isEmpty()})
             assertTrue(runBlocking {db.drafts().pending("synthetic-owner").isEmpty()})
         }
         SecureSession(context).clear();db.clearAllTables()
