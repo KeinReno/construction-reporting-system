@@ -23,51 +23,17 @@ class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(conte
         val token=identity.token
         val owner=identity.userId
         val dao=AppDatabase.get(applicationContext).drafts()
+        val transport=object: ReportTransport {
+            override fun existing(clientId:String)=ApiClient.existingByClient(token,clientId)
+            override fun create(payload:JSONObject)=ApiClient.draft(token,payload)
+            override fun edit(id:String,payload:JSONObject,revision:Int,reason:String)=ApiClient.edit(token,id,payload,revision,reason)
+            override fun upload(id:String,photo:JSONObject)=ApiClient.upload(token,id,photo)
+            override fun submit(id:String,revision:Int)=ApiClient.submit(token,id,revision)
+        }
+        val sync=ReportSync(transport) { dao.save(it) }
         var retry=false
         for(draft in dao.pending(owner)) {
-            try {
-                dao.save(draft.copy(status="uploading",lastError=null))
-                val payload=JSONObject().apply {
-                    put("client_report_id",draft.id)
-                    put("site_id",draft.siteId)
-                    put("work_date",draft.workDate)
-                    put("kind",draft.kind)
-                    if(draft.kind=="no_work") put("no_work_reason",draft.noWorkReason)
-                    put("work_entries",JSONArray(draft.workEntriesJson))
-                    put("comment",draft.comment)
-                    val photos=JSONArray(draft.photosJson)
-                    put("required_photo_ids",JSONArray((0 until photos.length()).map{photos.getJSONObject(it).getString("id")}))
-                }
-                // Always reconcile with the stable client UUID before uploading photos.
-                // A lost submit response can already have committed a valid receipt.
-                var server=try { ApiClient.existingByClient(token,draft.id) }
-                    catch(e:ApiException) {
-                        if(e.status!=404) throw e
-                        ApiClient.draft(token,payload)
-                        ApiClient.existingByClient(token,draft.id)
-                    }
-                val serverId=server.getString("id")
-                if(draft.editRequested && server.getString("status") in listOf("draft","needs_revision") && server.getInt("revision")==draft.serverRevision && (server.getString("status")=="needs_revision" || !ReportPayload.equivalent(payload,server.getJSONObject("data")))) {
-                    server=ApiClient.edit(token,serverId,payload,draft.serverRevision,draft.editReason)
-                }
-                if(!ReportPayload.equivalent(payload,server.getJSONObject("data")))throw ApiException(409,"Содержимое сервера отличается. Нужна проверка отчёта")
-                if(server.optString("receipt_id").let { it.isNotEmpty() && it!="null" } &&
-                    server.getString("status") in listOf("submitted","reviewed")) {
-                    dao.save(draft.copy(status="delivered",serverId=serverId,receiptId=server.getString("receipt_id"),lastError=null,serverRevision=server.getInt("revision"),businessStatus=server.getString("status"),editRequested=false))
-                    continue
-                }
-                if(server.getString("status")!="draft") throw ApiException(409,"Отчёт возвращён на уточнение; нужна новая ревизия")
-                dao.save(draft.copy(status="uploading",serverId=serverId))
-                val photos=JSONArray(draft.photosJson)
-                for(i in 0 until photos.length()) ApiClient.upload(token,serverId,photos.getJSONObject(i))
-                val receipt=ApiClient.submit(token,serverId,server.getInt("revision")).getString("receipt_id")
-                dao.save(draft.copy(status="delivered",serverId=serverId,receiptId=receipt,lastError=null,serverRevision=server.getInt("revision"),businessStatus="submitted",editRequested=false))
-            } catch(e:CancellationException) { throw e
-            } catch (e:Exception) {
-                val permanent=e is ApiException && !SyncPolicy.retryable(e.status)
-                dao.save(draft.copy(status=if(permanent) "failed" else "queued",lastError=e.message?.take(200)))
-                if(!permanent) retry=true
-            }
+            if(sync.sync(draft))retry=true
         }
         if(retry) Result.retry() else Result.success()
     }
