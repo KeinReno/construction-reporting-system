@@ -52,9 +52,66 @@ def test_static_and_ready(tmp_path,monkeypatch):
     api=create_app(database_url=f'sqlite:///{tmp_path}/t.db',storage=tmp_path/'private',initialize=True)
     c=TestClient(api)
     assert c.get('/').status_code==200
+    (public/'private.env').write_text('SecretNotServed')
+    assert c.get('/private.env').status_code==404
     assert c.get('/ready').json()=={'status':'ready'}
     assert c.get('/api/v1/admin/users').status_code==401
     assert c.get('/api/v1/no-such-route').status_code==404
     empty=create_app(database_url=f'sqlite:///{tmp_path}/empty.db',storage=tmp_path/'private')
     assert TestClient(empty).get('/ready').status_code==503
     with pytest.raises(RuntimeError,match='separate'):create_app(database_url=f'sqlite:///{tmp_path}/t.db',storage=public/'photos')
+
+def test_old_password_login_cannot_survive_concurrent_reset(admin_env):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from sqlalchemy import event
+    from sqlalchemy.orm import Session
+    from app.main import Token
+    c,a,f,m,sid,_=admin_env
+    uid=c.post('/api/v1/admin/users',headers=a,json={'login':'racing','password':'SyntheticSecret123'}).json()['id']
+    issued=Event();release=Event()
+    def before_flush(session,ctx,instances):
+        if any(isinstance(x,Token) and x.user_id==uid for x in session.new):
+            issued.set();assert release.wait(10)
+    event.listen(Session,'before_flush',before_flush)
+    try:
+        with ThreadPoolExecutor(1) as pool:
+            login=pool.submit(lambda:c.post('/api/v1/auth/login',json={'login':'racing','password':'SyntheticSecret123'}))
+            try:
+                assert issued.wait(10)
+                assert c.patch('/api/v1/admin/users/'+uid,headers=a,json={'password':'ChangedSecret123'}).status_code==200
+            finally:release.set()
+            response=login.result(timeout=10)
+    finally:event.remove(Session,'before_flush',before_flush)
+    if response.status_code==200:
+        assert c.get('/api/v1/me',headers={'Authorization':'Bearer '+response.json()['access_token']}).status_code==401
+    else:assert response.status_code==401
+    new=c.post('/api/v1/auth/login',json={'login':'racing','password':'ChangedSecret123'}).json()['access_token']
+    assert c.get('/api/v1/me',headers={'Authorization':'Bearer '+new}).status_code==200
+
+def test_concurrent_password_resets_increment_generation_atomically(admin_env):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from sqlalchemy import event
+    c,a,*_=admin_env
+    uid=c.post('/api/v1/admin/users',headers=a,json={'login':'double','password':'SyntheticSecret123'}).json()['id']
+    with c.api.state.db() as db:engine=db.bind
+    barrier=Barrier(2)
+    def before_sql(conn,cursor,statement,parameters,ctx,many):
+        if statement.startswith('DELETE FROM tokens'):barrier.wait(timeout=10)
+    event.listen(engine,'before_cursor_execute',before_sql)
+    try:
+        with ThreadPoolExecutor(2) as pool:responses=list(pool.map(lambda i:c.patch('/api/v1/admin/users/'+uid,headers=a,json={'password':f'ChangedSecret{i}123'}),range(2)))
+    finally:event.remove(engine,'before_cursor_execute',before_sql)
+    assert [r.status_code for r in responses]==[200,200]
+    with c.api.state.db() as db:assert db.get(User,uid).auth_version==3
+
+def test_proxy_limiter_separates_clients_and_rejects_untrusted_forwarded_headers(env):
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+    c,f,m,sid,_=env
+    proxy=TestClient(ProxyHeadersMiddleware(c.api,trusted_hosts=['127.0.0.1']),client=('127.0.0.1',5000))
+    for _ in range(10):assert proxy.post('/api/v1/auth/login',headers={'X-Forwarded-For':'198.51.100.1'},json={'login':'foreman','password':'bad'}).status_code==401
+    assert proxy.post('/api/v1/auth/login',headers={'X-Forwarded-For':'198.51.100.2'},json={'login':'foreman','password':'StrongPassword123'}).status_code==200
+    untrusted=TestClient(ProxyHeadersMiddleware(c.api,trusted_hosts=['127.0.0.1']),client=('198.51.100.3',5000))
+    for i in range(10):assert untrusted.post('/api/v1/auth/login',headers={'X-Forwarded-For':f'203.0.113.{i}'},json={'login':'foreman','password':'bad'}).status_code==401
+    assert untrusted.post('/api/v1/auth/login',headers={'X-Forwarded-For':'203.0.113.100'},json={'login':'foreman','password':'StrongPassword123'}).status_code==429

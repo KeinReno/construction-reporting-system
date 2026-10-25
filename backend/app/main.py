@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Request, Response, 
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, model_validator, ConfigDict
-from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer, UniqueConstraint, delete, text
+from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer, UniqueConstraint, delete, text, update
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError
@@ -28,6 +28,7 @@ class User(Base):
     password_hash:Mapped[str]=mapped_column(String(256))
     role:Mapped[str]=mapped_column(String(32),default='foreman')
     active:Mapped[bool]=mapped_column(default=True)
+    auth_version:Mapped[int]=mapped_column(Integer,default=1,nullable=False)
 class Site(Base):
     __tablename__='sites'
     id:Mapped[str]=mapped_column(String(36),primary_key=True,default=new_id)
@@ -43,6 +44,7 @@ class Token(Base):
     digest:Mapped[str]=mapped_column(String(64),primary_key=True)
     user_id:Mapped[str]=mapped_column(ForeignKey('users.id'))
     expires:Mapped[datetime]=mapped_column(DateTime(timezone=True))
+    auth_version:Mapped[int]=mapped_column(Integer,default=1,nullable=False)
 class Report(Base):
     __tablename__='reports'
     id:Mapped[str]=mapped_column(String(36),primary_key=True,default=new_id)
@@ -164,7 +166,7 @@ class AnalyticsFilters(Input):
 
 class Ask(Input):
     question:str=Field(min_length=1,max_length=1000)
-    intent:Literal["summary","work_volume","no_work","site_timeline"]="summary"
+    intent:Literal["auto","summary","work_volume","no_work","site_timeline"]="summary"
     filters:AnalyticsFilters=Field(default_factory=AnalyticsFilters)
 
 def stamp(value):
@@ -204,7 +206,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         if not token: raise HTTPException(401,'Invalid token')
         expiry=token.expires.replace(tzinfo=timezone.utc) if token.expires.tzinfo is None else token.expires
         u=db.get(User,token.user_id)
-        if not u or not u.active or expiry<utcnow(): raise HTTPException(401,'Expired token')
+        if not u or not u.active or expiry<utcnow() or token.auth_version!=u.auth_version: raise HTTPException(401,'Expired token')
         return u
     def allowed(db,u,sid):
         if not db.get(Site,sid): raise HTTPException(404,'Unknown object')
@@ -239,10 +241,13 @@ def create_app(database_url=None, storage=None, initialize=False):
         # Admin lifecycles are kept in the local bootstrap CLI; HTTP cannot remove any admin.
         # This avoids concurrent last-admin deletion, not just a vulnerable count-then-update.
         if target.role=='admin' and data.active is False:raise HTTPException(409,'Admin deactivation is not allowed through HTTP')
-        details={}
-        if data.active is not None:target.active=data.active;details['active']=data.active
-        if data.password is not None:target.password_hash=hash_password(data.password);details['password_reset']=True
-        if data.password is not None or data.active is False:db.execute(delete(Token).where(Token.user_id==target.id))
+        details={};values={}
+        if data.active is not None:values['active']=data.active;details['active']=data.active
+        if data.password is not None:values['password_hash']=hash_password(data.password);details['password_reset']=True
+        if data.password is not None or data.active is False:
+            values['auth_version']=User.auth_version+1
+            db.execute(delete(Token).where(Token.user_id==target.id))
+        if values:db.execute(update(User).where(User.id==target.id).values(**values))
         admin_log(db,u,'user_updated',target.id,details);db.commit()
         return user_view(target)
     @api.post('/api/v1/admin/sites',status_code=201)
@@ -298,7 +303,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         u=db.scalar(select(User).where(User.login==data.login))
         if not u or not u.active or not password_ok(data.password,u.password_hash): raise HTTPException(401,'Invalid credentials')
         secret=secrets.token_urlsafe(48)
-        db.add(Token(digest=hashlib.sha256(secret.encode()).hexdigest(),user_id=u.id,expires=utcnow()+timedelta(hours=8)))
+        db.add(Token(digest=hashlib.sha256(secret.encode()).hexdigest(),user_id=u.id,expires=utcnow()+timedelta(hours=8),auth_version=u.auth_version))
         db.commit()
         return {'access_token':secret,'token_type':'bearer','expires_in':28800}
     @api.post('/api/v1/auth/logout')
@@ -438,9 +443,13 @@ def create_app(database_url=None, storage=None, initialize=False):
         if to_date:q=q.where(Report.work_date<=str(to_date))
         return db.scalars(q.order_by(Report.work_date,Report.id)).unique().all()
     def metrics(rows,from_date,to_date):
-        volumes={}; daily={}
+        volumes={}; daily={}; reasons={}
         for r in rows:
             daily[r.work_date]=daily.get(r.work_date,0)+1
+            if r.payload['kind']=='no_work':
+                reason=r.payload['no_work_reason'].strip()
+                item=reasons.setdefault(reason,{'reason':reason,'report_count':0,'source_report_ids':[]})
+                item['report_count']+=1;item['source_report_ids'].append(r.id)
             for w in r.payload.get('work_entries',[]):
                 if w['quantity'] is not None:
                     key=(r.site_id,w['type'],w['unit'])
@@ -450,6 +459,9 @@ def create_app(database_url=None, storage=None, initialize=False):
                 'source_report_ids':[r.id for r in rows],
                 'volumes':[{'site_id':s,'work_type':t,'unit':unit,'quantity':str(qty)} for (s,t,unit),qty in sorted(volumes.items())],
                 'daily':[{'date':d,'report_count':n} for d,n in sorted(daily.items())],
+                'no_work_reasons':sorted(reasons.values(),key=lambda x:(-x['report_count'],x['reason'])),
+                'timeline':[{'report_id':r.id,'date':r.work_date,'kind':r.payload['kind'],'status':r.status} for r in rows[-200:]],
+                'timeline_truncated':len(rows)>200,
                 'limitations':['Только отправленные и проверенные отчёты. Нет отчётов — не означает отсутствие работ.',
                                'Нет утверждённых планов и расписаний: план-факт и просрочки не рассчитаны.']}
     @api.get('/api/v1/analytics/summary')
@@ -458,6 +470,17 @@ def create_app(database_url=None, storage=None, initialize=False):
     @api.post('/api/v1/analytics/ask')
     def ask(data:Ask,db:Session=Depends(dbdep),u:User=Depends(current)):
         f=data.filters
+        intent=data.intent
+        if intent=='auto':
+            from app.analytics_intents import resolve
+            intent=resolve(data.question)
+            if intent is None:
+                validate_period(f.from_date,f.to_date)
+                if f.site_id:allowed(db,u,str(f.site_id))
+                return {'answer':'Такой вопрос не поддерживается локальным аналитиком. Выберите вид анализа; период задайте фильтрами. Материалы, финансы, ожидания и изменения данных пока недоступны.',
+                        'mode':'local_analytics','intent':'unsupported','supported':False,'metrics':None,'source_report_ids':[],
+                        'period':{'from_date':str(f.from_date) if f.from_date else None,'to_date':str(f.to_date) if f.to_date else None},
+                        'limitations':['Свободный LLM-диалог отключён до согласования B13. Даты из текста не интерпретируются.']}
         rows=analytic_rows(db,u,f.site_id,f.from_date,f.to_date)
         result=metrics(rows,f.from_date,f.to_date)
         # Explicit intent is the entire whitelist. Free text never becomes SQL, tools or instructions.
@@ -466,9 +489,9 @@ def create_app(database_url=None, storage=None, initialize=False):
             'no_work':f"Отчётов без работ: {result['no_work_count']}. Причины доступны в исходных отчётах.",
             'work_volume':'Объёмы рассчитаны сервером отдельно по объектам, видам работ и единицам.',
             'site_timeline':'Хронология полученных отчётов доступна в источниках и дневной сводке.'}
-        return {'answer':answers[data.intent],'mode':'local_analytics','intent':data.intent,
+        return {'answer':answers[intent],'mode':'local_analytics','intent':intent,'supported':True,
                 'period':result['period'],'metrics':result,'source_report_ids':result['source_report_ids'],
-                'limitations':result['limitations']+['Свободный вопрос не интерпретируется: используется выбранный вид анализа. LLM отключена до согласования B13.']}
+                'limitations':result['limitations']+['Используются только поддерживаемый сценарий и явные фильтры. LLM отключена до согласования B13. Хронология ограничена 200 последними записями.']}
     @api.get('/api/v1/reports/{rid}/history')
     def history(rid:uuid.UUID,db:Session=Depends(dbdep),u:User=Depends(current)):
         fetch(db,u,str(rid))
@@ -479,6 +502,14 @@ def create_app(database_url=None, storage=None, initialize=False):
         public=Path(web_dir).resolve()
         if not (public/'index.html').is_file():raise RuntimeError('WEB_DIR must contain a built index.html')
         if public==folder or public in folder.parents or folder in public.parents:raise RuntimeError('WEB_DIR and UPLOAD_DIR must be separate')
-        api.mount('/',StaticFiles(directory=public,html=True),name='web')
+        class PublicAssets(StaticFiles):
+            async def get_response(self,path,scope):
+                allowed=path in ('','.','index.html') or (path.startswith('assets/') and Path(path).suffix in {'.js','.css','.svg','.png','.jpg','.jpeg','.ico','.woff','.woff2'})
+                if not allowed:raise HTTPException(404,'Not found')
+                return await super().get_response(path,scope)
+        if url.startswith('sqlite:') and engine.url.database and engine.url.database!=':memory:':
+            sql_file=Path(engine.url.database).resolve()
+            if sql_file==public or public in sql_file.parents:raise RuntimeError('SQLite database cannot be public')
+        api.mount('/',PublicAssets(directory=public,html=True),name='web')
     return api
 app=create_app()

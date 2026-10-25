@@ -2,6 +2,7 @@
 param([Parameter(Mandatory=$true)][string]$ConfigPath,[ValidateRange(1024,65535)][int]$Port=8000,[switch]$MigrateOnly,[switch]$ValidateOnly,[switch]$AllowSqliteForTests)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $settings=Read-AppSettings -ConfigPath $ConfigPath -AllowSqliteForTests:$AllowSqliteForTests
+Test-ReleaseIntegrity $settings.Root
 $runtime=Join-Path $settings.Root '.venv/Scripts/python.exe'
 if (-not (Test-Path -LiteralPath $runtime)) { throw 'Run Install-Runtime.ps1 first' }
 if (-not (Test-Path -LiteralPath (Join-Path $settings.WebDir 'index.html'))) { throw 'Built Web interface is missing' }
@@ -27,7 +28,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Database migration failed; inspect private server logs' }
     if (-not $MigrateOnly) {
         # One worker: login limiter is process-local. Public traffic must pass through HTTPS proxy.
-        & $runtime -m uvicorn app.main:app --host 127.0.0.1 --port $Port --workers 1 --no-proxy-headers
+        & $runtime -m uvicorn app.main:app --host 127.0.0.1 --port $Port --workers 1 --proxy-headers --forwarded-allow-ips 127.0.0.1
         if ($LASTEXITCODE -ne 0) { throw 'API process failed' }
     }
 } finally {

@@ -9,6 +9,20 @@ import org.junit.runner.RunWith
 import java.util.UUID
 @RunWith(AndroidJUnit4::class)
 class EndpointIsolationTest {
+    @Test fun legacyTokenWithoutServerIsNeverReused() {
+        val context:Context=ApplicationProvider.getApplicationContext();val session=SecureSession(context)
+        session.save("synthetic","A","https://a.invalid")
+        try {
+            val store=java.security.KeyStore.getInstance("AndroidKeyStore").apply{load(null)}
+            val key=store.getKey("construction-report-token",null) as javax.crypto.SecretKey
+            val cipher=javax.crypto.Cipher.getInstance("AES/GCM/NoPadding");cipher.init(javax.crypto.Cipher.ENCRYPT_MODE,key)
+            val payload=org.json.JSONObject().put("token","old-synthetic").put("user_id","A").toString().toByteArray()
+            val encoded=android.util.Base64.encodeToString(cipher.iv+cipher.doFinal(payload),android.util.Base64.NO_WRAP)
+            context.getSharedPreferences("session",Context.MODE_PRIVATE).edit().putString("encrypted",encoded).commit()
+            assertNull(session.snapshot())
+        }finally{session.clear()}
+    }
+
     @Test fun allLocalRecordsPreventServerSwitch()=runBlocking {
         val context:Context=ApplicationProvider.getApplicationContext();val name="endpoint-${UUID.randomUUID()}.db";val db=AppDatabase.build(context,name)
         val prefs=context.getSharedPreferences("server",Context.MODE_PRIVATE);prefs.edit().clear().commit();SecureSession(context).clear()

@@ -36,7 +36,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
-      - run: cd android && gradle :app:testDebugUnitTest :app:assembleDebug -PapiBaseUrl=https://example.invalid/api/v1 --stacktrace
+      - run: cd android && gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease -PapiBaseUrl=https://example.invalid/api/v1 --stacktrace
       - name: Enable emulator acceleration
         run: sudo chmod 666 /dev/kvm
       - name: Room migrations and form recreation on Android 35
@@ -48,6 +48,16 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
           script: cd android && gradle :app:connectedDebugAndroidTest -PapiBaseUrl=https://example.invalid/api/v1 -PcrsTestApiBase=https://10.0.2.2:8443/api/v1 --stacktrace
+      - name: Prove real HTTPS Worker test ran (not skipped)
+        run: |
+          python - <<'PYPROOF'
+          import json,ssl,urllib.request
+          context=ssl.create_default_context(cafile='android/app/src/androidTest/assets/ci-ca.pem')
+          with urllib.request.urlopen('https://127.0.0.1:8443/api/v1/test/stats',context=context) as response:
+              stats=json.load(response)
+          assert stats=={'photo_put_count':2,'submit_count':2,'lost_response_count':1},stats
+          print('Verified HTTPS Worker: stored photos, lost acknowledgement recovery and revised submit')
+          PYPROOF
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -62,3 +72,8 @@ jobs:
           name: construction-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: construction-android-release-unsigned
+          path: android/app/build/outputs/apk/release/*-unsigned.apk
+          retention-days: 14

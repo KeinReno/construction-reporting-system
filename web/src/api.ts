@@ -9,6 +9,7 @@ export type Report = {
 export type Summary = {
   report_count: number; no_work_count: number;
   volumes: Array<{ site_id: string; work_type: string; unit: string; quantity: string }>;
+  no_work_reasons: Array<{reason:string;report_count:number;source_report_ids:string[]}>; timeline:Array<{report_id:string;date:string;kind:string;status:string}>; timeline_truncated:boolean;
   limitations: string[]; source_report_ids: string[]; daily: Array<{date:string; report_count:number}>; period: {from_date:string|null;to_date:string|null};
 }
 export type Profile = { id: string; login: string; role: string }

@@ -19,6 +19,7 @@ def package(root:Path,output:Path):
         if p.is_symlink() or not p.is_file():raise ValueError('Missing or unsafe release input')
         name=p.relative_to(root).as_posix().replace('web/dist/','web/')
         records[name]=p.read_bytes()
+    records['INSTALL.md']=(root/'docs/WINDOWS_INSTALL.md').read_bytes()
     manifest={'format_version':1,'sha256':{name:hashlib.sha256(data).hexdigest() for name,data in records.items()}}
     output.parent.mkdir(parents=True,exist_ok=True)
     with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as z:

@@ -2,6 +2,7 @@
 param([string]$Python = 'python')
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $root = Get-AppRoot
+Test-ReleaseIntegrity $root
 $venv = Join-Path $root '.venv'
 if (-not (Test-Path -LiteralPath (Join-Path $root 'backend/requirements.lock.txt'))) { throw 'Release dependency lock is missing' }
 & $Python -c "import sys; assert sys.version_info[:2] == (3,12), 'Python 3.12 required'"
