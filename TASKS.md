@@ -49,6 +49,6 @@ DEV-01…05 остаются IN_PROGRESS: полная форма, распис�
 ## Демо-комплект 0.3.1
 | ID | Результат | Статус | Проверка |
 |---|---|---|---|
-| DEMO-01 | Отдельный Android APK с локальным транспортом и шестью примерами | IN_PROGRESS | Native demo emulator, offline submit, applicationId isolation |
-| DEMO-02 | Windows EXE со встроенным Python/API/Web и демо SQLite | IN_PROGRESS | Frozen EXE smoke + browser + single instance |
-| DEMO-03 | Обезличенные адаптации образцов, схемы и инструкция | IN_PROGRESS | Source selection, fixture test, downloadable files |
+| DEMO-01 | Отдельный Android APK с локальным транспортом и шестью примерами | DONE | Native Android35 PASS, offline submit, applicationId .demo; artifact12632566301 |
+| DEMO-02 | Windows EXE со встроенным Python/API/Web и демо SQLite | DONE | CI40288177400 Windows: frozen EXE + JS/CSS + browser + single instance PASS |
+| DEMO-03 | Обезличенные адаптации образцов, схемы и инструкция | DONE | 40 pytest/2 environment skips; шесть примеров, START_HERE, файлы подготовлены |
