@@ -1,6 +1,10 @@
 import {test,expect} from '@playwright/test';
 test('downloaded demo opens six examples, protected images, review and analytics',async({page})=>{
+ page.on('pageerror',e=>console.log('BROWSER ERROR',e.message));
+ page.on('console',m=>{if(m.type()==='error')console.log('CONSOLE ERROR',m.text());});
+ const info=await page.request.get('/demo-info');console.log('DEMO INFO',info.status(),(await info.text()).slice(0,150));
  await page.goto('/');
+ console.log('ROOT',await page.title());
  await page.getByRole('button',{name:'Открыть демо: Руководитель',exact:true}).click();
  await expect(page.getByText('8.5 м',{exact:true})).toBeVisible();
  await expect(page.locator('tbody tr')).toHaveCount(6);
