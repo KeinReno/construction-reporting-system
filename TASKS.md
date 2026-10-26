@@ -45,3 +45,10 @@
 | TECH-07 | Offline backup+restore и контроль целостности | DONE | SQLite drill PASS; PostgreSQL pg_dump/restore PASS |
 
 DEV-01…05 остаются IN_PROGRESS: полная форма, расписания, бизнес-каталоги и эксплуатационная приёмка не завершены. SPEC/ENV и полевые QA не отмечены DONE заочно. [Точный статус](docs/IMPLEMENTATION_STATUS.md), [проверки](docs/QA_RELEASE_2026-10-26.md).
+
+## Демо-комплект 0.3.1
+| ID | Результат | Статус | Проверка |
+|---|---|---|---|
+| DEMO-01 | Отдельный Android APK с локальным транспортом и шестью примерами | IN_PROGRESS | Native demo emulator, offline submit, applicationId isolation |
+| DEMO-02 | Windows EXE со встроенным Python/API/Web и демо SQLite | IN_PROGRESS | Frozen EXE smoke + browser + single instance |
+| DEMO-03 | Обезличенные адаптации образцов, схемы и инструкция | IN_PROGRESS | Source selection, fixture test, downloadable files |

@@ -4,6 +4,7 @@ import { AnalysisPanel } from './AnalysisPanel';
 import { ReportDetails } from './ReportDetails';
 import { http, login, ApiError, filterQuery, allReports, type Profile, type Report, type Site, type Summary } from './api';
 
+type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
 type Page = 'overview' | 'objects' | 'reports' | 'analytics' | 'ai' | 'admin';
 const labels: Record<Page, string> = {
   overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', analytics: 'Аналитика', ai: 'ИИ-аналитик', admin:'Управление'
@@ -13,7 +14,7 @@ const statusLabels: Record<Report['status'], string> = {
 };
 const dateText = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString('ru-RU');
 
-function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
+function Login({ onSuccess,demo }: { onSuccess: (token: string) => void;demo:DemoInfo|null }) {
   const [loginName, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -27,6 +28,7 @@ function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
   return <main className="auth-page"><div className="auth-card">
     <div className="brand brand-dark"><span className="brand-mark">▣</span> СтройКонтроль</div>
     <h1>Вход в систему</h1><p>Отчётность строительных объектов</p>
+    {demo&&<section><strong>Локальная демо-версия</strong><p>{demo.notice}</p><div className="review-actions">{[['manager','Руководитель'],['admin','Администратор']].map(([role,label])=><button type="button" className="secondary" disabled={busy} key={role} onClick={()=>{setBusy(true);setError('');void login(demo.accounts[role],demo.password).then(onSuccess).catch(e=>setError(e.message)).finally(()=>setBusy(false));}}>Открыть демо: {label}</button>)}</div></section>}
     <form onSubmit={submit}><label>Логин<input required autoComplete="username" value={loginName} onChange={e => setLogin(e.target.value)} /></label>
       <label>Пароль<input required type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /></label>
       {error && <div className="error" role="alert">{error}</div>}
@@ -35,6 +37,8 @@ function Login({ onSuccess }: { onSuccess: (token: string) => void }) {
 }
 
 export default function App() {
+  const [demo,setDemo]=useState<DemoInfo|null>(null);
+  useEffect(()=>{let active=true;void fetch('/demo-info').then(r=>r.ok?r.json():null).then(d=>{if(active)setDemo(d);}).catch(()=>{});return()=>{active=false;};},[]);
   const [token, setToken] = useState<string | null>(null); // memory only; logout on page close
   const [profile, setProfile] = useState<Profile | null>(null);
   const [sites, setSites] = useState<Site[]>([]);
@@ -79,7 +83,7 @@ export default function App() {
   const incidents = '—'; // Endpoint is not implemented yet: do not invent values.
   const volumes = (summary?.volumes ?? []).filter(v => siteId === 'all' || v.site_id === siteId);
   const pageTitle = labels[page];
-  if (!token) return <Login onSuccess={setToken}/>;
+  if (!token) return <Login onSuccess={setToken} demo={demo}/>;
   return <div className="app-shell">
     <aside className="sidebar"><div className="brand"><span className="brand-mark">▣</span> СтройКонтроль</div>
       <nav aria-label="Основная навигация">{(Object.keys(labels) as Page[]).filter(key=>key!=='admin'||profile?.role==='admin').map((key, index) =>
@@ -90,6 +94,7 @@ export default function App() {
     <div className="workspace">
       <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login || 'Пользователь'} <button className="quiet" onClick={() => {generation.current++;void http('/auth/logout',token,{method:'POST'}).catch(()=>{});setToken(null);setProfile(null);setReports([]);setSummary(null);setSelected(null);setSites([]);setPage('overview');setSiteId('all');setStartDate('');setEndDate('');setError('');setLoading(false);}}>Выйти</button></span></header>
       <main className="content">
+        {demo&&<div className="card"><strong>ДЕМО · локальная база</strong><p>{demo.notice}</p></div>}
         <div className="heading"><div><h1>{pageTitle}</h1><p>Статистика формируется из подтверждённых записей сервера.</p></div><button className="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Обновление…' : '↻ Обновить'}</button></div>
         {error && <div className="error" role="alert">Ошибка API: {error}</div>}
         {page!=='admin' && <div className="filters"><label>Объект<select value={siteId} onChange={e=>setSiteId(e.target.value)}><option value="all">Все объекты</option>{sites.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}</select></label>

@@ -10,9 +10,16 @@ import java.security.MessageDigest
 /** Must only be called from Dispatchers.IO / Worker, never directly on the UI thread. */
 class ApiException(val status:Int, message:String): Exception(message)
 
-class ApiClient(endpoint:String=BuildConfig.API_BASE_URL) {
+class ApiClient(endpoint:String=BuildConfig.API_BASE_URL,private val demo:DemoBackend?=null) {
+    companion object {
+        fun forSession(context:android.content.Context,endpoint:String):ApiClient {
+            if(BuildConfig.DEMO_MODE){require(endpoint==DemoBackend.ENDPOINT);return ApiClient(endpoint,DemoBackend(context))}
+            return ApiClient(endpoint)
+        }
+    }
     private val root = HttpsEndpoint.normalize(endpoint)
     private fun request(path:String,method:String="GET",token:String?=null,body:ByteArray?=null,mime:String="application/json",sha:String?=null): JSONObject {
+        if(demo!=null)return demo.request(path,method,token,body)
         require(root.startsWith("https://")) { "A HTTPS API endpoint must be configured at build time" }
         val connection=URL(root + path).openConnection() as HttpURLConnection
         try {
@@ -41,6 +48,7 @@ class ApiClient(endpoint:String=BuildConfig.API_BASE_URL) {
     fun me(token:String):String = request("/me",token=token).getString("id")
     fun logout(token:String) { request("/auth/logout","POST",token) }
     fun sites(token:String):List<Pair<String,String>> {
+        if(demo!=null)return demo.sites()
         // Server returns JSON array, whereas request() expects an object.
         require(root.startsWith("https://"))
         val endpoint = URL(root + "/sites")

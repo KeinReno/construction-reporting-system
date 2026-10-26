@@ -43,7 +43,7 @@ fun ReportApp() {
     var serverUrl by remember {mutableStateOf(session.snapshot()?.endpoint?:endpointSettings.current())}
     var serverInput by remember {mutableStateOf(serverUrl)}
     var serverReady by remember {mutableStateOf(session.snapshot()!=null || endpointSettings.isBound())}
-    val api=remember(serverUrl){ApiClient(serverUrl)}
+    val api=remember(serverUrl){ApiClient.forSession(context,serverUrl)}
     LaunchedEffect(Unit) {
         if(!serverReady && !serverUrl.contains("example.invalid")) {
             try {serverUrl=withContext(Dispatchers.IO){endpointSettings.configure(serverUrl)};serverReady=true}
@@ -69,6 +69,14 @@ fun ReportApp() {
             } catch(e:CancellationException){throw e}
             catch (e:Exception) {error=e.message?:"Ошибка подключения";if(e is ApiException && e.status==401){session.clear();token=null}}
         }
+    }
+    if(token==null && BuildConfig.DEMO_MODE) {
+        Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.Center) {
+            Text("СтройКонтроль · ДЕМО",style=MaterialTheme.typography.headlineMedium)
+            Text("Локальные примеры. Сервер и пароль не нужны.")
+            Button(enabled=!busy,onClick={busy=true;scope.launch{try{withContext(Dispatchers.IO){DemoBackend.prepare(context)};serverUrl=DemoBackend.ENDPOINT;serverReady=true;token=session.get()}finally{busy=false}}}){Text("Открыть демо")}
+        }
+        return
     }
     if(token==null) {
         Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.Center) {
@@ -193,6 +201,11 @@ fun ReportApp() {
         }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+        if(BuildConfig.DEMO_MODE) {
+            Text("ДЕМО · всё хранится только на этом телефоне",style=MaterialTheme.typography.titleMedium)
+            Text("6 примеров на основе обезличенных сообщений. Схемы вместо фото. Синхронизации с Windows в этом режиме нет.")
+            DemoExamples(drafts)
+        }
         Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()) {
             Text("Новый отчёт",style=MaterialTheme.typography.headlineSmall)
             TextButton(enabled=!busy,onClick={val oldToken=token;session.clear();token=null;sites=emptyList();scope.launch(Dispatchers.IO){try{if(oldToken!=null)api.logout(oldToken)}catch(_:Exception){}}}) {Text("Выход")}
@@ -250,7 +263,7 @@ fun ReportApp() {
                 scope.launch {
                     try {
                         withContext(Dispatchers.IO){formRepository.enqueue(consumed,saved)}
-                        workEntries.clear();photos.clear();reason="";comment="";quantity="";description="";editing=null;editReason="";formSession=null;formReload++;formError="Отчёт сохранён локально. Отправка — автоматически."
+                        workEntries.clear();photos.clear();reason="";comment="";quantity="";description="";editing=null;editReason="";formSession=null;formReload++;formError=if(BuildConfig.DEMO_MODE)"Демо: сохранено на телефоне. Внешней отправки нет." else "Отчёт сохранён локально. Отправка — автоматически."
                         try {SyncWorker.schedule(context)}catch(e:Exception){formError="Отчёт сохранён в очереди. Не удалось запланировать отправку: ${e.message}"}
                     } catch(e:Exception){formError=e.message?:"Ошибка сохранения. Форма сохранена на экране."}
                     finally{busy=false}
@@ -264,7 +277,7 @@ fun ReportApp() {
             Card(Modifier.fillMaxWidth().padding(vertical=5.dp)) {
                 Column(Modifier.padding(12.dp)) {
                     Text("${draft.siteName} · ${draft.workDate}")
-                    val label=when(draft.status){"delivered"->"Доставлен ✓";"uploading"->"Загрузка…";"failed"->"Нужна проверка / повторный вход";else->"Ожидает отправки"}
+                    val label=when(draft.status){"delivered"->if(BuildConfig.DEMO_MODE)"Демо: сохранён локально ✓" else "Доставлен ✓";"uploading"->"Загрузка…";"failed"->"Нужна проверка / повторный вход";else->"Ожидает отправки"}
                     Text(label,color=if(draft.status=="delivered") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
                     if(draft.status=="failed" && editing==null)TextButton(enabled=!busy,onClick={replaceForm {
                         editing=draft;editReason="Исправление отклонённого отчёта";selectedSite=draft.siteId;workDate=draft.workDate
@@ -275,7 +288,7 @@ fun ReportApp() {
                         for(i in 0 until localPhotos.length())photos.add(localPhotos.getJSONObject(i))
                         formError="Отчёт загружен в форму. Исправьте ошибку и сохраните."
                     }}){Text("Исправить локальный отчёт")}
-                    if(draft.businessStatus!=null)Text("На сервере: ${draft.businessStatus} · версия ${draft.serverRevision}")
+                    if(draft.businessStatus!=null)Text("${if(BuildConfig.DEMO_MODE)"Демо-статус" else "На сервере"}: ${draft.businessStatus} · версия ${draft.serverRevision}")
                     if(draft.serverId!=null && editing==null)TextButton(enabled=!busy,onClick={
                         busy=true;scope.launch {
                             try {

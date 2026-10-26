@@ -1,0 +1,75 @@
+name: Downloadable demo builds
+on:
+  push:
+    branches: ["feat/**"]
+  pull_request:
+jobs:
+  windows-demo:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r backend/requirements.lock.txt
+      - run: pip install pyinstaller==6.22.3
+      - run: npm --prefix web ci --no-audit --no-fund
+      - run: npm --prefix web run build
+      - run: python scripts/demo/build_windows_demo.py
+      - name: Demo browser flow
+        run: |
+          cd web
+          npx playwright install chromium
+          npx playwright test --config=playwright.demo.config.ts
+      - name: Test the actual frozen Windows EXE
+        run: python scripts/demo/test_frozen_demo.py dist/demo/ConstructionReportingDemo.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: construction-windows-demo
+          path: construction-windows-demo.zip
+          retention-days: 14
+  android-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/requirements.lock.txt
+      - run: python scripts/prepare_demo.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - run: cd android && gradle :app:testDemoUnitTest :app:assembleDemo --stacktrace
+      - run: sudo chmod 666 /dev/kvm
+      - name: Native offline demo on Android 35
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+          script: cd android && gradle :app:connectedDemoAndroidTest -PcrsTestBuildType=demo --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: demo-android-test-reports
+          path: |
+            android/app/build/reports/
+            android/app/build/outputs/androidTest-results/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: construction-android-demo
+          path: android/app/build/outputs/apk/demo/*.apk
+          retention-days: 14

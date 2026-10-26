@@ -1,0 +1,25 @@
+import {test,expect} from '@playwright/test';
+test('downloaded demo opens six examples, protected images, review and analytics',async({page})=>{
+ await page.goto('/');
+ await page.getByRole('button',{name:'Открыть демо: Руководитель',exact:true}).click();
+ await expect(page.getByText('8.5 м',{exact:true})).toBeVisible();
+ await expect(page.locator('tbody tr')).toHaveCount(6);
+ await page.locator('tbody tr').filter({hasText:'15.05.2026'}).click();
+ const dialog=page.getByRole('dialog');
+ await expect(dialog.getByText(/Ручная покраска/)).toBeVisible();
+ await expect(dialog.locator('img')).toHaveJSProperty('naturalWidth',800);
+ await dialog.getByRole('button',{name:'Закрыть ✕'}).click();
+ await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
+ await page.getByLabel('Вопрос (сохраняется только на экране)').fill('Какие простои повторяются?');
+ await page.getByRole('button',{name:'Сформировать анализ'}).click();
+ await expect(page.getByRole('button',{name:'Отчёт 3',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Отчёт 3',exact:true}).click();
+ await expect(page.getByRole('dialog').getByText(/Бригада прибыла, но не получила допуск/)).toBeVisible();
+ await page.getByRole('dialog').getByRole('button',{name:'Проверен',exact:true}).click();
+ await expect(page.getByRole('dialog').getByText('Статус: reviewed · ревизия 1')).toBeVisible();
+ await page.getByRole('dialog').getByRole('button',{name:'Закрыть ✕'}).click();
+ await page.getByRole('button',{name:'Выйти',exact:true}).click();
+ await page.getByRole('button',{name:'Открыть демо: Администратор',exact:true}).click();
+ await page.getByRole('button',{name:'Управление',exact:true}).first().click();
+ await expect(page.getByRole('heading',{name:'Пользователи',exact:true})).toBeVisible();
+});

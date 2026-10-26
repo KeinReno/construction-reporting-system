@@ -13,10 +13,27 @@ android {
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["crsApiBase"]=providers.gradleProperty("crsTestApiBase").orElse("").get()
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.3.1"
         val baseUrl = providers.gradleProperty("apiBaseUrl").orElse("https://example.invalid/api/v1").get()
         buildConfigField("String", "API_BASE_URL", "\"$baseUrl\"")
+        buildConfigField("boolean", "DEMO_MODE", "false")
+        manifestPlaceholders["appLabel"]="СтройКонтроль"
+    }
+    testBuildType=providers.gradleProperty("crsTestBuildType").orElse("debug").get()
+    buildTypes {
+        create("demo") {
+            initWith(getByName("debug"))
+            applicationIdSuffix=".demo"
+            versionNameSuffix="-demo"
+            matchingFallbacks+=listOf("debug")
+            buildConfigField("boolean","DEMO_MODE","true")
+            manifestPlaceholders["appLabel"]="СтройКонтроль Демо"
+        }
+    }
+    if(providers.gradleProperty("crsTestBuildType").orElse("debug").get()=="demo") {
+        sourceSets.getByName("androidTest").java.srcDir("src/demoTest/java")
+        defaultConfig.testInstrumentationRunnerArguments["class"]="com.kaiden.construction.DemoModeTest"
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
@@ -30,6 +47,7 @@ dependencies {
     androidTestImplementation(platform("androidx.compose:compose-bom:2025.04.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    add("demoImplementation","androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20250107")
     implementation(platform("androidx.compose:compose-bom:2025.04.01"))

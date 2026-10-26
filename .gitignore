@@ -41,3 +41,7 @@ web/playwright-report/
 
 construction-windows-runtime.zip
 config.local.json
+demo/generated/
+android/app/src/demo/assets/
+*.spec
+construction-windows-demo.zip

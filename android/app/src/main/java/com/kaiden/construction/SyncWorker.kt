@@ -20,7 +20,7 @@ class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(conte
     override suspend fun doWork():Result = withContext(Dispatchers.IO) {
         val session=SecureSession(applicationContext)
         val identity=session.snapshot() ?: return@withContext Result.success()
-        val api=ApiClient(identity.endpoint)
+        val api=ApiClient.forSession(applicationContext,identity.endpoint)
         val token=identity.token
         val owner=identity.userId
         val dao=AppDatabase.get(applicationContext).drafts()
@@ -40,7 +40,7 @@ class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(conte
     }
     companion object {
         fun schedule(context:Context) {
-            val constraints=Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+            val constraints=Constraints.Builder().setRequiredNetworkType(if(BuildConfig.DEMO_MODE)NetworkType.NOT_REQUIRED else NetworkType.CONNECTED).build()
             val req=OneTimeWorkRequestBuilder<SyncWorker>().setConstraints(constraints)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL,30,TimeUnit.SECONDS).build()
             WorkManager.getInstance(context).enqueueUniqueWork("sync-construction-reports",ExistingWorkPolicy.APPEND_OR_REPLACE,req)
