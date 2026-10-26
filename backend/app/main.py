@@ -475,7 +475,8 @@ def create_app(database_url=None, storage=None, initialize=False):
         if public==folder or public in folder.parents or folder in public.parents:raise RuntimeError('WEB_DIR and UPLOAD_DIR must be separate')
         class PublicAssets(StaticFiles):
             async def get_response(self,path,scope):
-                allowed=path in ('','.','index.html') or (path.startswith('assets/') and Path(path).suffix in {'.js','.css','.svg','.png','.jpg','.jpeg','.ico','.woff','.woff2'})
+                public_path=path.replace('\\','/')
+                allowed=public_path in ('','.','index.html') or (public_path.startswith('assets/') and Path(public_path).suffix in {'.js','.css','.svg','.png','.jpg','.jpeg','.ico','.woff','.woff2'})
                 if not allowed:raise HTTPException(404,'Not found')
                 return await super().get_response(path,scope)
         if url.startswith('sqlite:') and engine.url.database and engine.url.database!=':memory:':

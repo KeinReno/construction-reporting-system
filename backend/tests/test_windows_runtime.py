@@ -2,7 +2,7 @@
 import json,os,subprocess,sys,time,zipfile
 from pathlib import Path
 import pytest
-import httpx
+import httpx,re
 from test_release import release
 
 @pytest.mark.skipif(sys.platform!='win32',reason='Requires Windows PowerShell and Task Scheduler')
@@ -41,7 +41,10 @@ def test_windows_release_lifecycle(tmp_path):
             except httpx.HTTPError:pass
             time.sleep(.25)
         else:pytest.fail('Windows server did not become ready')
-        assert httpx.get('http://127.0.0.1:8043/').status_code==200
+        index=httpx.get('http://127.0.0.1:8043/');assert index.status_code==200
+        assets=re.findall(r'(?:src|href)="([^"]+)"',index.text);assert len(assets)>=2
+        for path in assets:
+            asset=httpx.get('http://127.0.0.1:8043'+path);assert asset.status_code==200 and len(asset.content)>100
         assert httpx.get('http://127.0.0.1:8043/api/v1/sites').status_code==401
         duplicate=run('Run.ps1',*args,timeout=30)
         assert duplicate.returncode!=0 and 'Another server' in duplicate.stderr

@@ -1,5 +1,5 @@
 """Windows CI: start the actual frozen EXE, then prove its private API and Web work."""
-import argparse,json,subprocess,tempfile,time,urllib.request
+import argparse,json,re,subprocess,tempfile,time,urllib.request
 from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('exe',type=Path);args=p.parse_args()
 with tempfile.TemporaryDirectory(prefix='crs-demo-') as temp:
@@ -13,7 +13,10 @@ with tempfile.TemporaryDirectory(prefix='crs-demo-') as temp:
                 time.sleep(.5)
             else:raise AssertionError('Frozen demo did not become ready: '+(Path(temp)/'process.log').read_text())
             url=json.loads((root/'running.json').read_text())['url'];assert url.startswith('http://127.0.0.1:')
-            assert b'<html' in urllib.request.urlopen(url).read().lower()
+            html=urllib.request.urlopen(url).read().decode();assert '<html' in html.lower()
+            assets=re.findall(r'(?:src|href)="([^"]+)"',html);assert len(assets)>=2
+            for asset in assets:
+                with urllib.request.urlopen(url+asset) as response:assert response.status==200 and len(response.read())>100
             info=json.load(urllib.request.urlopen(url+'/demo-info'))
             request=urllib.request.Request(url+'/api/v1/auth/login',data=json.dumps({'login':info['accounts']['manager'],'password':info['password']}).encode(),headers={'Content-Type':'application/json'})
             token=json.load(urllib.request.urlopen(request))['access_token']
