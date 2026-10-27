@@ -25,6 +25,12 @@ def test_demo_seed_photos_and_persistence(bundle,tmp_path):
     summary=c.get('/api/v1/analytics/summary',headers=h).json()
     assert summary['report_count']==5 and summary['no_work_count']==1
     assert len(summary['volumes'])==1 and summary['volumes'][0]['quantity']=='8.5'
+    assert summary['incident_count']==1
+    synthetic=next(r for r in rows if r['data'].get('crew'))
+    assert synthetic['data']['materials'][0]['name']=='Учебный материал'
+    assert synthetic['data']['incidents'][0]['description'].startswith('Учебное событие')
+    assert c.get('/api/v1/reports/by-client/'+synthetic['client_report_id'],headers=h).status_code==409
+    assert c.get('/api/v1/reports/by-client/'+synthetic['client_report_id'],headers={**h,'X-Report-Capabilities':'report-extras-v1'}).status_code==200
     photo=rows[0]['data']['required_photo_ids'][0]
     assert c.get('/api/v1/attachments/'+photo).status_code==401
     assert c.get('/api/v1/attachments/'+photo,headers=h).content.startswith(b'\x89PNG')

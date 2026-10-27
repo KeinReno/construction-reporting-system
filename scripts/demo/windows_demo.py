@@ -14,7 +14,7 @@ def create_demo(data_dir:Path,bundle:Path|None=None):
     os.environ['DATABASE_URL']='sqlite:///'+str(data_dir/'demo.db')
     os.environ['UPLOAD_DIR']=str(photos)
     from app.main import create_app,User,Site,Assignment,Report,Photo,Change,hash_password,select,utcnow
-    from app.contracts import ReportData
+    from app.contracts import ReportData,report_payload
     api=create_app(database_url=os.environ['DATABASE_URL'],storage=str(photos),initialize=True)
     raw=json.loads((fixtures/'reports.json').read_text(encoding='utf-8'))
     with api.state.db() as db:
@@ -25,7 +25,7 @@ def create_demo(data_dir:Path,bundle:Path|None=None):
             db.add_all([Assignment(user_id=user.id,site_id=site.id) for user in users.values() for site in sites])
             for i,item in enumerate(raw['reports']):
                 rid=str(uuid.uuid4());aid=str(uuid.uuid4());receipt=str(uuid.uuid4());now=utcnow()
-                payload=ReportData(client_report_id=uuid.uuid4(),site_id=sites[item['site']].id,work_date=item['date'],kind=item['kind'],work_entries=item['entries'],no_work_reason=item.get('reason'),comment=item['comment'],required_photo_ids=[aid]).model_dump(mode='json')
+                payload=report_payload(ReportData(client_report_id=uuid.uuid4(),site_id=sites[item['site']].id,work_date=item['date'],kind=item['kind'],work_entries=item['entries'],no_work_reason=item.get('reason'),comment=item['comment'],required_photo_ids=[aid],crew=item.get('crew'),materials=item.get('materials'),incidents=item.get('incidents')))
                 db.add(Report(id=rid,client_report_id=payload['client_report_id'],site_id=payload['site_id'],author_id=users['foreman'].id,work_date=item['date'],payload=payload,status=item['status'],revision=1,receipt_id=receipt,submitted_at=now))
                 content=(fixtures/f'report-{i+1}.png').read_bytes();sha=hashlib.sha256(content).hexdigest();name=f'{aid}-{sha}.png';(photos/name).write_bytes(content)
                 db.add(Photo(id=aid,report_id=rid,sha256=sha,content_type='image/png',filename=name))
@@ -41,7 +41,7 @@ def create_demo(data_dir:Path,bundle:Path|None=None):
 def main():
     p=argparse.ArgumentParser();p.add_argument('--no-browser',action='store_true');p.add_argument('--data-dir',type=Path)
     args=p.parse_args()
-    root=args.data_dir or Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'ConstructionReporting'/'Demo-0.3.1'
+    root=args.data_dir or Path(os.environ.get('LOCALAPPDATA',str(Path.home())))/'ConstructionReporting'/'Demo-0.4.0'
     root.mkdir(parents=True,exist_ok=True)
     # One instance per demo directory; the lock is released by the OS on exit.
     lock=(root/'instance.lock').open('a+b');lock.seek(0);lock.write(b'0');lock.flush();lock.seek(0)

@@ -23,13 +23,17 @@ class DemoBackend(private val context:Context) {
             if(!prefs.getBoolean("seeded",false)) {
                 val db=AppDatabase.get(context)
                 db.withTransaction {
+                    // The transaction may have committed before the preference marker was saved.
+                    // Never replay fixture inserts over existing drafts or queued user reports.
+                    if(db.drafts().countAll()!=0)return@withTransaction
                     val rows=state.getJSONArray("reports")
                     for(i in 0 until rows.length()) {
                         val r=rows.getJSONObject(i);val d=r.getJSONObject("data")
                         val photoId=d.getJSONArray("required_photo_ids").getString(0)
                         val local=File(context.filesDir,"demo-photo-$photoId.png")
                         context.assets.open("demo/report-${i+1}.png").use{input->local.outputStream().use{input.copyTo(it)}}
-                        db.drafts().save(Draft(id=d.getString("client_report_id"),ownerId=OWNER,siteId=d.getString("site_id"),siteName=state.getJSONArray("sites").getJSONObject(if(i==5)1 else 0).getString("name"),workDate=d.getString("work_date"),kind=d.getString("kind"),workEntriesJson=d.getJSONArray("work_entries").toString(),noWorkReason=d.optString("no_work_reason",""),comment=d.getString("comment"),photosJson=JSONArray().put(JSONObject().put("id",photoId).put("path",local.absolutePath).put("mime","image/png")).toString(),status="delivered",serverId=r.getString("id"),receiptId=r.getString("receipt_id"),businessStatus=r.getString("status"),createdAt=1000L+i))
+                        val extras=JSONObject();for(key in listOf("crew","materials","incidents"))if(d.has(key))extras.put(key,d.get(key))
+                        db.drafts().save(Draft(id=d.getString("client_report_id"),ownerId=OWNER,siteId=d.getString("site_id"),siteName=state.getJSONArray("sites").getJSONObject(if(i==5)1 else 0).getString("name"),workDate=d.getString("work_date"),kind=d.getString("kind"),workEntriesJson=d.getJSONArray("work_entries").toString(),noWorkReason=d.optString("no_work_reason",""),comment=d.getString("comment"),photosJson=JSONArray().put(JSONObject().put("id",photoId).put("path",local.absolutePath).put("mime","image/png")).toString(),status="delivered",serverId=r.getString("id"),receiptId=r.getString("receipt_id"),businessStatus=r.getString("status"),createdAt=1000L+i,extrasJson=extras.toString()))
                     }
                 }
                 prefs.edit().putBoolean("seeded",true).commit()
@@ -51,6 +55,7 @@ class DemoBackend(private val context:Context) {
             val sample=src.getJSONObject(i)
             val data=JSONObject().put("client_report_id",UUID.randomUUID().toString()).put("site_id",sites.getJSONObject(sample.getInt("site")).getString("id")).put("work_date",sample.getString("date")).put("kind",sample.getString("kind")).put("work_entries",sample.getJSONArray("entries")).put("comment",sample.getString("comment")).put("required_photo_ids",JSONArray().put(UUID.randomUUID().toString()))
             if(sample.has("reason"))data.put("no_work_reason",sample.getString("reason"))
+            for(key in listOf("crew","materials","incidents"))if(sample.has(key))data.put(key,sample.get(key))
             rows.put(JSONObject().put("id",UUID.randomUUID().toString()).put("data",data).put("status",sample.getString("status")).put("revision",1).put("receipt_id",UUID.randomUUID().toString()))
         }
         JSONObject().put("sites",sites).put("reports",rows).also{write(it)}

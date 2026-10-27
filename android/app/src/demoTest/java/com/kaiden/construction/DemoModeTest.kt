@@ -42,6 +42,16 @@ class DemoModeTest {
         DemoBackend.prepare(context)
         val db=AppDatabase.get(context)
         assertEquals(6,db.drafts().observeAll(DemoBackend.OWNER).first().size)
+        val synthetic=db.drafts().observeAll(DemoBackend.OWNER).first().single { it.workDate=="2026-05-22" }
+        val sample=JSONObject(synthetic.extrasJson)
+        assertEquals("Учебная бригада №1",sample.getString("crew"))
+        assertEquals("Учебный материал",sample.getJSONArray("materials").getJSONObject(0).getString("name"))
+        assertEquals("Учебное событие: временная задержка доступа.",sample.getJSONArray("incidents").getJSONObject(0).getString("description"))
+        db.drafts().save(synthetic.copy(comment="Не перезаписывать"))
+        context.getSharedPreferences("demo-seed",Context.MODE_PRIVATE).edit().remove("seeded").commit()
+        DemoBackend.prepare(context)
+        assertEquals("Не перезаписывать",db.drafts().observeAll(DemoBackend.OWNER).first().single{it.id==synthetic.id}.comment)
+        db.drafts().save(synthetic)
         try{ApiClient.forSession(context,"https://example.org/api/v1");fail("Demo accepted external endpoint")}catch(_:IllegalArgumentException){}
         val api=ApiClient.forSession(context,DemoBackend.ENDPOINT)
         assertEquals(2,api.sites(DemoBackend.TOKEN).size)
