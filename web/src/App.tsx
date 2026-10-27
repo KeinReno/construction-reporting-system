@@ -77,7 +77,8 @@ export default function App() {
   const visible = useMemo(() => reports.filter(r => (siteId === 'all' || r.site_id === siteId)
     && (!startDate || r.data.work_date >= startDate) && (!endDate || r.data.work_date <= endDate)),
     [reports, siteId, startDate, endDate]);
-  const received = visible.filter(r => r.status === 'submitted' || r.status === 'reviewed');
+  // A returned report was still received; a draft without a receipt was not.
+  const received = visible.filter(r => !!r.receipt_id && ['submitted','reviewed','needs_revision'].includes(r.status));
   const needsReview = visible.filter(r => r.status === 'submitted').length;
   const volumes = (summary?.volumes ?? []).filter(v => siteId === 'all' || v.site_id === siteId);
   const reportPeriods=useMemo(()=>{
@@ -108,7 +109,7 @@ export default function App() {
         {page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> : page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,startDate,endDate])} token={token} siteId={siteId} fromDate={startDate} toDate={endDate} onSource={id=>{const epoch=generation.current;void http<Report>('/reports/'+id,token).then(r=>{if(epoch===generation.current)setSelected(r);}).catch(e=>{if(epoch===generation.current)setError(e.message);});}}/> : <>
           {page !== 'reports' && <section className="metric-grid">
             <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
-            <div className="metric"><span>Полученных отчётов</span><strong>{received.length}</strong><small>Доставлено или проверено</small></div>
+            <div className="metric"><span>Полученных отчётов</span><strong>{received.length}</strong><small>Текущие версии с квитанцией, включая уточнение</small></div>
             <div className="metric"><span>Ожидают проверки</span><strong>{needsReview}</strong><small>Статус «Доставлен»</small></div>
             <div className="metric"><span>Указано событий</span><strong>{summary?.incident_count ?? '—'}</strong><small>Только явно внесённые записи</small></div>
           </section>}
@@ -116,10 +117,10 @@ export default function App() {
             <div className="card"><h2>Выполненные объёмы</h2><p className="muted">По видам работ и отдельным единицам измерения</p>
               {volumes.length ? <div className="volume-list">{volumes.map((v,i) => <div key={i} className="volume-row"><div><strong>{v.work_type}</strong><small>{siteName(v.site_id)} · {v.unit}</small></div><b>{v.quantity} {v.unit}</b></div>)}</div> : <p className="empty">Нет подтверждённых количественных работ.</p>}
               <p className="footnote">Сводка и журнал используют одинаковые фильтры объекта и периода.</p></div>
-            <div className="card"><h2>Контроль отчётности</h2><p className="muted">Полученные отчёты по текущему фильтру</p>
+            <div className="card"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
               <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
               <ul className="daily-chart" aria-label="Количество отчётов по периодам">{reportPeriods.map(period=><li key={period.key}><span>{period.label}</span><meter min={0} max={Math.max(...reportPeriods.map(p=>p.count),1)} value={period.count}/><b>{period.count}</b></li>)}</ul>
-              <div className="big-number">{received.length}<span> получено</span></div>
+              <div className="big-number">{summary?.report_count ?? '—'}<span> в графике</span></div>
               <p className="footnote">Просрочки не рассчитываются, пока не согласованы графики и ожидаемые отчёты (SPEC-00 B01/B02).</p></div>
           </section>}
           {(page==='overview' || page==='objects') && <section className="card"><h2>Объекты</h2><div className="site-grid">{sites.filter(s=>siteId==='all'||s.id===siteId).map(s=><button className="site-tile" key={s.id} onClick={()=>{setSiteId(s.id);setPage('reports')}}><div className="site-avatar">▧</div><strong>{s.name}</strong><span>{reports.filter(r=>r.site_id===s.id).length} отчётов в журнале</span></button>)}{!sites.length && <p className="empty">Нет назначенных объектов.</p>}</div></section>}

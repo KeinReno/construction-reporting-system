@@ -98,3 +98,15 @@ test('admin creates user and object, grants and revokes access',async({page})=>{
   await expect(grant).toBeVisible();
   await grant.getByRole('button',{name:'Отозвать доступ'}).click();await expect(grant).toHaveCount(0);
 });
+test('returned report stays received but leaves the analytics chart',async({page})=>{
+  await page.goto('/');await login(page);
+  const received=page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong');
+  await expect(received).toHaveText('2');
+  await page.locator('tbody tr').filter({hasText:'Доставлен'}).first().click();
+  await page.getByLabel('Причина возврата').fill('Synthetic clarification');
+  await page.getByRole('button',{name:'Вернуть на уточнение'}).click();
+  await expect(page.getByRole('dialog').getByText('Статус: На уточнении · ревизия 1')).toBeVisible();
+  await page.getByRole('button',{name:'Закрыть ✕'}).click();
+  await expect(received).toHaveText('2');
+  await expect(page.locator('.big-number')).toContainText('1');
+});

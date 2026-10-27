@@ -9,6 +9,8 @@ test('downloaded demo opens six examples, protected images, review and analytics
  await page.getByRole('button',{name:'Открыть демо: Руководитель',exact:true}).click();
  await expect(page.getByText('8.5 м',{exact:true})).toBeVisible();
  await expect(page.locator('tbody tr')).toHaveCount(6);
+ await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('6');
+ await expect(page.locator('.big-number')).toContainText('5');
  await page.locator('tbody tr').filter({hasText:'22.05.2026'}).click();
  await expect(page.getByRole('dialog').getByText('Учебная бригада №1')).toBeVisible();
  await expect(page.getByRole('dialog').getByText('Учебный материал')).toBeVisible();
