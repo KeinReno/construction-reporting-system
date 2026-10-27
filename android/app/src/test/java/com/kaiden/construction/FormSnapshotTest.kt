@@ -19,7 +19,10 @@ class FormSnapshotTest {
             financialJson="""[{"id":"entry","kind":"expense","operation_date":"2026-10-19","amount_kopecks":2500,"category":"Fuel"}]""",
             equipmentType="Crane",equipmentHours="7,5",equipmentHired=true,equipmentJson="""[{"type":"Truck","hours":"2","hired":false}]""",
             planText="Next step",plansJson="""["Check access"]""")
-        assertEquals(form,FormSnapshot.decode(form.encode(),"owner-A"))
+        val restored=FormSnapshot.decode(form.encode(),"owner-A")
+        assertEquals(form.copy(financialJson=restored.financialJson,equipmentJson=restored.equipmentJson),restored)
+        assertTrue(org.json.JSONArray(form.financialJson).similar(org.json.JSONArray(restored.financialJson)))
+        assertTrue(org.json.JSONArray(form.equipmentJson).similar(org.json.JSONArray(restored.equipmentJson)))
     }
     @Test fun unknownVersionIsNotSilentlyOverwritten() {
         try {FormSnapshot.decode("""{"version":2,"comment":"future"}""","A");fail("Expected version rejection")}
