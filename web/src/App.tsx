@@ -2,15 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { AdminPanel } from './AdminPanel';
 import { AnalysisPanel } from './AnalysisPanel';
 import { ReportDetails } from './ReportDetails';
-import { http, login, ApiError, filterQuery, allReports, type Profile, type Report, type Site, type Summary } from './api';
+import { http, login, ApiError, filterQuery, allReports, reportStatusLabels, type Profile, type Report, type Site, type Summary } from './api';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
 type Page = 'overview' | 'objects' | 'reports' | 'analytics' | 'ai' | 'admin';
 const labels: Record<Page, string> = {
   overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', analytics: 'Аналитика', ai: 'ИИ-аналитик', admin:'Управление'
-};
-const statusLabels: Record<Report['status'], string> = {
-  draft: 'Черновик', submitted: 'Доставлен', reviewed: 'Проверен', needs_revision: 'На уточнении'
 };
 const dateText = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString('ru-RU');
 
@@ -117,7 +114,7 @@ export default function App() {
           </section>}
           {(page==='overview' || page==='objects') && <section className="card"><h2>Объекты</h2><div className="site-grid">{sites.filter(s=>siteId==='all'||s.id===siteId).map(s=><button className="site-tile" key={s.id} onClick={()=>{setSiteId(s.id);setPage('reports')}}><div className="site-avatar">▧</div><strong>{s.name}</strong><span>{reports.filter(r=>r.site_id===s.id).length} отчётов в журнале</span></button>)}{!sites.length && <p className="empty">Нет назначенных объектов.</p>}</div></section>}
           {(page==='overview' || page==='reports') && <section className="card"><div className="section-heading"><h2>{page==='reports'?'Журнал отчётов':'Последние отчёты'}</h2>{page==='overview'&&<button className="link-button" onClick={()=>setPage('reports')}>Все отчёты →</button>}</div>
-            {visible.length ? <div className="table-wrap"><table><thead><tr><th>Дата</th><th>Объект</th><th>Тип</th><th>Статус</th><th>Версия</th></tr></thead><tbody>{visible.slice(0,page==='overview'?8:visible.length).map(r=><tr key={r.id} tabIndex={0} onClick={()=>setSelected(r)} onKeyDown={e=>{if(e.key==='Enter')setSelected(r)}}><td>{dateText(r.data.work_date)}</td><td>{siteName(r.site_id)}</td><td>{r.data.kind==='no_work'?'Без работ':'Работы'}</td><td><span className={`badge ${r.status}`}>{statusLabels[r.status]}</span></td><td>№{r.revision}</td></tr>)}</tbody></table></div> : <p className="empty">Отчёты по выбранным условиям отсутствуют.</p>}</section>}
+            {visible.length ? <div className="table-wrap"><table><thead><tr><th>Дата</th><th>Объект</th><th>Тип</th><th>Статус</th><th>Версия</th></tr></thead><tbody>{visible.slice(0,page==='overview'?8:visible.length).map(r=><tr key={r.id} tabIndex={0} onClick={()=>setSelected(r)} onKeyDown={e=>{if(e.key==='Enter')setSelected(r)}}><td>{dateText(r.data.work_date)}</td><td>{siteName(r.site_id)}</td><td>{r.data.kind==='no_work'?'Без работ':'Работы'}</td><td><span className={`badge ${r.status}`}>{reportStatusLabels[r.status]}</span></td><td>№{r.revision}</td></tr>)}</tbody></table></div> : <p className="empty">Отчёты по выбранным условиям отсутствуют.</p>}</section>}
         </>}
       </main>
       <footer>СтройКонтроль · MVP · Источник данных: API заказчика</footer>

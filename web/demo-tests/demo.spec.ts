@@ -24,7 +24,7 @@ test('downloaded demo opens six examples, protected images, review and analytics
  await page.getByRole('button',{name:'Отчёт 3',exact:true}).click();
  await expect(page.getByRole('dialog').getByText(/Бригада прибыла, но не получила допуск/)).toBeVisible();
  await page.getByRole('dialog').getByRole('button',{name:'Проверен',exact:true}).click();
- await expect(page.getByRole('dialog').getByText('Статус: reviewed · ревизия 1')).toBeVisible();
+ await expect(page.getByRole('dialog').getByText('Статус: Проверен · ревизия 1')).toBeVisible();
  await page.getByRole('dialog').getByRole('button',{name:'Закрыть ✕'}).click();
  await page.getByRole('button',{name:'Выйти',exact:true}).click();
  await page.getByRole('button',{name:'Открыть демо: Администратор',exact:true}).click();

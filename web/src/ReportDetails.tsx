@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { BASE, http, type Report } from './api';
+import { BASE, http, reportStatusLabels, type Report } from './api';
 type Event={id:string;revision:number;event:string;reason:string|null;occurred_at:string|null};
+const eventLabels:Record<string,string>={created:'Создан',edited:'Изменён',submitted:'Доставлен',reviewed:'Проверен',needs_revision:'Возвращён на уточнение'};
 function Photo({id,token}:{id:string;token:string}) {
   const [url,setUrl]=useState('');const [error,setError]=useState('');
   useEffect(()=>{let active=true;let objectUrl='';
@@ -26,14 +27,14 @@ export function ReportDetails({report:r,token,role,siteName,onClose,onChange}:{r
   }
   return <dialog ref={dialog} className="modal report-dialog" onCancel={onClose} onClick={e=>{if(e.target===dialog.current)onClose();}} aria-label="Просмотр отчёта"><div>
     <div className="section-heading"><h2>Отчёт за {r.data.work_date}</h2><button className="quiet" onClick={onClose}>Закрыть ✕</button></div>
-    <p><b>Объект:</b> {siteName}</p><p>Статус: {r.status} · ревизия {r.revision}</p>
-    {r.data.kind==='no_work'?<p>Работ не было: {r.data.no_work_reason}</p>:r.data.work_entries.map((w,i)=><p key={i}>{w.type}: {w.quantity===null?w.description:`${w.quantity} ${w.unit||''}`}</p>)}
-    {r.data.comment&&<p>Комментарий: {r.data.comment}</p>}
-    <div className="photo-list">{r.data.required_photo_ids?.map(id=><Photo key={id} id={id} token={token}/>)}</div>
+    <p><b>Объект:</b> {siteName}</p><p>Статус: {reportStatusLabels[r.status] ?? r.status} · ревизия {r.revision}</p>
+    <section><h3>Выполненные работы</h3>{r.data.kind==='no_work'?<p>Работ не было: {r.data.no_work_reason}</p>:r.data.work_entries.map((w,i)=><div className="report-work" key={i}><strong>{w.type}</strong>{w.quantity!==null&&<span>{w.quantity} {w.unit||''}</span>}{w.description&&<p>{w.description}</p>}</div>)}</section>
+    {r.data.comment&&<section><h3>Комментарий</h3><p className="report-comment">{r.data.comment}</p></section>}
+    <section><h3>Фотографии ({r.data.required_photo_ids?.length ?? 0})</h3>{r.data.required_photo_ids?.length?<div className="photo-list">{r.data.required_photo_ids.map(id=><Photo key={id} id={id} token={token}/>)}</div>:<p className="muted">Фотографии не приложены.</p>}</section>
     {r.receipt_id&&<p className="footnote">Квитанция: {r.receipt_id}</p>}
     {error&&<p className="error" role="alert">{error}</p>}
     {(role==='manager'||role==='admin')&&r.status==='submitted'&&<section><label>Причина возврата<input maxLength={500} value={reason} onChange={e=>setReason(e.target.value)}/></label><div className="review-actions">
       <button disabled={busy} className="primary" onClick={()=>void review('reviewed')}>Проверен</button><button disabled={busy||!reason.trim()} className="secondary" onClick={()=>void review('needs_revision')}>Вернуть на уточнение</button></div></section>}
-    <h3>История</h3><ol>{history.map(e=><li key={e.id}>Ревизия {e.revision}: {e.event} {e.reason&&`— ${e.reason}`} {e.occurred_at&&<small>{new Date(e.occurred_at).toLocaleString('ru-RU')}</small>}</li>)}</ol>
+    <h3>История</h3><ol>{history.map(e=><li key={e.id}>Ревизия {e.revision}: {eventLabels[e.event] ?? e.event} {e.reason&&`— ${e.reason}`} {e.occurred_at&&<small>{new Date(e.occurred_at).toLocaleString('ru-RU')}</small>}</li>)}</ol>
   </div></dialog>;
 }

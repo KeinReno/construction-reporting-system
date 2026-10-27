@@ -6,6 +6,9 @@ export type Report = {
   receipt_id: string | null; submitted_at: string | null;
   data: { work_date: string; kind: "work" | "no_work"; work_entries: WorkEntry[]; comment?: string | null; no_work_reason?: string | null; required_photo_ids?: string[] }
 }
+export const reportStatusLabels: Record<Report['status'], string> = {
+  draft: 'Черновик', submitted: 'Доставлен', reviewed: 'Проверен', needs_revision: 'На уточнении'
+};
 export type Summary = {
   report_count: number; no_work_count: number;
   volumes: Array<{ site_id: string; work_type: string; unit: string; quantity: string }>;

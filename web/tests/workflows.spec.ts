@@ -13,8 +13,10 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await expect(page.getByText('2.5 m',{exact:true})).toBeVisible();
   await page.locator('tbody tr').first().click();
   await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Synthetic work description')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('2.5 m',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Проверен',exact:true}).click();
-  await expect(page.getByRole('dialog').getByText('Статус: reviewed · ревизия 1')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Статус: Проверен · ревизия 1')).toBeVisible();
   await page.getByRole('button',{name:'Закрыть ✕'}).click();
   await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
   await page.getByRole('button',{name:'Сформировать анализ'}).click();
