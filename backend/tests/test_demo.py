@@ -28,6 +28,8 @@ def test_demo_seed_photos_and_persistence(bundle,tmp_path):
     assert summary['incident_count']==1
     synthetic=next(r for r in rows if r['data'].get('crew'))
     assert synthetic['data']['materials'][0]['name']=='Учебный материал'
+    assert synthetic['data']['materials'][0]['direction']=='received'
+    assert summary['material_movements'][0]['quantity']=='2.5'
     assert synthetic['data']['incidents'][0]['description'].startswith('Учебное событие')
     assert synthetic['data']['financial_entries'][0]['amount_kopecks']==12550
     assert synthetic['data']['equipment'][0]['hours']=='7.5'

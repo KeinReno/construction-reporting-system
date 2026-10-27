@@ -55,7 +55,7 @@ class HttpsWorkerTest {
             val pid=UUID.randomUUID().toString();val id=UUID.randomUUID().toString()
             val bitmap=Bitmap.createBitmap(2,2,Bitmap.Config.ARGB_8888)
             photo.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
-            val draft=Draft(id=id,ownerId=owner,siteId=site.first,siteName=site.second,workDate="2026-10-26",kind="work",workEntriesJson="""[{"type":"Synthetic","quantity":"2.25","unit":"m"}]""",noWorkReason="",comment="",photosJson=JSONArray().put(JSONObject().put("id",pid).put("path",photo.absolutePath).put("mime","image/png")).toString(),extrasJson="""{"crew":"Synthetic crew","materials":[{"name":"Synthetic material","quantity":"1.5","unit":"m"}],"incidents":[{"description":"Synthetic incident"}],"financial_entries":[{"id":"${UUID.randomUUID()}","kind":"expense","operation_date":"2026-10-20","amount_kopecks":12550,"category":"Synthetic fuel"}],"equipment":[{"type":"Synthetic crane","hours":"7.5","hired":true}],"next_shift_plans":["Check access"]}""")
+            val draft=Draft(id=id,ownerId=owner,siteId=site.first,siteName=site.second,workDate="2026-10-26",kind="work",workEntriesJson="""[{"type":"Synthetic","quantity":"2.25","unit":"m"}]""",noWorkReason="",comment="",photosJson=JSONArray().put(JSONObject().put("id",pid).put("path",photo.absolutePath).put("mime","image/png")).toString(),extrasJson="""{"crew":"Synthetic crew","materials":[{"name":"Synthetic material","quantity":"1.5","unit":"m","direction":"consumed"}],"incidents":[{"description":"Synthetic incident"}],"financial_entries":[{"id":"${UUID.randomUUID()}","kind":"expense","operation_date":"2026-10-20","amount_kopecks":12550,"category":"Synthetic fuel"}],"equipment":[{"type":"Synthetic crane","hours":"7.5","hired":true}],"next_shift_plans":["Check access"]}""")
             db.drafts().save(draft)
             suspend fun worker(){TestListenableWorkerBuilder<SyncWorker>(context).build().doWork()}
             worker()
@@ -74,6 +74,7 @@ class HttpsWorkerTest {
             val summary=JSONObject(call("/analytics/summary",manager));assertEquals(1,summary.getInt("report_count"));assertEquals(local.serverId,summary.getJSONArray("source_report_ids").getString(0));assertEquals("2.25",summary.getJSONArray("volumes").getJSONObject(0).getString("quantity"))
             assertEquals(12550,summary.getJSONObject("financial_totals_kopecks").getInt("expense"))
             assertEquals("7.5",summary.getJSONArray("equipment_hours").getJSONObject(0).getString("hours"))
+            assertEquals("consumed",summary.getJSONArray("material_movements").getJSONObject(0).getString("direction"))
             val history=JSONArray(call("/reports/${local.serverId}/history",manager))
             val receipts=(0 until history.length()).map{history.getJSONObject(it)}.filter{it.getString("event")=="submitted"}.map{it.getString("receipt_id")}
             assertEquals(listOf(firstReceipt,local.receiptId),receipts)

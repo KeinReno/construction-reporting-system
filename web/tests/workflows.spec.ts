@@ -28,6 +28,7 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await expect(page.getByRole('dialog').getByText('Synthetic historical source')).toBeVisible();
   await expect(page.getByRole('dialog').getByText('Synthetic crew')).toBeVisible();
   await expect(page.getByRole('dialog').getByText('Synthetic material')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText(/Поступило · 2.5 m/)).toBeVisible();
   await expect(page.getByRole('dialog').locator('.report-work').filter({hasText:'Synthetic paint'})).toContainText('bucket');
   await expect(page.getByRole('dialog').getByText('Synthetic incident')).toBeVisible();
   await expect(page.getByRole('dialog').getByRole('heading',{name:'Денежные операции'})).toBeVisible();
@@ -51,6 +52,7 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await page.getByRole('button',{name:'Сформировать анализ'}).click();
   await expect(page.getByRole('heading',{name:/Записей материалов: 2/})).toBeVisible();
   await expect(page.getByRole('button',{name:/Synthetic material/})).toBeVisible();
+  await expect(page.getByText('Поступило: Synthetic material · 2.5 m')).toBeVisible();
   await expect(page.getByRole('button',{name:/Synthetic paint/})).toContainText('bucket');
   await page.getByLabel('Вид анализа').selectOption('finance');
   await page.getByRole('button',{name:'Сформировать анализ'}).click();

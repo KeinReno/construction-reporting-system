@@ -154,6 +154,8 @@ def present(r):
     return dict(id=r.id,client_report_id=r.client_report_id,site_id=r.site_id,author_id=r.author_id,author_login=r.author.login if r.author else None,revision=r.revision,status=r.status,receipt_id=r.receipt_id,created_at=stamp(r.created_at),submitted_at=stamp(r.submitted_at),data=r.payload)
 
 def require_report_capabilities(payload,header):
+    if any(item.get('direction','mentioned')!='mentioned' for item in payload.get('materials') or []) and header!='report-extras-v2':
+        raise HTTPException(409,'Client update required for material movements')
     if any(key in payload for key in ('financial_entries','equipment','next_shift_plans')) and header!='report-extras-v2':
         raise HTTPException(409,'Client update required for extended report')
     if any(key in payload for key in ('crew','materials','incidents')) and header not in ('report-extras-v1','report-extras-v2'):
@@ -459,7 +461,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         if to_date:q=q.where(Report.work_date<=str(to_date))
         return db.scalars(q.order_by(Report.work_date,Report.id)).unique().all()
     def metrics(rows,from_date,to_date):
-        volumes={}; daily={}; reasons={};incidents=[];materials=[];financial=[];financial_totals={};equipment=[];equipment_hours={}
+        volumes={}; daily={}; reasons={};incidents=[];materials=[];movements={};financial=[];financial_totals={};equipment=[];equipment_hours={}
         for r in rows:
             daily[r.work_date]=daily.get(r.work_date,0)+1
             if r.payload['kind']=='no_work':
@@ -473,7 +475,11 @@ def create_app(database_url=None, storage=None, initialize=False):
             for event in r.payload.get('incidents') or []:
                 incidents.append({'report_id':r.id,'date':r.work_date,'description':event['description']})
             for material in r.payload.get('materials') or []:
-                materials.append({'report_id':r.id,'date':r.work_date,'name':material['name'],'quantity':material.get('quantity'),'unit':material.get('unit')})
+                direction=material.get('direction','mentioned')
+                materials.append({'report_id':r.id,'date':r.work_date,'name':material['name'],'quantity':material.get('quantity'),'unit':material.get('unit'),'direction':direction})
+                if direction!='mentioned':
+                    key=(r.site_id,material['name'],material['unit'],direction)
+                    movements[key]=movements.get(key,Decimal(0))+Decimal(material['quantity'])
             for entry in r.payload.get('financial_entries') or []:
                 financial.append({'report_id':r.id,**entry})
                 financial_totals[entry['kind']]=financial_totals.get(entry['kind'],0)+entry['amount_kopecks']
@@ -491,6 +497,7 @@ def create_app(database_url=None, storage=None, initialize=False):
                 'incidents':incidents,
                 'material_count':len(materials),
                 'materials':materials,
+                'material_movements':[{'site_id':site,'name':name,'unit':unit,'direction':direction,'quantity':str(qty)} for (site,name,unit,direction),qty in sorted(movements.items())],
                 'financial_entries':financial,
                 'financial_totals_kopecks':financial_totals,
                 'equipment':equipment,
@@ -499,7 +506,7 @@ def create_app(database_url=None, storage=None, initialize=False):
                 'timeline_truncated':len(rows)>200,
                 'limitations':['Только отправленные и проверенные отчёты. Нет отчётов — не означает отсутствие работ.',
                                'События считаются только по явно заполненным записям; отсутствие записи не подтверждает отсутствие события.',
-                               'Материалы перечислены по записям; движение (приход или расход) не задано и не суммируется.',
+                               'Материалы без указанного движения не входят в суммы прихода и расхода; остаток не рассчитывается.',
                                'Деньги — заявленные операции по датам отчётов; поступления, расходы и авансы не смешиваются. Баланс и зарплата не рассчитываются.',
                                'Часы техники заявлены отправителем и не превращаются в стоимость без тарифа.',
                                'Нет утверждённых планов и расписаний: план-факт и просрочки не рассчитаны.']}
@@ -529,7 +536,7 @@ def create_app(database_url=None, storage=None, initialize=False):
             'work_volume':'Объёмы рассчитаны сервером отдельно по объектам, видам работ и единицам.',
             'site_timeline':'Хронология полученных отчётов доступна в источниках и дневной сводке.'}
         answers['incidents']=f"Указано событий: {result['incident_count']}. Проверяйте детали в исходных отчётах."
-        answers['materials']=f"Записей материалов: {result['material_count']}. Движение материала не определено."
+        answers['materials']=f"Записей материалов: {result['material_count']}. Приход и расход суммируются отдельно по объекту, материалу и единице."
         answers['finance']=f"Денежных операций: {len(result['financial_entries'])}. Поступления, расходы и авансы разделены."
         answers['equipment']=f"Записей спецтехники: {len(result['equipment'])}. Часы сгруппированы по виду техники."
         key={'finance':'financial_entries','equipment':'equipment'}.get(intent,intent)

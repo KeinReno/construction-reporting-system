@@ -34,10 +34,12 @@ class Material(Input):
     name:str=Field(min_length=1,max_length=200)
     quantity:Decimal|None=Field(default=None,ge=0,max_digits=20,decimal_places=6,allow_inf_nan=False)
     unit:str|None=Field(default=None,max_length=50)
+    direction:Literal['mentioned','received','consumed']='mentioned'
     @model_validator(mode='after')
     def valid(self):
         if not self.name.strip():raise ValueError('material name required')
         if self.quantity is not None and not (self.unit or '').strip():raise ValueError('unit required with quantity')
+        if self.direction!='mentioned' and (self.quantity is None or self.quantity<=0):raise ValueError('positive quantity required for material movement')
         return self
 
 class Incident(Input):

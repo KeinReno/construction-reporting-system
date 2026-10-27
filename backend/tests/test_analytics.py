@@ -57,7 +57,8 @@ def test_materials_list_is_filtered_and_never_infers_consumption(env):
     assert answer['metrics']['material_count']==2
     assert answer['metrics']['materials'][0]['quantity']=='2.5'
     assert answer['metrics']['materials'][1]['quantity'] is None
-    assert any('не суммируется' in text for text in answer['limitations'])
+    assert answer['metrics']['material_movements']==[]
+    assert any('без указанного движения' in text for text in answer['limitations'])
     assert c.post('/api/v1/analytics/ask',headers=m,json={'question':'Сколько материалов потрачено?','intent':'auto'}).json()['supported'] is False
     assert c.post('/api/v1/analytics/ask',headers=m,json={'question':'Материалы','intent':'auto','filters':{'site_id':other}}).status_code==403
     filtered=c.post('/api/v1/analytics/ask',headers=m,json={'question':'Материалы','intent':'auto','filters':{'to_date':'2026-10-24'}}).json()

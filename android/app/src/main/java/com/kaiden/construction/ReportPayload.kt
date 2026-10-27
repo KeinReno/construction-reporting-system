@@ -25,7 +25,7 @@ object ReportPayload {
             val materials=data.getJSONArray("materials")
             put("materials",JSONArray((0 until materials.length()).map { i ->
                 val m=materials.getJSONObject(i)
-                JSONObject().put("name",m.getString("name")).put("unit",nullable(m,"unit"))
+                JSONObject().put("name",m.getString("name")).put("unit",nullable(m,"unit")).put("direction",m.optString("direction","mentioned"))
                     .put("quantity",if(m.isNull("quantity"))JSONObject.NULL else m.getString("quantity").toBigDecimal().stripTrailingZeros().toPlainString())
             }))
         }

@@ -23,7 +23,7 @@ headers={'Authorization':'Bearer '+token}
 foreman_token=client.post('/api/v1/auth/login',json={'login':'foreman','password':'SyntheticPassword123'}).json()['access_token']
 for day,quantity in [('2026-10-24','1.5'),('2026-10-25','2.5')]:
     data={'client_report_id':new_id(),'site_id':sid,'work_date':day,'kind':'work','work_entries':[{'type':'Synthetic weld','quantity':quantity,'unit':'m','description':'Synthetic work description'}]}
-    if day=='2026-10-25':data.update({'crew':'Synthetic crew','materials':[{'name':'Synthetic material','quantity':'2.5','unit':'m'},{'name':'Synthetic paint','unit':'bucket'}],'incidents':[{'description':'Synthetic incident'}],
+    if day=='2026-10-25':data.update({'crew':'Synthetic crew','materials':[{'name':'Synthetic material','quantity':'2.5','unit':'m','direction':'received'},{'name':'Synthetic paint','unit':'bucket'}],'incidents':[{'description':'Synthetic incident'}],
         'financial_entries':[{'id':new_id(),'kind':'expense','operation_date':'2026-10-20','amount_kopecks':12550,'category':'Synthetic fuel'}],
         'equipment':[{'type':'Synthetic crane','hours':'7.5','hired':True}],
         'next_shift_plans':['Synthetic next step']})

@@ -136,3 +136,20 @@ def test_finance_equipment_and_plans_survive_revision_without_double_count(env):
     assert summary['financial_totals_kopecks']['expense']==12550
     invalid=report(sid);invalid['financial_entries']=[{**data['financial_entries'][0],'amount_kopecks':-1}]
     assert c.post('/api/v1/reports',headers=f,json=invalid).status_code==422
+
+def test_material_movement_requires_quantity_and_keeps_directions_separate(env):
+    c,f,m,sid,_=env
+    data=report(sid,'no_work')
+    data['materials']=[{'name':'Synthetic steel','quantity':'2.5','unit':'m','direction':'received'},
+                       {'name':'Synthetic steel','quantity':'1','unit':'m','direction':'consumed'},
+                       {'name':'Synthetic paint','direction':'mentioned'}]
+    created=c.post('/api/v1/reports',headers=f,json=data)
+    assert created.status_code==201,created.text
+    rid=created.json()['id']
+    assert c.post(f'/api/v1/reports/{rid}/submit',headers={**f,'X-Report-Capabilities':'report-extras-v1'},json={'expected_revision':1}).status_code==409
+    assert c.post(f'/api/v1/reports/{rid}/submit',headers={**f,'X-Report-Capabilities':'report-extras-v2'},json={'expected_revision':1}).status_code==200
+    summary=c.get('/api/v1/analytics/summary',headers=m).json()
+    assert summary['material_movements']==[{'site_id':sid,'name':'Synthetic steel','unit':'m','direction':'consumed','quantity':'1'},
+                                           {'site_id':sid,'name':'Synthetic steel','unit':'m','direction':'received','quantity':'2.5'}]
+    invalid=report(sid);invalid['materials']=[{'name':'Synthetic steel','direction':'consumed'}]
+    assert c.post('/api/v1/reports',headers=f,json=invalid).status_code==422

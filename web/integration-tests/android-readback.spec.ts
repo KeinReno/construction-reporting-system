@@ -10,6 +10,7 @@ test('Android-created report persists through real API into Web and review',asyn
   await expect(report.getByText('Corrected synthetic comment',{exact:true})).toBeVisible();
   await expect(report.getByText('Synthetic crew',{exact:true})).toBeVisible();
   await expect(report.getByText('Synthetic material',{exact:true})).toBeVisible();
+  await expect(report.getByText(/Израсходовано · 1.5 m/)).toBeVisible();
   await expect(report.getByText('Synthetic incident',{exact:true})).toBeVisible();
   await expect(report.getByText(/Synthetic fuel/)).toBeVisible();
   await expect(report.getByText(/Synthetic crane/)).toBeVisible();

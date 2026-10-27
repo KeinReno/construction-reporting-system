@@ -20,6 +20,9 @@ class ReportPayloadTest {
         assertTrue(ReportPayload.equivalent(local,remote))
         assertFalse(ReportPayload.equivalent(payload(),remote))
         assertFalse(ReportPayload.equivalent(local,remote.put("crew","Another")))
+        val mentioned=payload().put("materials",org.json.JSONArray("""[{"name":"Steel","quantity":"2.5","unit":"m"}]"""))
+        val received=payload().put("materials",org.json.JSONArray("""[{"name":"Steel","quantity":"2.5","unit":"m","direction":"received"}]"""))
+        assertFalse(ReportPayload.equivalent(mentioned,received))
     }
     @Test fun financeEquipmentAndPlansMustMatchBeforeAutoSubmit() {
         val finance="""[{"id":"entry","kind":"expense","operation_date":"2026-10-20","amount_kopecks":12550,"category":"Fuel"}]"""
