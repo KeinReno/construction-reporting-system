@@ -297,7 +297,7 @@ fun ReportApp() {
         incidents.forEachIndexed { i,event -> Row {Text(event.getString("description"),Modifier.weight(1f));TextButton(onClick={incidents.removeAt(i)}){Text("Удалить")}} }
         Spacer(Modifier.height(12.dp))
         OutlinedButton(enabled=!busy,onClick={picker.launch("image/*")}) {Text("Добавить фотографии (${photos.size})")}
-        photos.forEachIndexed { i,_ -> TextButton(enabled=!busy,onClick={photos.removeAt(i)}){Text("Удалить фото ${i+1}")} }
+        photos.forEachIndexed { i,photo -> key(photo.getString("id")) {PhotoPreview(photo.getString("path"),i+1,!busy){photos.remove(photo)}} }
         OutlinedTextField(comment,{comment=it},label={Text("Комментарий (необязательно)")},modifier=Modifier.fillMaxWidth(),minLines=2)
         if(formError.isNotBlank())Text(formError,color=MaterialTheme.colorScheme.error)
         Spacer(Modifier.height(16.dp))
