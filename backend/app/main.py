@@ -133,6 +133,7 @@ class Review(Revision):
 
 class AnalyticsFilters(Input):
     site_id:uuid.UUID|None=None
+    author_id:uuid.UUID|None=None
     from_date:date|None=None
     to_date:date|None=None
     @model_validator(mode="after")
@@ -322,12 +323,19 @@ def create_app(database_url=None, storage=None, initialize=False):
         if any(key in r.payload for key in ('crew','materials','incidents')) and request.headers.get('X-Report-Capabilities')!='report-extras-v1':
             raise HTTPException(409,'Client update required for extended report')
         return present(r)
+    @api.get('/api/v1/reports/authors')
+    def report_authors(db:Session=Depends(dbdep),u:User=Depends(current)):
+        q=select(User.id,User.login).join(Report,Report.author_id==User.id)
+        if u.role!='admin':q=q.join(Assignment,Assignment.site_id==Report.site_id).where(Assignment.user_id==u.id)
+        if u.role=='foreman':q=q.where(Report.author_id==u.id)
+        return [{'id':row.id,'login':row.login} for row in db.execute(q.distinct().order_by(User.login,User.id)).all()]
     @api.get('/api/v1/reports')
-    def reports(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None,page:int=Query(1,ge=1),page_size:int=Query(100,ge=1,le=200)):
+    def reports(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,author_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None,page:int=Query(1,ge=1),page_size:int=Query(100,ge=1,le=200)):
         q=select(Report).options(selectinload(Report.author))
         if site_id: allowed(db,u,str(site_id));q=q.where(Report.site_id==str(site_id))
         if u.role!='admin': q=q.join(Assignment,Assignment.site_id==Report.site_id).where(Assignment.user_id==u.id)
         if u.role=='foreman': q=q.where(Report.author_id==u.id)
+        if author_id:q=q.where(Report.author_id==str(author_id))
         validate_period(from_date,to_date)
         if from_date:q=q.where(Report.work_date>=str(from_date))
         if to_date:q=q.where(Report.work_date<=str(to_date))
@@ -435,13 +443,14 @@ def create_app(database_url=None, storage=None, initialize=False):
         r.status=data.decision;log(db,r,u,data.decision,reason=data.reason);db.commit();return present(r)
     def validate_period(start,end):
         if start and end and start>end:raise HTTPException(422,'Invalid date range')
-    def analytic_rows(db,u,site_id=None,from_date=None,to_date=None):
+    def analytic_rows(db,u,site_id=None,from_date=None,to_date=None,author_id=None):
         validate_period(from_date,to_date)
         q=select(Report).where(Report.status.in_(['submitted','reviewed']))
         if site_id:
             allowed(db,u,str(site_id));q=q.where(Report.site_id==str(site_id))
         if u.role!='admin':q=q.join(Assignment,Assignment.site_id==Report.site_id).where(Assignment.user_id==u.id)
         if u.role=='foreman':q=q.where(Report.author_id==u.id)
+        if author_id:q=q.where(Report.author_id==str(author_id))
         if from_date:q=q.where(Report.work_date>=str(from_date))
         if to_date:q=q.where(Report.work_date<=str(to_date))
         return db.scalars(q.order_by(Report.work_date,Report.id)).unique().all()
@@ -478,8 +487,8 @@ def create_app(database_url=None, storage=None, initialize=False):
                                'Материалы перечислены по записям; движение (приход или расход) не задано и не суммируется.',
                                'Нет утверждённых планов и расписаний: план-факт и просрочки не рассчитаны.']}
     @api.get('/api/v1/analytics/summary')
-    def summary(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None):
-        return metrics(analytic_rows(db,u,site_id,from_date,to_date),from_date,to_date)
+    def summary(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,author_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None):
+        return metrics(analytic_rows(db,u,site_id,from_date,to_date,author_id),from_date,to_date)
     @api.post('/api/v1/analytics/ask')
     def ask(data:Ask,db:Session=Depends(dbdep),u:User=Depends(current)):
         f=data.filters
@@ -494,7 +503,7 @@ def create_app(database_url=None, storage=None, initialize=False):
                         'mode':'local_analytics','intent':'unsupported','supported':False,'metrics':None,'source_report_ids':[],
                         'period':{'from_date':str(f.from_date) if f.from_date else None,'to_date':str(f.to_date) if f.to_date else None},
                         'limitations':['Свободный LLM-диалог отключён до согласования B13. Даты из текста не интерпретируются.']}
-        rows=analytic_rows(db,u,f.site_id,f.from_date,f.to_date)
+        rows=analytic_rows(db,u,f.site_id,f.from_date,f.to_date,f.author_id)
         result=metrics(rows,f.from_date,f.to_date)
         # Explicit intent is the entire whitelist. Free text never becomes SQL, tools or instructions.
         answers={

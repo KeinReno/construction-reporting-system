@@ -62,3 +62,28 @@ def test_materials_list_is_filtered_and_never_infers_consumption(env):
     assert c.post('/api/v1/analytics/ask',headers=m,json={'question':'Материалы','intent':'auto','filters':{'site_id':other}}).status_code==403
     filtered=c.post('/api/v1/analytics/ask',headers=m,json={'question':'Материалы','intent':'auto','filters':{'to_date':'2026-10-24'}}).json()
     assert filtered['source_report_ids']==[] and filtered['metrics']['material_count']==0
+
+def test_author_filter_keeps_reports_summary_ask_and_acl_aligned(env):
+    from app.main import User,Assignment,hash_password
+    c,f,m,sid,other=env
+    with c.api.state.db() as db:
+        second=User(login='second-foreman',password_hash=hash_password('StrongPassword123'),role='foreman')
+        hidden=User(login='hidden-foreman',password_hash=hash_password('StrongPassword123'),role='foreman')
+        db.add_all([second,hidden]);db.flush()
+        db.add_all([Assignment(user_id=second.id,site_id=sid),Assignment(user_id=hidden.id,site_id=other)]);db.commit();second_id=second.id;hidden_id=hidden.id
+    def auth(name):return {'Authorization':'Bearer '+c.post('/api/v1/auth/login',json={'login':name,'password':'StrongPassword123'}).json()['access_token']}
+    sf=auth('second-foreman');hf=auth('hidden-foreman')
+    ids=[]
+    for h,site in [(f,sid),(sf,sid),(hf,other)]:
+        row=c.post('/api/v1/reports',headers=h,json=report(site)).json();ids.append(row['id'])
+        assert c.post(f"/api/v1/reports/{row['id']}/submit",headers=h,json={'expected_revision':1}).status_code==200
+    authors=c.get('/api/v1/reports/authors',headers=m).json()
+    assert {a['login'] for a in authors}=={'foreman','second-foreman'}
+    assert [a['login'] for a in c.get('/api/v1/reports/authors',headers=f).json()]==['foreman']
+    assert [x['id'] for x in c.get('/api/v1/reports',headers=m,params={'author_id':second_id}).json()]==[ids[1]]
+    summary=c.get('/api/v1/analytics/summary',headers=m,params={'author_id':second_id}).json()
+    assert summary['report_count']==1 and summary['source_report_ids']==[ids[1]]
+    answer=c.post('/api/v1/analytics/ask',headers=m,json={'question':'Сколько отчётов?','intent':'auto','filters':{'author_id':second_id}}).json()
+    assert answer['source_report_ids']==[ids[1]] and answer['metrics']['report_count']==1
+    assert c.get('/api/v1/analytics/summary',headers=m,params={'author_id':hidden_id}).json()['report_count']==0
+    assert c.get('/api/v1/reports',headers=f,params={'author_id':second_id}).json()==[]

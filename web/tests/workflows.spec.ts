@@ -106,6 +106,35 @@ test('admin creates user and object, grants and revokes access',async({page})=>{
   await expect(grant).toBeVisible();
   await grant.getByRole('button',{name:'Отозвать доступ'}).click();await expect(grant).toHaveCount(0);
 });
+test('author filter applies to journal, totals and analyst',async({page})=>{
+  await page.goto('/');await login(page);
+  await page.getByLabel('Автор',{exact:true}).selectOption({label:'manager'});
+  await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('1');
+  await expect(page.locator('tbody tr')).toHaveCount(1);
+  await expect(page.getByText('2.5 m',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
+  await page.getByRole('button',{name:'Сформировать анализ'}).click();
+  await expect(page.getByRole('heading',{name:'Получено отчётов: 1. Без работ: 0.'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Отчёт 1',exact:true})).toHaveCount(1);
+  await page.getByLabel('Автор',{exact:true}).selectOption({label:'foreman'});
+  await page.getByRole('button',{name:'Главная',exact:true}).first().click();
+  await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('1');
+  await expect(page.getByText('1.5 m',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Выйти',exact:true}).click();
+  await login(page,'other');
+  await expect(page.getByLabel('Автор',{exact:true})).toHaveValue('all');
+  await expect(page.getByLabel('Автор',{exact:true}).locator('option')).toHaveCount(1);
+});
+test('author selection resets when access to that author disappears',async({page})=>{
+  await page.goto('/');await login(page);
+  const author=page.getByLabel('Автор',{exact:true});
+  await author.selectOption({label:'manager'});
+  await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('1');
+  await page.route('**/api/v1/reports/authors',route=>route.fulfill({json:[]}),{times:1});
+  await page.getByRole('button',{name:'↻ Обновить'}).click();
+  await expect(author).toHaveValue('all');
+  await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('2');
+});
 test('returned report stays received but leaves the analytics chart',async({page})=>{
   await page.goto('/');await login(page);
   const received=page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong');

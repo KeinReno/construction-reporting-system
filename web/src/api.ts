@@ -19,6 +19,7 @@ export type Summary = {
   limitations: string[]; source_report_ids: string[]; daily: Array<{date:string; report_count:number}>; period: {from_date:string|null;to_date:string|null};
 }
 export type Profile = { id: string; login: string; role: string }
+export type ReportAuthor = {id:string;login:string}
 
 // During development Vite proxies /api to FastAPI; in deployment reverse proxy does the same.
 // External server domains and secrets must not be hardcoded in web assets.
@@ -40,11 +41,12 @@ export async function login(login: string, password: string): Promise<string> {
   return data.access_token;
 }
 
-export function filterQuery(siteId:string, fromDate:string, toDate:string):string {
+export function filterQuery(siteId:string, fromDate:string, toDate:string,authorId:string='all'):string {
   const params=new URLSearchParams();
   if(siteId!=='all')params.set('site_id',siteId);
   if(fromDate)params.set('from_date',fromDate);
   if(toDate)params.set('to_date',toDate);
+  if(authorId!=='all')params.set('author_id',authorId);
   return params.toString() ? '?'+params.toString() : '';
 }
 export async function allReports(token:string, query:string):Promise<Report[]> {
