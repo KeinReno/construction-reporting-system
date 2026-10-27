@@ -1,5 +1,8 @@
 package com.kaiden.construction
 import android.content.Context
+import android.graphics.Bitmap
+import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
@@ -17,6 +20,14 @@ import java.util.UUID
 @RunWith(AndroidJUnit4::class)
 class DemoModeTest {
     @get:Rule val compose=createEmptyComposeRule()
+    private fun screenshot(context:Context,name:String) {
+        compose.waitForIdle()
+        val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        checkNotNull(bitmap){"Screenshot unavailable"}
+        val directory=File(context.getExternalFilesDir(null),"screenshots").apply{mkdirs()}
+        File(directory,name).outputStream().use{check(bitmap.compress(Bitmap.CompressFormat.PNG,100,it))}
+        bitmap.recycle()
+    }
     @Test fun isolatedOfflineExamplesAndNativeSubmissionPersist()=runBlocking {
         assertTrue(BuildConfig.DEMO_MODE)
         val context:Context=ApplicationProvider.getApplicationContext()
@@ -29,11 +40,17 @@ class DemoModeTest {
         assertEquals(2,api.sites(DemoBackend.TOKEN).size)
         ActivityScenario.launch(MainActivity::class.java).use {
             compose.waitUntil(15_000){compose.onAllNodesWithText("Посмотреть примеры").fetchSemanticsNodes().isNotEmpty()}
+            screenshot(context,"android-01-examples.png")
             compose.onNodeWithText("2026-05-15 · Работы · reviewed").performScrollTo().performClick()
             compose.onNodeWithText("Демо-отчёт 2026-05-15").assertExists()
             compose.onNodeWithContentDescription("Демо-схема, не фото объекта").assertExists()
+            screenshot(context,"android-02-report.png")
             compose.onNodeWithText("Закрыть пример").performClick()
-            compose.onNodeWithText("Выполненный объём").performScrollTo().performTextInput("2.75")
+            compose.onNodeWithText("Новый отчёт").performScrollTo()
+            screenshot(context,"android-03-form.png")
+            compose.onNodeWithText("Выполненный объём").performScrollTo()
+            screenshot(context,"android-04-work-fields.png")
+            compose.onNodeWithText("Выполненный объём").performTextInput("2.75")
             compose.onNodeWithText("+ Добавить вид работ").performScrollTo().performClick()
             compose.onNodeWithText("Сохранить и отправить").performScrollTo().performClick()
             compose.waitUntil(20_000){runBlocking{db.drafts().observeAll(DemoBackend.OWNER).first().any{r->r.createdAt>10000 && r.status=="delivered"}}}

@@ -68,6 +68,15 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
           script: cd android && gradle :app:connectedDemoAndroidTest -PcrsTestBuildType=demo --stacktrace
+      - name: Collect actual Android screenshots
+        run: |
+          mkdir -p demo-screenshots
+          adb pull /sdcard/Android/data/com.kaiden.construction.demo/files/screenshots demo-screenshots/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-android
+          path: demo-screenshots/android/*.png
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: always()
         with:

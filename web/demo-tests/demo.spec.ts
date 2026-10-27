@@ -1,5 +1,6 @@
 import {test,expect} from '@playwright/test';
 test('downloaded demo opens six examples, protected images, review and analytics',async({page})=>{
+ await page.setViewportSize({width:1440,height:1000});
  page.on('pageerror',e=>console.log('BROWSER ERROR',e.message));
  page.on('console',m=>{if(m.type()==='error')console.log('CONSOLE ERROR',m.text());});
  const info=await page.request.get('/demo-info');console.log('DEMO INFO',info.status(),(await info.text()).slice(0,150));
@@ -8,15 +9,18 @@ test('downloaded demo opens six examples, protected images, review and analytics
  await page.getByRole('button',{name:'Открыть демо: Руководитель',exact:true}).click();
  await expect(page.getByText('8.5 м',{exact:true})).toBeVisible();
  await expect(page.locator('tbody tr')).toHaveCount(6);
+ await page.screenshot({path:'test-results/screenshots/web-01-overview.png',animations:'disabled'});
  await page.locator('tbody tr').filter({hasText:'15.05.2026'}).click();
  const dialog=page.getByRole('dialog');
  await expect(dialog.getByText(/Ручная покраска/)).toBeVisible();
  await expect(dialog.locator('img')).toHaveJSProperty('naturalWidth',800);
+ await page.screenshot({path:'test-results/screenshots/web-02-report.png',animations:'disabled'});
  await dialog.getByRole('button',{name:'Закрыть ✕'}).click();
  await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
  await page.getByLabel('Вопрос (сохраняется только на экране)').fill('Какие простои повторяются?');
  await page.getByRole('button',{name:'Сформировать анализ'}).click();
  await expect(page.getByRole('button',{name:'Отчёт 3',exact:true})).toBeVisible();
+ await page.screenshot({path:'test-results/screenshots/web-03-analytics.png',animations:'disabled'});
  await page.getByRole('button',{name:'Отчёт 3',exact:true}).click();
  await expect(page.getByRole('dialog').getByText(/Бригада прибыла, но не получила допуск/)).toBeVisible();
  await page.getByRole('dialog').getByRole('button',{name:'Проверен',exact:true}).click();
@@ -26,4 +30,5 @@ test('downloaded demo opens six examples, protected images, review and analytics
  await page.getByRole('button',{name:'Открыть демо: Администратор',exact:true}).click();
  await page.getByRole('button',{name:'Управление',exact:true}).first().click();
  await expect(page.getByRole('heading',{name:'Пользователи',exact:true})).toBeVisible();
+ await page.screenshot({path:'test-results/screenshots/web-04-admin.png',animations:'disabled'});
 });
