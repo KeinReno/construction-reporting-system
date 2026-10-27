@@ -20,7 +20,7 @@ test('downloaded demo opens six examples, protected images, review and analytics
  await page.getByLabel('Вопрос (сохраняется только на экране)').fill('Какие простои повторяются?');
  await page.getByRole('button',{name:'Сформировать анализ'}).click();
  await expect(page.getByRole('button',{name:'Отчёт 3',exact:true})).toBeVisible();
- await page.screenshot({path:'test-results/screenshots/web-03-analytics.png',animations:'disabled'});
+ await page.screenshot({path:'test-results/screenshots/web-03-analytics.png',fullPage:true,animations:'disabled'});
  await page.getByRole('button',{name:'Отчёт 3',exact:true}).click();
  await expect(page.getByRole('dialog').getByText(/Бригада прибыла, но не получила допуск/)).toBeVisible();
  await page.getByRole('dialog').getByRole('button',{name:'Проверен',exact:true}).click();
@@ -30,5 +30,6 @@ test('downloaded demo opens six examples, protected images, review and analytics
  await page.getByRole('button',{name:'Открыть демо: Администратор',exact:true}).click();
  await page.getByRole('button',{name:'Управление',exact:true}).first().click();
  await expect(page.getByRole('heading',{name:'Пользователи',exact:true})).toBeVisible();
- await page.screenshot({path:'test-results/screenshots/web-04-admin.png',animations:'disabled'});
+ await expect(page.getByRole('cell',{name:'demo-manager',exact:true})).toBeVisible();
+ await page.screenshot({path:'test-results/screenshots/web-04-admin.png',fullPage:true,animations:'disabled'});
 });
