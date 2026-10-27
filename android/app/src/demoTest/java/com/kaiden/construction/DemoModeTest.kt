@@ -88,6 +88,8 @@ class DemoModeTest {
             compose.onNodeWithText("Сумма, ₽").performScrollTo().performTextInput("125,50")
             compose.onNodeWithText("Категория (например, топливо)").performScrollTo().performTextInput("Учебное топливо")
             compose.onNodeWithText("+ Добавить денежную операцию").performScrollTo().performClick()
+            ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("input keyevent 4")).use{it.readBytes()}
+            compose.onNodeWithText("Учебное топливо",substring=true).performScrollTo()
             screenshot(context,"android-05-finance.png")
             compose.onNodeWithText("Спецтехника (0)",substring=true).performScrollTo().performClick()
             compose.onNodeWithText("Вид техники").performScrollTo().performTextInput("Учебный кран")
