@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BASE, http, reportStatusLabels, type Report } from './api';
 type Event={id:string;revision:number;event:string;reason:string|null;occurred_at:string|null};
+type HistoricalSource={source_ref:string;text:string;reported_author:string|null;message_date:string|null};
 const eventLabels:Record<string,string>={created:'Создан',edited:'Изменён',submitted:'Доставлен',reviewed:'Проверен',needs_revision:'Возвращён на уточнение'};
 function Photo({id,token}:{id:string;token:string}) {
   const [url,setUrl]=useState('');const [error,setError]=useState('');
@@ -18,8 +19,10 @@ export function ReportDetails({report:r,token,role,siteName,onClose,onChange}:{r
   useEffect(()=>{active.current=true;return ()=>{active.current=false;};},[]);
   const dialog=useRef<HTMLDialogElement>(null);const [history,setHistory]=useState<Event[]>([]);
   const [reason,setReason]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);
+  const [source,setSource]=useState<HistoricalSource|null>(null);
   useEffect(()=>{dialog.current?.showModal();},[]);
   useEffect(()=>{let active=true;void http<Event[]>(`/reports/${r.id}/history`,token).then(events=>{if(active)setHistory(events);}).catch(e=>{if(active)setError(e.message);});return ()=>{active=false;};},[r.id,r.status,r.revision,token]);
+  useEffect(()=>{let active=true;void http<HistoricalSource|null>(`/reports/${r.id}/source`,token).then(value=>{if(active)setSource(value);}).catch(e=>{if(active)setError(e.message);});return ()=>{active=false;};},[r.id,token]);
   async function review(decision:string) {
     setBusy(true);setError('');
     try {const updated=await http<Report>(`/reports/${r.id}/review`,token,{method:'POST',body:JSON.stringify({expected_revision:r.revision,decision,reason:reason||null})});if(active.current)onChange(updated);}
@@ -30,6 +33,7 @@ export function ReportDetails({report:r,token,role,siteName,onClose,onChange}:{r
     <p><b>Объект:</b> {siteName}</p><p>Статус: {reportStatusLabels[r.status] ?? r.status} · ревизия {r.revision}</p>
     <section><h3>Выполненные работы</h3>{r.data.kind==='no_work'?<p>Работ не было: {r.data.no_work_reason}</p>:r.data.work_entries.map((w,i)=><div className="report-work" key={i}><strong>{w.type}</strong>{w.quantity!==null&&<span>{w.quantity} {w.unit||''}</span>}{w.description&&<p>{w.description}</p>}</div>)}</section>
     {r.data.comment&&<section><h3>Комментарий</h3><p className="report-comment">{r.data.comment}</p></section>}
+    {source&&<section><h3>Исходное сообщение</h3><p className="muted">Источник: {source.source_ref}{source.message_date&&` · дата сообщения: ${source.message_date}`}{source.reported_author&&` · автор по источнику: ${source.reported_author}`}</p><p className="report-comment">{source.text}</p><p className="footnote">Сведения из источника указаны оператором импорта; автор отчёта в системе — импортёр.</p></section>}
     <section><h3>Фотографии ({r.data.required_photo_ids?.length ?? 0})</h3>{r.data.required_photo_ids?.length?<div className="photo-list">{r.data.required_photo_ids.map(id=><Photo key={id} id={id} token={token}/>)}</div>:<p className="muted">Фотографии не приложены.</p>}</section>
     {r.receipt_id&&<p className="footnote">Квитанция: {r.receipt_id}</p>}
     {error&&<p className="error" role="alert">{error}</p>}

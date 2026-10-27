@@ -8,6 +8,16 @@ from pydantic import BaseModel,Field,ConfigDict,model_validator
 class Input(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
+class HistoricalSource(Input):
+    source_ref:str=Field(min_length=1,max_length=500)
+    text:str=Field(min_length=1,max_length=100000)
+    reported_author:str|None=Field(default=None,max_length=500)
+    message_date:date|None=None
+    @model_validator(mode='after')
+    def valid(self):
+        if not self.source_ref.strip() or not self.text.strip():raise ValueError('source reference and text required')
+        return self
+
 class Work(Input):
     type:str=Field(min_length=1,max_length=200)
     quantity:Decimal|None=Field(default=None,ge=0,max_digits=20,decimal_places=6,allow_inf_nan=False)

@@ -15,6 +15,8 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog').getByText('Synthetic work description')).toBeVisible();
   await expect(page.getByRole('dialog').getByText('2.5 m',{exact:true})).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('heading',{name:'Исходное сообщение'})).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Synthetic historical source')).toBeVisible();
   await page.getByRole('button',{name:'Проверен',exact:true}).click();
   await expect(page.getByRole('dialog').getByText('Статус: Проверен · ревизия 1')).toBeVisible();
   await page.getByRole('button',{name:'Закрыть ✕'}).click();

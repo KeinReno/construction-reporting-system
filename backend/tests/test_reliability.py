@@ -78,6 +78,13 @@ def test_concurrent_edits_do_not_lose_data(env):
     saved=c.get(f"/api/v1/reports/{r['id']}",headers=f).json()
     assert saved['revision']==2 and saved['data']['comment']==winner['data']['comment']
 
+def test_concurrent_sources_cannot_overwrite_original(env):
+    c,f,*_=env;r,_=create(env);path=f"/api/v1/reports/{r['id']}/source"
+    def put(i):return c.put(path,headers=f,json={'source_ref':'synthetic','text':f'original-{i}'})
+    replies=concurrent(put)
+    assert sorted(x.status_code for x in replies)==[200,409]
+    assert c.get(path,headers=f).json()==next(x for x in replies if x.status_code==200).json()
+
 
 def test_concurrent_submits_only_one_receipt(env):
     c,f,*_=env;r,_=create(env)

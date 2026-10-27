@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Request, Response, 
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, model_validator, ConfigDict
-from app.contracts import Input, Work, ReportData
+from app.contracts import Input, Work, ReportData, HistoricalSource
 from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer, UniqueConstraint, delete, text, update
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
 from sqlalchemy.orm.exc import StaleDataError
@@ -65,6 +65,10 @@ class Photo(Base):
     sha256:Mapped[str]=mapped_column(String(64))
     content_type:Mapped[str]=mapped_column(String(64))
     filename:Mapped[str]=mapped_column(String(120))
+class ReportSource(Base):
+    __tablename__='report_sources'
+    report_id:Mapped[str]=mapped_column(ForeignKey('reports.id'),primary_key=True)
+    payload:Mapped[dict]=mapped_column(JSON,nullable=False)
 class Change(Base):
     __tablename__='changes'
     id:Mapped[str]=mapped_column(String(36),primary_key=True,default=new_id)
@@ -327,6 +331,25 @@ def create_app(database_url=None, storage=None, initialize=False):
     @api.get('/api/v1/reports/{rid}')
     def report(rid:uuid.UUID,db:Session=Depends(dbdep),u:User=Depends(current)):
         return present(fetch(db,u,str(rid)))
+    @api.get('/api/v1/reports/{rid}/source')
+    def get_source(rid:uuid.UUID,response:Response,db:Session=Depends(dbdep),u:User=Depends(current)):
+        fetch(db,u,str(rid))
+        response.headers['Cache-Control']='private, no-store'
+        source=db.get(ReportSource,str(rid))
+        return source.payload if source else None
+    @api.put('/api/v1/reports/{rid}/source')
+    def put_source(rid:uuid.UUID,data:HistoricalSource,db:Session=Depends(dbdep),u:User=Depends(current)):
+        r=fetch(db,u,str(rid))
+        if r.author_id!=u.id:raise HTTPException(403,'Only the report author can attach a source')
+        payload=data.model_dump(mode='json')
+        existing=db.get(ReportSource,r.id)
+        if existing:
+            if existing.payload!=payload:raise HTTPException(409,'Source differs; original is immutable')
+            return existing.payload
+        if r.status!='draft':raise HTTPException(409,'Source must be attached before submission')
+        r.lock_version+=1
+        db.add(ReportSource(report_id=r.id,payload=payload));db.commit()
+        return payload
     @api.patch('/api/v1/reports/{rid}')
     def edit(rid:uuid.UUID,data:Edit,db:Session=Depends(dbdep),u:User=Depends(current)):
         r=fetch(db,u,str(rid))

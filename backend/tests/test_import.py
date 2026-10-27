@@ -21,6 +21,54 @@ def test_manual_history_import_is_idempotent_and_preserves_work_date(env,tmp_pat
     with pytest.raises(ValueError,match='never overwrite'):import_bundle(changed,root,request,token)
     assert c.get('/api/v1/reports',headers=f).json()==rows
 
+def test_history_source_is_private_immutable_and_survives_revision(env,tmp_path):
+    c,f,m,sid,_=env;data=report(sid);data['work_date']='2026-05-15'
+    source={'source_ref':'synthetic-message','text':'  Синтетический текст\r\nМатериалы и инциденты  ',
+            'reported_author':'Synthetic author','message_date':'2026-05-16'}
+    item={'source_ref':source['source_ref'],'source':source,'data':data}
+    bundle,root=read_bundle(bundle_file(tmp_path,[item]))
+    request=lambda method,path,**kw:c.request(method,'/api/v1/'+path,**kw)
+    first=import_bundle(bundle,root,request,f['Authorization'][7:]);rid=first[0]['server_id']
+    assert import_bundle(bundle,root,request,f['Authorization'][7:])==first
+    path=f'/api/v1/reports/{rid}/source'
+    assert c.get(path).status_code==401
+    result=c.get(path,headers=m);assert result.json()==source
+    assert result.headers['cache-control']=='private, no-store'
+    assert c.put(path,headers=m,json=source).status_code==403
+    assert c.put(path,headers=f,json={**source,'text':'changed'}).status_code==409
+    conflicting,_=read_bundle(bundle_file(tmp_path,[{'source_ref':'another-message','data':data}]))
+    with pytest.raises(ValueError,match='Source reference differs'):import_bundle(conflicting,root,request,f['Authorization'][7:])
+    assert c.post(f'/api/v1/reports/{rid}/review',headers=m,json={'expected_revision':1,'decision':'needs_revision','reason':'Clarify'}).status_code==200
+    data['comment']='Corrected structured text'
+    assert c.patch(f'/api/v1/reports/{rid}',headers=f,json={'expected_revision':1,'data':data,'reason':'Correction'}).status_code==200
+    assert c.get(path,headers=f).json()==source
+
+def test_source_follows_report_access_rules(env):
+    from app.main import User,Assignment,hash_password
+    c,f,m,sid,_=env
+    with c.api.state.db() as db:
+        peer=User(login='peer',password_hash=hash_password('StrongPassword123'),role='foreman')
+        outsider=User(login='outsider',password_hash=hash_password('StrongPassword123'),role='manager')
+        db.add_all([peer,outsider]);db.flush();db.add(Assignment(user_id=peer.id,site_id=sid));db.commit()
+    def login(name):return {'Authorization':'Bearer '+c.post('/api/v1/auth/login',json={'login':name,'password':'StrongPassword123'}).json()['access_token']}
+    peer=login('peer');outsider=login('outsider')
+    rid=c.post('/api/v1/reports',headers=f,json=report(sid)).json()['id'];path=f'/api/v1/reports/{rid}/source'
+    source={'source_ref':'one','text':'private original'}
+    assert c.put(path,headers=f,json={**source,'imported_by':'forged'}).status_code==422
+    assert c.put(path,headers=f,json=source).status_code==200
+    assert c.get(path,headers=peer).status_code==403
+    assert c.get(path,headers=outsider).status_code==403
+    assert c.get(path,headers=m).status_code==200
+
+def test_source_preflight_and_legacy_reports(env,tmp_path):
+    c,f,m,sid,_=env;data=report(sid)
+    item={'source_ref':'one','source':{'source_ref':'different','text':'Original'},'data':data}
+    with pytest.raises(ValueError,match='must match'):read_bundle(bundle_file(tmp_path,[item]))
+    r=c.post('/api/v1/reports',headers=f,json=data).json();path=f"/api/v1/reports/{r['id']}/source"
+    assert c.get(path,headers=m).json() is None
+    assert c.post(f"/api/v1/reports/{r['id']}/submit",headers=f,json={'expected_revision':1}).status_code==200
+    assert c.put(path,headers=f,json={'source_ref':'one','text':'Late original'}).status_code==409
+
 def test_import_preflights_entire_bundle_permissions(env,tmp_path):
     c,f,m,sid,other=env
     bundle,root=read_bundle(bundle_file(tmp_path,[{'source_ref':'ok','data':report(sid)},{'source_ref':'forbidden','data':report(other)}]))

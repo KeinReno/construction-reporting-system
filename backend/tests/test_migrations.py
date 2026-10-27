@@ -19,6 +19,7 @@ def test_upgrade_preserves_legacy_rows_and_roundtrip(tmp_path,monkeypatch):
         row=db.execute(text('SELECT lock_version,created_at FROM reports')).one()
         assert row==(1,None)
     assert 'submitted_at' in {x['name'] for x in inspect(engine).get_columns('reports')}
+    assert inspect(engine).has_table('report_sources')
     command.downgrade(cfg,'base')
     command.upgrade(cfg,'head')
     assert inspect(engine).has_table('reports')

@@ -13,6 +13,8 @@ from test_api import env,report,uid
 def test_backup_restore_and_corruption(env,tmp_path):
     c,f,m,sid,_=env
     rid=c.post('/api/v1/reports',headers=f,json=report(sid)).json()['id'];aid=uid()
+    source={'source_ref':'synthetic','text':'Original text'}
+    assert c.put(f'/api/v1/reports/{rid}/source',headers=f,json=source).status_code==200
     image=io.BytesIO();Image.new('RGB',(2,2),'green').save(image,format='PNG');blob=image.getvalue()
     assert c.put(f'/api/v1/reports/{rid}/attachments/{aid}',headers={**f,'Content-Type':'image/png','X-Content-SHA256':hashlib.sha256(blob).hexdigest()},content=blob).status_code==200
     with c.api.state.db() as db:url=str(db.bind.url)
@@ -26,6 +28,7 @@ def test_backup_restore_and_corruption(env,tmp_path):
     restored=create_app(database_url=target,storage=media)
     client=TestClient(restored)
     assert client.get(f'/api/v1/reports/{rid}',headers=f).status_code==200
+    assert client.get(f'/api/v1/reports/{rid}/source',headers=f).json()['text']==source['text']
     assert client.get(f'/api/v1/attachments/{aid}',headers=f).content==blob
     with pytest.raises(ValueError,match='must not exist'):restore(snapshot,target,tmp_path/'new-media',service_stopped=True)
     path=next((snapshot/'uploads').iterdir());path.write_bytes(b'corrupt')

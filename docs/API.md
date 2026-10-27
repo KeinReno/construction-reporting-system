@@ -70,5 +70,6 @@
 - Пока отсутствуют: expected reports/compliance, бизнес-справочники работ/материалов и materials/incidents/finance API. Не считать их частью реализованного OpenAPI.
 
 ## Администрирование и runtime 0.3
+`GET reports/{id}/source` возвращает сохранённый первичный текст или null при отсутствии; `PUT` сохраняет источник только автором отчёта до submit, повтор одинакового содержимого допускается, замена запрещена (409). Доступ к чтению ограничен ACL отчёта. Заявленные автор и дата источника не подменяют серверного автора или рабочую дату.
 `GET/POST admin/users`, `PATCH admin/users/{id}` (active/password; role immutable), `POST admin/sites`, `GET/POST admin/assignments`, `DELETE admin/assignments/{id}`, `GET admin/audit` — только admin. Пароли/hash/token digest не возвращаются и не пишутся в audit. Отключение admin через HTTP запрещено; assignment unique(user,site), повтор grant идемпотентен. Физическое удаление users/sites/reports не реализовано.
 `GET /ready` проверяет доступность полной схемы;503 без раскрытия DSN. `/health` — liveness. `WEB_DIR` отдаёт только built index/assets отдельно от private uploads/БД. Auto ask — конечные шаблоны, supported=false/metrics=null для неподдерживаемого.

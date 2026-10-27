@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 import httpx
 from PIL import Image
 from pydantic import BaseModel,ConfigDict,Field
-from app.contracts import ReportData
+from app.contracts import ReportData,HistoricalSource
 
 class PhotoInput(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -16,6 +16,7 @@ class PhotoInput(BaseModel):
 class ImportItem(BaseModel):
     model_config=ConfigDict(extra='forbid')
     source_ref:str=Field(min_length=1,max_length=500)
+    source:HistoricalSource|None=None
     data:ReportData
     photos:list[PhotoInput]=Field(default_factory=list,max_length=30)
 class Bundle(BaseModel):
@@ -27,6 +28,7 @@ def read_bundle(path):
     path=Path(path).resolve();bundle=Bundle.model_validate_json(path.read_text(encoding='utf-8'))
     clients=set();photo_ids=set();root=path.parent
     for item in bundle.reports:
+        if item.source is not None and item.source.source_ref!=item.source_ref:raise ValueError('Source reference must match item source_ref')
         cid=str(item.data.client_report_id)
         if cid in clients:raise ValueError('Duplicate client_report_id in bundle')
         clients.add(cid)
@@ -57,6 +59,12 @@ def import_bundle(bundle,root,request,token,checkpoint=lambda results:None):
         if created.status_code==409:raise ValueError('Existing report differs or belongs to another author; never overwrite history during import')
         created.raise_for_status();remote=created.json()
         if remote['data']!=payload:raise ValueError('Existing report differs; never overwrite history during import')
+        if item.source is not None:
+            call('PUT',f"reports/{remote['id']}/source",json=item.source.model_dump(mode='json'))
+        else:
+            saved_source=call('GET',f"reports/{remote['id']}/source")
+            if saved_source is not None and saved_source['source_ref']!=item.source_ref:
+                raise ValueError('Source reference differs from stored original; never overwrite history during import')
         if remote['status'] in ('submitted','reviewed') and remote.get('receipt_id'):receipt=remote
         else:
             if remote['status']!='draft':raise ValueError('Returned report requires explicit revision workflow')
