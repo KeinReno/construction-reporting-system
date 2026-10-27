@@ -2,6 +2,7 @@ export type Site = { id: string; name: string }
 export type WorkEntry = { type: string; quantity: string | null; unit: string | null; description?: string }
 export type Report = {
   id: string; site_id: string; client_report_id: string; revision: number;
+  author_id?:string; author_login?:string|null;
   status: "draft" | "submitted" | "reviewed" | "needs_revision";
   receipt_id: string | null; submitted_at: string | null;
   data: { work_date: string; kind: "work" | "no_work"; work_entries: WorkEntry[]; comment?: string | null; no_work_reason?: string | null; required_photo_ids?: string[]; crew?:string|null; materials?:Array<{name:string;quantity:string|null;unit:string|null}>|null; incidents?:Array<{description:string}>|null }

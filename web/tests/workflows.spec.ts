@@ -18,6 +18,8 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await expect(page.getByText('2.5 m',{exact:true})).toBeVisible();
   await page.locator('tbody tr').first().click();
   await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Автор в системе: manager')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText(/автор по источнику: Synthetic author/)).toBeVisible();
   await expect(page.getByRole('dialog').getByText('Synthetic work description')).toBeVisible();
   await expect(page.getByRole('dialog').locator('.report-work').filter({hasText:'Synthetic weld'}).getByText('2.5 m',{exact:true})).toBeVisible();
   await expect(page.getByRole('dialog').getByRole('heading',{name:'Исходное сообщение'})).toBeVisible();

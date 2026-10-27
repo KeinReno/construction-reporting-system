@@ -31,6 +31,15 @@ def test_auth_acl(env):
     assert len(c.get('/api/v1/sites',headers=f).json())==1
     assert c.post('/api/v1/reports',headers=f,json=report(other)).status_code==403
 
+def test_report_author_is_derived_from_session_and_obeys_acl(env):
+    c,f,m,sid,other=env;data=report(sid)
+    assert c.post('/api/v1/reports',headers=f,json={**data,'author_login':'forged'}).status_code==422
+    row=c.post('/api/v1/reports',headers=f,json=data).json()
+    assert row['author_login']=='foreman' and row['author_id']
+    assert c.get(f"/api/v1/reports/{row['id']}",headers=m).json()['author_login']=='foreman'
+    assert c.get('/api/v1/reports',headers=m).json()[0]['author_login']=='foreman'
+    assert c.get(f"/api/v1/reports/{row['id']}").status_code==401
+
 def test_idempotent_receipt_summary(env):
     c,f,m,sid,_=env;d=report(sid)
     one=c.post('/api/v1/reports',headers=f,json=d);assert one.status_code==201,one.text

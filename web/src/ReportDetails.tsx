@@ -30,7 +30,7 @@ export function ReportDetails({report:r,token,role,siteName,onClose,onChange}:{r
   }
   return <dialog ref={dialog} className="modal report-dialog" onCancel={onClose} onClick={e=>{if(e.target===dialog.current)onClose();}} aria-label="Просмотр отчёта"><div>
     <div className="section-heading"><h2>Отчёт за {r.data.work_date}</h2><button className="quiet" onClick={onClose}>Закрыть ✕</button></div>
-    <p><b>Объект:</b> {siteName}</p><p>Статус: {reportStatusLabels[r.status] ?? r.status} · ревизия {r.revision}</p>
+    <p><b>Объект:</b> {siteName}</p><p><b>Автор в системе:</b> {r.author_login || 'Не указан'}</p><p>Статус: {reportStatusLabels[r.status] ?? r.status} · ревизия {r.revision}</p>
     <section><h3>Выполненные работы</h3>{r.data.kind==='no_work'?<p>Работ не было: {r.data.no_work_reason}</p>:r.data.work_entries.map((w,i)=><div className="report-work" key={i}><strong>{w.type}</strong>{w.quantity!==null&&<span>{w.quantity} {w.unit||''}</span>}{w.description&&<p>{w.description}</p>}</div>)}</section>
     {r.data.crew&&<section><h3>Бригада</h3><p className="report-comment">{r.data.crew}</p></section>}
     {!!r.data.materials?.length&&<section><h3>Материалы</h3>{r.data.materials.map((m,i)=><div className="report-work" key={i}><strong>{m.name}</strong>{(m.quantity!==null||m.unit)&&<span>{m.quantity!==null?`${m.quantity} ${m.unit||''}`:m.unit}</span>}</div>)}</section>}

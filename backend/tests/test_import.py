@@ -33,6 +33,8 @@ def test_history_source_is_private_immutable_and_survives_revision(env,tmp_path)
     path=f'/api/v1/reports/{rid}/source'
     assert c.get(path).status_code==401
     result=c.get(path,headers=m);assert result.json()==source
+    assert c.get(f'/api/v1/reports/{rid}',headers=m).json()['author_login']=='foreman'
+    assert result.json()['reported_author']=='Synthetic author'
     assert result.headers['cache-control']=='private, no-store'
     assert c.put(path,headers=m,json=source).status_code==403
     assert c.put(path,headers=f,json={**source,'text':'changed'}).status_code==409

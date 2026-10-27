@@ -10,7 +10,7 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 from app.contracts import Input, Work, ReportData, HistoricalSource, report_payload
 from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer, UniqueConstraint, delete, text, update
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session, relationship, selectinload
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError
 
@@ -49,6 +49,7 @@ class Report(Base):
     client_report_id:Mapped[str]=mapped_column(String(36),unique=True,index=True)
     site_id:Mapped[str]=mapped_column(ForeignKey('sites.id'))
     author_id:Mapped[str]=mapped_column(ForeignKey('users.id'))
+    author:Mapped[User|None]=relationship(lazy='select')
     work_date:Mapped[str]=mapped_column(String(10))
     payload:Mapped[dict]=mapped_column(JSON)
     status:Mapped[str]=mapped_column(String(24),default='draft')
@@ -149,7 +150,7 @@ def stamp(value):
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
 
 def present(r):
-    return dict(id=r.id,client_report_id=r.client_report_id,site_id=r.site_id,revision=r.revision,status=r.status,receipt_id=r.receipt_id,created_at=stamp(r.created_at),submitted_at=stamp(r.submitted_at),data=r.payload)
+    return dict(id=r.id,client_report_id=r.client_report_id,site_id=r.site_id,author_id=r.author_id,author_login=r.author.login if r.author else None,revision=r.revision,status=r.status,receipt_id=r.receipt_id,created_at=stamp(r.created_at),submitted_at=stamp(r.submitted_at),data=r.payload)
 
 def create_app(database_url=None, storage=None, initialize=False):
     url=database_url or os.environ.get('DATABASE_URL','sqlite:///./dev.db')
@@ -323,7 +324,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         return present(r)
     @api.get('/api/v1/reports')
     def reports(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None,page:int=Query(1,ge=1),page_size:int=Query(100,ge=1,le=200)):
-        q=select(Report)
+        q=select(Report).options(selectinload(Report.author))
         if site_id: allowed(db,u,str(site_id));q=q.where(Report.site_id==str(site_id))
         if u.role!='admin': q=q.join(Assignment,Assignment.site_id==Report.site_id).where(Assignment.user_id==u.id)
         if u.role=='foreman': q=q.where(Report.author_id==u.id)
