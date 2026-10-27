@@ -77,7 +77,6 @@ export default function App() {
     [reports, siteId, startDate, endDate]);
   const received = visible.filter(r => r.status === 'submitted' || r.status === 'reviewed');
   const needsReview = visible.filter(r => r.status === 'submitted').length;
-  const incidents = '—'; // Endpoint is not implemented yet: do not invent values.
   const volumes = (summary?.volumes ?? []).filter(v => siteId === 'all' || v.site_id === siteId);
   const pageTitle = labels[page];
   if (!token) return <Login onSuccess={setToken} demo={demo}/>;
@@ -101,7 +100,7 @@ export default function App() {
             <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
             <div className="metric"><span>Полученных отчётов</span><strong>{received.length}</strong><small>Доставлено или проверено</small></div>
             <div className="metric"><span>Ожидают проверки</span><strong>{needsReview}</strong><small>Статус «Доставлен»</small></div>
-            <div className="metric"><span>Инциденты</span><strong>{incidents}</strong><small>После подключения API событий</small></div>
+            <div className="metric"><span>Указано событий</span><strong>{summary?.incident_count ?? '—'}</strong><small>Только явно внесённые записи</small></div>
           </section>}
           {(page==='overview' || page==='analytics') && <section className="dashboard-grid">
             <div className="card"><h2>Выполненные объёмы</h2><p className="muted">По видам работ и отдельным единицам измерения</p>

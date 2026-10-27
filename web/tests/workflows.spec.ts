@@ -29,6 +29,11 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await page.getByRole('button',{name:'Отчёт 1',exact:true}).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
+  await page.getByLabel('Вид анализа').selectOption('incidents');
+  await page.getByRole('button',{name:'Сформировать анализ'}).click();
+  await expect(page.getByRole('heading',{name:/Указано событий: 1/})).toBeVisible();
+  await expect(page.getByRole('button',{name:/Synthetic incident/})).toBeVisible();
+  await page.getByLabel('Вид анализа').selectOption('auto');
   await page.getByLabel('Вопрос (сохраняется только на экране)').fill('Сколько расходов?');
   await page.getByRole('button',{name:'Сформировать анализ'}).click();
   await expect(page.getByRole('heading',{name:/Такой вопрос не поддерживается/})).toBeVisible();
