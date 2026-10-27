@@ -46,9 +46,10 @@ class DemoModeTest {
         val api=ApiClient.forSession(context,DemoBackend.ENDPOINT)
         assertEquals(2,api.sites(DemoBackend.TOKEN).size)
         ActivityScenario.launch(MainActivity::class.java).use {
-            compose.waitUntil(15_000){compose.onAllNodesWithText("Посмотреть примеры").fetchSemanticsNodes().isNotEmpty()}
+            compose.waitUntil(15_000){compose.onAllNodesWithText("Посмотреть примеры (6)").fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithText("Посмотреть примеры (6)").performClick()
             screenshot(context,"android-01-examples.png")
-            compose.onNodeWithText("2026-05-15 · Работы · reviewed").performScrollTo().performClick()
+            compose.onNodeWithText("2026-05-15 · Работы · Проверен").performScrollTo().performClick()
             compose.onNodeWithText("Демо-отчёт 2026-05-15").assertExists()
             compose.onNodeWithContentDescription("Демо-схема, не фото объекта").assertExists()
             screenshot(context,"android-02-report.png")

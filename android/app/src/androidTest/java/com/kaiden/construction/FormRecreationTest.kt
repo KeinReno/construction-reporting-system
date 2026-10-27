@@ -24,16 +24,19 @@ class FormRecreationTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             compose.waitUntil(10_000) {compose.onAllNodesWithText("Дата работ YYYY-MM-DD *").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("Дата работ YYYY-MM-DD *").performScrollTo().performTextReplacement("2026-1")
+            compose.onNodeWithText("Сварка металлоконструкций").performScrollTo().performClick()
+            compose.onNodeWithText("Монтаж").performClick()
             compose.onNodeWithText("Выполненный объём").performScrollTo().performTextInput("1,")
             compose.waitUntil(10_000) {
                 runBlocking { db.forms().get("synthetic-owner")?.let {
                     val form=FormSnapshot.decode(it.payload,it.ownerId)
-                    form.workDate=="2026-1" && form.quantity=="1,"
+                    form.workDate=="2026-1" && form.quantity=="1," && form.workType=="Монтаж"
                 }?:false }
             }
             scenario.recreate()
             compose.waitUntil(10_000) {compose.onAllNodesWithText("Дата работ YYYY-MM-DD *").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("Дата работ YYYY-MM-DD *").assertTextContains("2026-1")
+            compose.onNodeWithText("Монтаж").assertExists()
             compose.onNodeWithText("Выполненный объём").assertTextContains("1,")
             compose.onNodeWithText("Исправить локальный отчёт").performScrollTo().performClick()
             compose.onNodeWithText("Открыть другой отчёт?").assertExists()

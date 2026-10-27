@@ -26,6 +26,30 @@ import java.io.File
 import java.time.LocalDate
 import java.util.UUID
 
+fun businessStatusLabel(status:String?):String = when(status) {
+    "draft" -> "Черновик"
+    "submitted" -> "Доставлен"
+    "reviewed" -> "Проверен"
+    "needs_revision" -> "На уточнении"
+    null -> "Черновик"
+    else -> status
+}
+
+@Composable
+private fun CompactSelection(label:String,value:String,options:List<Pair<String,String>>,enabled:Boolean=true,onSelect:(String)->Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Text(label,style=MaterialTheme.typography.titleSmall)
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedButton(enabled=enabled && options.isNotEmpty(),onClick={expanded=true},modifier=Modifier.fillMaxWidth()) {
+            Text(options.firstOrNull{it.first==value}?.second ?: "Выберите",modifier=Modifier.weight(1f))
+            Text("▾")
+        }
+        DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) {
+            options.forEach { (key,name) -> DropdownMenuItem(text={Text(name)},onClick={expanded=false;onSelect(key)}) }
+        }
+    }
+}
+
 @Composable
 fun ReportApp() {
     val context=LocalContext.current
@@ -216,20 +240,15 @@ fun ReportApp() {
             Text("Исправление возвращённого отчёта · версия ${editing!!.serverRevision}")
             OutlinedTextField(editReason,{editReason=it},label={Text("Причина исправления *")},modifier=Modifier.fillMaxWidth())
         }
-        Text("Объект *")
-        sites.forEach { (id,name) ->
-            Row { RadioButton(selectedSite==id,enabled=editing==null,onClick={selectedSite=id});Text(name,modifier=Modifier.padding(top=12.dp)) }
-        }
+        CompactSelection("Объект *",selectedSite,sites,enabled=editing==null,onSelect={selectedSite=it})
         if(sites.isEmpty())Text("Нет доступных объектов. Проверьте подключение.")
         OutlinedTextField(workDate,{workDate=it},label={Text("Дата работ YYYY-MM-DD *")},modifier=Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
         Row { FilterChip(selected=kind=="work",onClick={kind="work"},label={Text("Работы выполнены")});Spacer(Modifier.width(8.dp));FilterChip(selected=kind=="no_work",onClick={kind="no_work"},label={Text("Работ не было")}) }
         if(kind=="work") {
-            Text("Вид работы *",style=MaterialTheme.typography.titleSmall)
             // TEMPORARY proposal pending SPEC-00 B07; work type to come from server catalog.
-            listOf("Сварка металлоконструкций","Монтаж","Покраска","Разгрузка","Другое").forEach { item ->
-                Row {RadioButton(workType==item,onClick={workType=item});Text(item,modifier=Modifier.padding(top=12.dp))}
-            }
+            val types=listOf("Сварка металлоконструкций","Монтаж","Покраска","Разгрузка","Другое")
+            CompactSelection("Вид работы *",workType,types.map { it to it },onSelect={workType=it})
             OutlinedTextField(quantity,{quantity=it},label={Text("Выполненный объём")},modifier=Modifier.fillMaxWidth())
             OutlinedTextField(unit,{unit=it},label={Text("Единица измерения")},modifier=Modifier.fillMaxWidth())
             OutlinedTextField(description,{description=it},label={Text("Описание (для работ без объёма / Другое)")},modifier=Modifier.fillMaxWidth())
@@ -288,14 +307,14 @@ fun ReportApp() {
                         for(i in 0 until localPhotos.length())photos.add(localPhotos.getJSONObject(i))
                         formError="Отчёт загружен в форму. Исправьте ошибку и сохраните."
                     }}){Text("Исправить локальный отчёт")}
-                    if(draft.businessStatus!=null)Text("${if(BuildConfig.DEMO_MODE)"Демо-статус" else "На сервере"}: ${draft.businessStatus} · версия ${draft.serverRevision}")
+                    if(draft.businessStatus!=null)Text("${if(BuildConfig.DEMO_MODE)"Демо-статус" else "На сервере"}: ${businessStatusLabel(draft.businessStatus)} · версия ${draft.serverRevision}")
                     if(draft.serverId!=null && editing==null)TextButton(enabled=!busy,onClick={
                         busy=true;scope.launch {
                             try {
                                 val remote=withContext(Dispatchers.IO){api.existingByClient(token!!,draft.id)}
                                 val updated=draft.copy(serverRevision=remote.getInt("revision"),businessStatus=remote.getString("status"))
                                 withContext(Dispatchers.IO){dao.save(updated)}
-                                if(remote.getString("status")!="needs_revision") {formError="Статус обновлён: ${remote.getString("status")}"}
+                                if(remote.getString("status")!="needs_revision") {formError="Статус обновлён: ${businessStatusLabel(remote.getString("status"))}"}
                                 else {
                                     val data=remote.getJSONObject("data")
                                     val ids=data.getJSONArray("required_photo_ids")
