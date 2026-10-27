@@ -20,9 +20,12 @@ class FormRecreationTest {
         val db=AppDatabase.get(context);db.clearAllTables()
         runBlocking {db.drafts().save(Draft(id="synthetic-failed",ownerId="synthetic-owner",siteId="synthetic-site",siteName="Synthetic offline site",workDate="2026-10-25",kind="work",workEntriesJson="[]",noWorkReason="",comment="Old report",photosJson="[]",status="failed"))}
         SecureSession(context).save("synthetic-offline-token","synthetic-owner")
-        context.getSharedPreferences("site-cache",Context.MODE_PRIVATE).edit().putString("synthetic-owner","""[{"id":"synthetic-site","name":"Synthetic offline site"}]""").commit()
+        context.getSharedPreferences("site-cache",Context.MODE_PRIVATE).edit().putString("synthetic-owner","""[{"id":"synthetic-site","name":"Synthetic offline site"},{"id":"synthetic-site-two","name":"Synthetic second site"}]""").commit()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             compose.waitUntil(10_000) {compose.onAllNodesWithText("Дата работ YYYY-MM-DD *").fetchSemanticsNodes().isNotEmpty()}
+            compose.waitUntil(10_000) {compose.onAllNodesWithText("Synthetic offline site").fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithText("Synthetic offline site").performScrollTo().performClick()
+            compose.onNodeWithText("Synthetic second site").performClick()
             compose.onNodeWithText("Дата работ YYYY-MM-DD *").performScrollTo().performTextReplacement("2026-1")
             compose.onNodeWithText("Сварка металлоконструкций").performScrollTo().performClick()
             compose.onNodeWithText("Монтаж").performClick()
@@ -30,13 +33,14 @@ class FormRecreationTest {
             compose.waitUntil(10_000) {
                 runBlocking { db.forms().get("synthetic-owner")?.let {
                     val form=FormSnapshot.decode(it.payload,it.ownerId)
-                    form.workDate=="2026-1" && form.quantity=="1," && form.workType=="Монтаж"
+                    form.workDate=="2026-1" && form.quantity=="1," && form.workType=="Монтаж" && form.siteId=="synthetic-site-two"
                 }?:false }
             }
             scenario.recreate()
             compose.waitUntil(10_000) {compose.onAllNodesWithText("Дата работ YYYY-MM-DD *").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("Дата работ YYYY-MM-DD *").assertTextContains("2026-1")
             compose.onNodeWithText("Монтаж").assertExists()
+            compose.onNodeWithText("Synthetic second site").assertExists()
             compose.onNodeWithText("Выполненный объём").assertTextContains("1,")
             compose.onNodeWithText("Исправить локальный отчёт").performScrollTo().performClick()
             compose.onNodeWithText("Открыть другой отчёт?").assertExists()

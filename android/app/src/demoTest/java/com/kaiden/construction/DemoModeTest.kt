@@ -47,6 +47,7 @@ class DemoModeTest {
         assertEquals(2,api.sites(DemoBackend.TOKEN).size)
         ActivityScenario.launch(MainActivity::class.java).use {
             compose.waitUntil(15_000){compose.onAllNodesWithText("Посмотреть примеры (6)").fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithText("2026-05-15 · Работы · Проверен").assertDoesNotExist()
             compose.onNodeWithText("Посмотреть примеры (6)").performClick()
             screenshot(context,"android-01-examples.png")
             compose.onNodeWithText("2026-05-15 · Работы · Проверен").performScrollTo().performClick()
