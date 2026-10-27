@@ -189,7 +189,7 @@ fun ReportApp() {
         financeKind="expense";financeAmount="";financeCategory="";financeDate="";financeDescription="";equipmentType="";equipmentHours="";equipmentHired=false;planText=""
     }
     fun replaceForm(action:()->Unit) {
-        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || financialEntries.isNotEmpty() || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDescription.isNotBlank() || equipment.isNotEmpty() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || nextShiftPlans.isNotEmpty() || planText.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
+        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || financialEntries.isNotEmpty() || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || equipment.isNotEmpty() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || equipmentHired || nextShiftPlans.isNotEmpty() || planText.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
         val replacement={quantity="";description="";workType="Сварка металлоконструкций";unit="шт";editReason="";action()}
         if(hasInput)pendingReplacement=replacement else replacement()
     }
@@ -207,6 +207,9 @@ fun ReportApp() {
             equipmentType=saved.equipmentType;equipmentHours=saved.equipmentHours;equipmentHired=saved.equipmentHired
             equipment.clear();val savedEquipment=JSONArray(saved.equipmentJson);for(i in 0 until savedEquipment.length())equipment.add(savedEquipment.getJSONObject(i))
             planText=saved.planText;nextShiftPlans.clear();val savedPlans=JSONArray(saved.plansJson);for(i in 0 until savedPlans.length())nextShiftPlans.add(savedPlans.getString(i))
+            showFinance=financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank()
+            showEquipment=equipmentType.isNotBlank() || equipmentHours.isNotBlank()
+            showPlans=planText.isNotBlank()
             workEntries.clear();val entries=JSONArray(saved.workEntriesJson)
             for(i in 0 until entries.length())workEntries.add(entries.getJSONObject(i))
             photos.clear();val images=JSONArray(saved.photosJson)
@@ -390,7 +393,10 @@ fun ReportApp() {
                 if(crew.length>1000)throw IllegalArgumentException("Бригада — до 1000 знаков")
                 if(quantity.isNotBlank() || description.isNotBlank())throw IllegalArgumentException("Добавьте заполненный вид работы либо очистите поля")
                 if(kind=="no_work" && workEntries.isNotEmpty())throw IllegalArgumentException("Удалите добавленные работы перед выбором отчёта без работ")
-                if(materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || incidentText.isNotBlank() || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || planText.isNotBlank())throw IllegalArgumentException("Добавьте или очистите незавершённые поля материалов, денег, техники и плана")
+                if(materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || incidentText.isNotBlank())throw IllegalArgumentException("Добавьте или очистите незавершённый материал или событие")
+                if(financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank()){showFinance=true;throw IllegalArgumentException("Добавьте или очистите незавершённую денежную операцию")}
+                if(equipmentType.isNotBlank() || equipmentHours.isNotBlank()){showEquipment=true;throw IllegalArgumentException("Добавьте или очистите незавершённую запись техники")}
+                if(planText.isNotBlank()){showPlans=true;throw IllegalArgumentException("Добавьте или очистите незавершённый план")}
                 if(selectedSite.isBlank() || (kind=="work" && workEntries.isEmpty()) || (kind=="no_work" && reason.isBlank())) throw IllegalArgumentException("Заполните обязательные поля")
                 if(editing!=null && editReason.trim().length<2)throw IllegalArgumentException("Укажите причину исправления")
                 val saved=Draft(ownerId=ownerId,id=editing?.id?:UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,

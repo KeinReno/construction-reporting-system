@@ -29,8 +29,13 @@ def test_demo_seed_photos_and_persistence(bundle,tmp_path):
     synthetic=next(r for r in rows if r['data'].get('crew'))
     assert synthetic['data']['materials'][0]['name']=='Учебный материал'
     assert synthetic['data']['incidents'][0]['description'].startswith('Учебное событие')
+    assert synthetic['data']['financial_entries'][0]['amount_kopecks']==12550
+    assert synthetic['data']['equipment'][0]['hours']=='7.5'
+    assert synthetic['data']['next_shift_plans']==['Проверить допуск на участок']
+    assert summary['financial_totals_kopecks']=={'expense':12550}
     assert c.get('/api/v1/reports/by-client/'+synthetic['client_report_id'],headers=h).status_code==409
-    assert c.get('/api/v1/reports/by-client/'+synthetic['client_report_id'],headers={**h,'X-Report-Capabilities':'report-extras-v1'}).status_code==200
+    assert c.get('/api/v1/reports/by-client/'+synthetic['client_report_id'],headers={**h,'X-Report-Capabilities':'report-extras-v1'}).status_code==409
+    assert c.get('/api/v1/reports/by-client/'+synthetic['client_report_id'],headers={**h,'X-Report-Capabilities':'report-extras-v2'}).status_code==200
     photo=rows[0]['data']['required_photo_ids'][0]
     assert c.get('/api/v1/attachments/'+photo).status_code==401
     assert c.get('/api/v1/attachments/'+photo,headers=h).content.startswith(b'\x89PNG')

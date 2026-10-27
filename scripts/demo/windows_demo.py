@@ -25,7 +25,7 @@ def create_demo(data_dir:Path,bundle:Path|None=None):
             db.add_all([Assignment(user_id=user.id,site_id=site.id) for user in users.values() for site in sites])
             for i,item in enumerate(raw['reports']):
                 rid=str(uuid.uuid4());aid=str(uuid.uuid4());receipt=str(uuid.uuid4());now=utcnow()
-                payload=report_payload(ReportData(client_report_id=uuid.uuid4(),site_id=sites[item['site']].id,work_date=item['date'],kind=item['kind'],work_entries=item['entries'],no_work_reason=item.get('reason'),comment=item['comment'],required_photo_ids=[aid],crew=item.get('crew'),materials=item.get('materials'),incidents=item.get('incidents')))
+                payload=report_payload(ReportData(client_report_id=uuid.uuid4(),site_id=sites[item['site']].id,work_date=item['date'],kind=item['kind'],work_entries=item['entries'],no_work_reason=item.get('reason'),comment=item['comment'],required_photo_ids=[aid],crew=item.get('crew'),materials=item.get('materials'),incidents=item.get('incidents'),financial_entries=item.get('financial_entries'),equipment=item.get('equipment'),next_shift_plans=item.get('next_shift_plans')))
                 db.add(Report(id=rid,client_report_id=payload['client_report_id'],site_id=payload['site_id'],author_id=users['foreman'].id,work_date=item['date'],payload=payload,status=item['status'],revision=1,receipt_id=receipt,submitted_at=now))
                 content=(fixtures/f'report-{i+1}.png').read_bytes();sha=hashlib.sha256(content).hexdigest();name=f'{aid}-{sha}.png';(photos/name).write_bytes(content)
                 db.add(Photo(id=aid,report_id=rid,sha256=sha,content_type='image/png',filename=name))
