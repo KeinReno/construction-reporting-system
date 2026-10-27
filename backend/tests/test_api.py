@@ -103,3 +103,36 @@ def test_no_work_can_preserve_materials_and_incidents_without_fake_work(env):
     assert result.status_code==201,result.text
     assert result.json()['data']['work_entries']==[]
     assert result.json()['data']['incidents'][0]['description']=='No access'
+
+def test_finance_equipment_and_plans_survive_revision_without_double_count(env):
+    c,f,m,sid,_=env
+    data=report(sid,'no_work')
+    data.update({
+        'financial_entries':[{'id':uid(),'kind':'expense','operation_date':'2026-10-20','amount_kopecks':12550,'category':'Fuel'},
+                             {'id':uid(),'kind':'advance_issued','operation_date':'2026-10-25','amount_kopecks':500000,'category':'Crew'}],
+        'equipment':[{'type':'Crane','hours':'7.5','hired':True}],
+        'next_shift_plans':['Check site access']})
+    created=c.post('/api/v1/reports',headers=f,json=data)
+    assert created.status_code==201,created.text
+    rid=created.json()['id'];capable={**f,'X-Report-Capabilities':'report-extras-v2'}
+    assert c.get(f'/api/v1/reports/by-client/{data["client_report_id"]}',headers=f).status_code==409
+    assert c.post(f'/api/v1/reports/{rid}/submit',headers={**f,'X-Report-Capabilities':'report-extras-v1'},json={'expected_revision':1}).status_code==409
+    assert c.post(f'/api/v1/reports/{rid}/submit',headers=capable,json={'expected_revision':1}).status_code==200
+    summary=c.get('/api/v1/analytics/summary',headers=m).json()
+    assert summary['financial_totals_kopecks']=={'expense':12550,'advance_issued':500000}
+    assert summary['equipment_hours']==[{'type':'Crane','hired':True,'hours':'7.5'}]
+    assert summary['financial_entries'][0]['operation_date']=='2026-10-20'
+    finance=c.post('/api/v1/analytics/ask',headers=m,json={'intent':'finance','question':'Покажи расходы','filters':{}})
+    assert finance.status_code==200 and finance.json()['source_report_ids']==[rid]
+    equipment=c.post('/api/v1/analytics/ask',headers=m,json={'intent':'equipment','question':'Спецтехника','filters':{}})
+    assert equipment.status_code==200 and equipment.json()['source_report_ids']==[rid]
+    assert c.post(f'/api/v1/reports/{rid}/review',headers=m,json={'expected_revision':1,'decision':'needs_revision','reason':'Clarify'}).status_code==200
+    old={key:value for key,value in data.items() if key not in ('financial_entries','equipment','next_shift_plans')}
+    assert c.patch(f'/api/v1/reports/{rid}',headers=f,json={'expected_revision':1,'reason':'Incomplete client','data':old}).status_code==409
+    data['comment']='Corrected'
+    assert c.patch(f'/api/v1/reports/{rid}',headers=f,json={'expected_revision':1,'reason':'Clarification','data':data}).status_code==200
+    assert c.post(f'/api/v1/reports/{rid}/submit',headers=capable,json={'expected_revision':2}).status_code==200
+    summary=c.get('/api/v1/analytics/summary',headers=m).json()
+    assert summary['financial_totals_kopecks']['expense']==12550
+    invalid=report(sid);invalid['financial_entries']=[{**data['financial_entries'][0],'amount_kopecks':-1}]
+    assert c.post('/api/v1/reports',headers=f,json=invalid).status_code==422

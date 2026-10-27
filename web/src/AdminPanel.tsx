@@ -24,6 +24,7 @@ export function AdminPanel({token,onExpired}:{token:string;onExpired:()=>void}) 
   }
   return <section aria-label="Администрирование">
     <p>Пользователи, объекты и разрешения. Отзыв доступа не удаляет историю отчётов.</p>
+    <p className="muted">Отправители: {users.filter(u=>u.role==='foreman'&&u.active).length} из 5 планируемых. Проверяющий заказчик: {users.filter(u=>u.role==='manager'&&u.active).length}. Логины и доступы к объектам настраиваются здесь.</p>
     {error&&<p className="error" role="alert">{error}</p>}{message&&<p role="status">{message}</p>}
     <div className="dashboard-grid">
       <form className="card analysis-form" onSubmit={e=>{e.preventDefault();void execute(async()=>{await http('/admin/users',token,{method:'POST',body:JSON.stringify({login:name,password,role})});setName('');setPassword('');});}}>

@@ -1,11 +1,12 @@
 export type Site = { id: string; name: string }
 export type WorkEntry = { type: string; quantity: string | null; unit: string | null; description?: string }
+export type FinancialEntry = { id:string;kind:'expense'|'funding_received'|'advance_issued';operation_date:string;amount_kopecks:number;category:string;description?:string|null;receipt_photo_id?:string|null }
 export type Report = {
   id: string; site_id: string; client_report_id: string; revision: number;
   author_id?:string; author_login?:string|null;
   status: "draft" | "submitted" | "reviewed" | "needs_revision";
   receipt_id: string | null; submitted_at: string | null;
-  data: { work_date: string; kind: "work" | "no_work"; work_entries: WorkEntry[]; comment?: string | null; no_work_reason?: string | null; required_photo_ids?: string[]; crew?:string|null; materials?:Array<{name:string;quantity:string|null;unit:string|null}>|null; incidents?:Array<{description:string}>|null }
+  data: { work_date: string; kind: "work" | "no_work"; work_entries: WorkEntry[]; comment?: string | null; no_work_reason?: string | null; required_photo_ids?: string[]; crew?:string|null; materials?:Array<{name:string;quantity:string|null;unit:string|null}>|null; incidents?:Array<{description:string}>|null; financial_entries?:FinancialEntry[]|null;equipment?:Array<{type:string;hours:string;hired:boolean}>|null;next_shift_plans?:string[]|null }
 }
 export const reportStatusLabels: Record<Report['status'], string> = {
   draft: 'Черновик', submitted: 'Доставлен', reviewed: 'Проверен', needs_revision: 'На уточнении'
@@ -16,6 +17,8 @@ export type Summary = {
   no_work_reasons: Array<{reason:string;report_count:number;source_report_ids:string[]}>; timeline:Array<{report_id:string;date:string;kind:string;status:string}>; timeline_truncated:boolean;
   incident_count:number; incidents:Array<{report_id:string;date:string;description:string}>;
   material_count:number; materials:Array<{report_id:string;date:string;name:string;quantity:string|null;unit:string|null}>;
+  financial_entries:Array<FinancialEntry & {report_id:string}>;financial_totals_kopecks:Partial<Record<FinancialEntry['kind'],number>>;
+  equipment:Array<{report_id:string;date:string;type:string;hours:string;hired:boolean}>;equipment_hours:Array<{type:string;hours:string;hired:boolean}>;
   limitations: string[]; source_report_ids: string[]; daily: Array<{date:string; report_count:number}>; period: {from_date:string|null;to_date:string|null};
 }
 export type Profile = { id: string; login: string; role: string }

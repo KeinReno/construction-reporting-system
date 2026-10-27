@@ -3,6 +3,8 @@ import { BASE, http, reportStatusLabels, type Report } from './api';
 type Event={id:string;revision:number;event:string;reason:string|null;occurred_at:string|null};
 type HistoricalSource={source_ref:string;text:string;reported_author:string|null;message_date:string|null};
 const eventLabels:Record<string,string>={created:'Создан',edited:'Изменён',submitted:'Доставлен',reviewed:'Проверен',needs_revision:'Возвращён на уточнение'};
+const moneyKindLabels={expense:'Расход',funding_received:'Поступление',advance_issued:'Выдача аванса'};
+function money(kopecks:number){return new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format(kopecks/100);}
 function Photo({id,token}:{id:string;token:string}) {
   const [url,setUrl]=useState('');const [error,setError]=useState('');
   useEffect(()=>{let active=true;let objectUrl='';
@@ -35,12 +37,15 @@ export function ReportDetails({report:r,token,role,siteName,onClose,onChange}:{r
     {r.data.crew&&<section><h3>Бригада</h3><p className="report-comment">{r.data.crew}</p></section>}
     {!!r.data.materials?.length&&<section><h3>Материалы</h3>{r.data.materials.map((m,i)=><div className="report-work" key={i}><strong>{m.name}</strong>{(m.quantity!==null||m.unit)&&<span>{m.quantity!==null?`${m.quantity} ${m.unit||''}`:m.unit}</span>}</div>)}</section>}
     {!!r.data.incidents?.length&&<section><h3>События и проблемы</h3>{r.data.incidents.map((event,i)=><p className="report-comment" key={i}>{event.description}</p>)}</section>}
+    {!!r.data.financial_entries?.length&&<section><h3>Денежные операции</h3><p className="muted">Поступления, расходы и авансы показаны отдельно; суммы не образуют остаток.</p>{r.data.financial_entries.map(entry=><div className="report-work" key={entry.id}><strong>{moneyKindLabels[entry.kind]} · {entry.category}</strong><span>{money(entry.amount_kopecks)} · {entry.operation_date}</span>{entry.description&&<p>{entry.description}</p>}</div>)}</section>}
+    {!!r.data.equipment?.length&&<section><h3>Спецтехника</h3>{r.data.equipment.map((entry,i)=><div className="report-work" key={i}><strong>{entry.type}</strong><span>{entry.hours} ч · {entry.hired?'наёмная':'своя'}</span></div>)}</section>}
+    {!!r.data.next_shift_plans?.length&&<section><h3>План следующей смены</h3><ul>{r.data.next_shift_plans.map((item,i)=><li key={i}>{item}</li>)}</ul></section>}
     {r.data.comment&&<section><h3>Комментарий</h3><p className="report-comment">{r.data.comment}</p></section>}
     {source&&<section><h3>Исходное сообщение</h3><p className="muted">Источник: {source.source_ref}{source.message_date&&` · дата сообщения: ${source.message_date}`}{source.reported_author&&` · автор по источнику: ${source.reported_author}`}</p><p className="report-comment">{source.text}</p><p className="footnote">Сведения из источника указаны оператором импорта; автор отчёта в системе — импортёр.</p></section>}
     <section><h3>Фотографии ({r.data.required_photo_ids?.length ?? 0})</h3>{r.data.required_photo_ids?.length?<div className="photo-list">{r.data.required_photo_ids.map(id=><Photo key={id} id={id} token={token}/>)}</div>:<p className="muted">Фотографии не приложены.</p>}</section>
     {r.receipt_id&&<p className="footnote">Квитанция: {r.receipt_id}</p>}
     {error&&<p className="error" role="alert">{error}</p>}
-    {(role==='manager'||role==='admin')&&r.status==='submitted'&&<section><label>Причина возврата<input maxLength={500} value={reason} onChange={e=>setReason(e.target.value)}/></label><div className="review-actions">
+    {role==='manager'&&r.status==='submitted'&&<section><label>Причина возврата<input maxLength={500} value={reason} onChange={e=>setReason(e.target.value)}/></label><div className="review-actions">
       <button disabled={busy} className="primary" onClick={()=>void review('reviewed')}>Проверен</button><button disabled={busy||!reason.trim()} className="secondary" onClick={()=>void review('needs_revision')}>Вернуть на уточнение</button></div></section>}
     <h3>История</h3><ol>{history.map(e=><li key={e.id}>Ревизия {e.revision}: {eventLabels[e.event] ?? e.event} {e.reason&&`— ${e.reason}`} {e.occurred_at&&<small>{new Date(e.occurred_at).toLocaleString('ru-RU')}</small>}</li>)}</ol>
   </div></dialog>;

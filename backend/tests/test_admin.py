@@ -46,6 +46,14 @@ def test_admin_deactivate_password_reset_and_self_protection(admin_env):
     denied=c.post('/api/v1/admin/users',headers=a,json={'login':'bad','password':'secret'})
     assert denied.status_code==422 and 'secret' not in denied.text
 
+def test_admin_does_not_review_as_second_checker(admin_env):
+    c,a,f,m,sid,_=admin_env
+    created=c.post('/api/v1/reports',headers=f,json=report(sid)).json()
+    rid=created['id']
+    assert c.post(f'/api/v1/reports/{rid}/submit',headers=f,json={'expected_revision':1}).status_code==200
+    assert c.post(f'/api/v1/reports/{rid}/review',headers=a,json={'expected_revision':1,'decision':'reviewed'}).status_code==403
+    assert c.post(f'/api/v1/reports/{rid}/review',headers=m,json={'expected_revision':1,'decision':'reviewed'}).status_code==200
+
 def test_static_and_ready(tmp_path,monkeypatch):
     public=tmp_path/'www';public.mkdir();(public/'index.html').write_text('<html>synthetic</html>')
     monkeypatch.setenv('WEB_DIR',str(public))

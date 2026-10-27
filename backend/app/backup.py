@@ -12,6 +12,7 @@ import shutil
 import sqlite3
 import subprocess
 import tempfile
+from contextlib import closing
 from datetime import datetime, timezone
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
@@ -42,7 +43,8 @@ def backup(database_url, uploads, output, service_stopped=False):
             source=Path(url.database).resolve()
             if not source.is_file():raise ValueError('Source database does not exist')
             name='database.sqlite3'
-            with sqlite3.connect(source.as_uri()+'?mode=ro',uri=True) as src, sqlite3.connect(stage/name) as dst:src.backup(dst)
+            with closing(sqlite3.connect(source.as_uri()+'?mode=ro',uri=True)) as src, closing(sqlite3.connect(stage/name)) as dst:
+                src.backup(dst)
         elif url.get_backend_name()=='postgresql':
             name='database.dump'
             subprocess.run(['pg_dump','--format=custom','--file',str(stage/name)],env=pg_environment(url),check=True,capture_output=True)
@@ -98,7 +100,7 @@ def restore(source,database_url,uploads,service_stopped=False):
         for name in manifest['files']:
             if name.startswith('uploads/'):shutil.copyfile(source/name,stage/Path(name).name)
         if url.get_backend_name()=='sqlite':
-            with sqlite3.connect((source/'database.sqlite3').as_uri()+'?mode=ro',uri=True) as src,sqlite3.connect(target) as dst:
+            with closing(sqlite3.connect((source/'database.sqlite3').as_uri()+'?mode=ro',uri=True)) as src, closing(sqlite3.connect(target)) as dst:
                 if src.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise ValueError('Database integrity check failed')
                 src.backup(dst)
         else:

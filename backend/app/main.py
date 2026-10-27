@@ -143,7 +143,7 @@ class AnalyticsFilters(Input):
 
 class Ask(Input):
     question:str=Field(min_length=1,max_length=1000)
-    intent:Literal["auto","summary","work_volume","no_work","site_timeline","incidents","materials"]="summary"
+    intent:Literal["auto","summary","work_volume","no_work","site_timeline","incidents","materials","finance","equipment"]="summary"
     filters:AnalyticsFilters=Field(default_factory=AnalyticsFilters)
 
 def stamp(value):
@@ -152,6 +152,12 @@ def stamp(value):
 
 def present(r):
     return dict(id=r.id,client_report_id=r.client_report_id,site_id=r.site_id,author_id=r.author_id,author_login=r.author.login if r.author else None,revision=r.revision,status=r.status,receipt_id=r.receipt_id,created_at=stamp(r.created_at),submitted_at=stamp(r.submitted_at),data=r.payload)
+
+def require_report_capabilities(payload,header):
+    if any(key in payload for key in ('financial_entries','equipment','next_shift_plans')) and header!='report-extras-v2':
+        raise HTTPException(409,'Client update required for extended report')
+    if any(key in payload for key in ('crew','materials','incidents')) and header not in ('report-extras-v1','report-extras-v2'):
+        raise HTTPException(409,'Client update required for extended report')
 
 def create_app(database_url=None, storage=None, initialize=False):
     url=database_url or os.environ.get('DATABASE_URL','sqlite:///./dev.db')
@@ -320,8 +326,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         r=db.scalar(select(Report).where(Report.client_report_id==str(client_id)))
         if not r: raise HTTPException(404,'Unknown report')
         r=fetch(db,u,r.id)
-        if any(key in r.payload for key in ('crew','materials','incidents')) and request.headers.get('X-Report-Capabilities')!='report-extras-v1':
-            raise HTTPException(409,'Client update required for extended report')
+        require_report_capabilities(r.payload,request.headers.get('X-Report-Capabilities'))
         return present(r)
     @api.get('/api/v1/reports/authors')
     def report_authors(db:Session=Depends(dbdep),u:User=Depends(current)):
@@ -366,7 +371,7 @@ def create_app(database_url=None, storage=None, initialize=False):
     def edit(rid:uuid.UUID,data:Edit,db:Session=Depends(dbdep),u:User=Depends(current)):
         r=fetch(db,u,str(rid))
         if r.status not in ('draft','needs_revision') or r.revision!=data.expected_revision: raise HTTPException(409,'Revision conflict')
-        for key in ('crew','materials','incidents'):
+        for key in ('crew','materials','incidents','financial_entries','equipment','next_shift_plans'):
             if key in r.payload and key not in data.data.model_fields_set:
                 raise HTTPException(409,'Client cannot preserve extended report fields')
         payload=report_payload(data.data)
@@ -422,8 +427,7 @@ def create_app(database_url=None, storage=None, initialize=False):
     @api.post('/api/v1/reports/{rid}/submit')
     def submit(rid:uuid.UUID,data:Revision,request:Request,db:Session=Depends(dbdep),u:User=Depends(current)):
         r=fetch(db,u,str(rid))
-        if any(key in r.payload for key in ('crew','materials','incidents')) and request.headers.get('X-Report-Capabilities')!='report-extras-v1':
-            raise HTTPException(409,'Client update required for extended report')
+        require_report_capabilities(r.payload,request.headers.get('X-Report-Capabilities'))
         if data.expected_revision!=r.revision: raise HTTPException(409,'Revision conflict')
         if r.status in ('submitted','reviewed') and r.receipt_id: return present(r)
         if r.status!='draft': raise HTTPException(409,'Not ready for submission')
@@ -436,7 +440,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         r.status='submitted';r.receipt_id=new_id();r.submitted_at=utcnow();log(db,r,u,'submitted');db.commit();return present(r)
     @api.post('/api/v1/reports/{rid}/review')
     def review(rid:uuid.UUID,data:Review,db:Session=Depends(dbdep),u:User=Depends(current)):
-        if u.role not in ('manager','admin'):raise HTTPException(403,'Manager role required')
+        if u.role!='manager':raise HTTPException(403,'Manager role required')
         r=fetch(db,u,str(rid))
         if r.revision!=data.expected_revision or r.status!='submitted':raise HTTPException(409,'Revision/status conflict')
         if data.decision=='needs_revision' and not (data.reason or '').strip():raise HTTPException(422,'Reason required')
@@ -455,7 +459,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         if to_date:q=q.where(Report.work_date<=str(to_date))
         return db.scalars(q.order_by(Report.work_date,Report.id)).unique().all()
     def metrics(rows,from_date,to_date):
-        volumes={}; daily={}; reasons={};incidents=[];materials=[]
+        volumes={}; daily={}; reasons={};incidents=[];materials=[];financial=[];financial_totals={};equipment=[];equipment_hours={}
         for r in rows:
             daily[r.work_date]=daily.get(r.work_date,0)+1
             if r.payload['kind']=='no_work':
@@ -470,6 +474,13 @@ def create_app(database_url=None, storage=None, initialize=False):
                 incidents.append({'report_id':r.id,'date':r.work_date,'description':event['description']})
             for material in r.payload.get('materials') or []:
                 materials.append({'report_id':r.id,'date':r.work_date,'name':material['name'],'quantity':material.get('quantity'),'unit':material.get('unit')})
+            for entry in r.payload.get('financial_entries') or []:
+                financial.append({'report_id':r.id,**entry})
+                financial_totals[entry['kind']]=financial_totals.get(entry['kind'],0)+entry['amount_kopecks']
+            for entry in r.payload.get('equipment') or []:
+                equipment.append({'report_id':r.id,'date':r.work_date,**entry})
+                key=(entry['type'],entry['hired'])
+                equipment_hours[key]=equipment_hours.get(key,Decimal(0))+Decimal(entry['hours'])
         return {'report_count':len(rows),'no_work_count':sum(r.payload['kind']=='no_work' for r in rows),
                 'period':{'from_date':str(from_date) if from_date else None,'to_date':str(to_date) if to_date else None},
                 'source_report_ids':[r.id for r in rows],
@@ -480,11 +491,17 @@ def create_app(database_url=None, storage=None, initialize=False):
                 'incidents':incidents,
                 'material_count':len(materials),
                 'materials':materials,
+                'financial_entries':financial,
+                'financial_totals_kopecks':financial_totals,
+                'equipment':equipment,
+                'equipment_hours':[{'type':name,'hired':hired,'hours':str(hours)} for (name,hired),hours in sorted(equipment_hours.items())],
                 'timeline':[{'report_id':r.id,'date':r.work_date,'kind':r.payload['kind'],'status':r.status} for r in rows[-200:]],
                 'timeline_truncated':len(rows)>200,
                 'limitations':['Только отправленные и проверенные отчёты. Нет отчётов — не означает отсутствие работ.',
                                'События считаются только по явно заполненным записям; отсутствие записи не подтверждает отсутствие события.',
                                'Материалы перечислены по записям; движение (приход или расход) не задано и не суммируется.',
+                               'Деньги — заявленные операции по датам отчётов; поступления, расходы и авансы не смешиваются. Баланс и зарплата не рассчитываются.',
+                               'Часы техники заявлены отправителем и не превращаются в стоимость без тарифа.',
                                'Нет утверждённых планов и расписаний: план-факт и просрочки не рассчитаны.']}
     @api.get('/api/v1/analytics/summary')
     def summary(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,author_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None):
@@ -499,7 +516,7 @@ def create_app(database_url=None, storage=None, initialize=False):
             if intent is None:
                 validate_period(f.from_date,f.to_date)
                 if f.site_id:allowed(db,u,str(f.site_id))
-                return {'answer':'Такой вопрос не поддерживается локальным аналитиком. Выберите вид анализа; период задайте фильтрами. Учёт движения материалов, финансы, ожидания и изменения данных пока недоступны.',
+                return {'answer':'Такой вопрос не поддерживается локальным аналитиком. Выберите вид анализа; период задайте фильтрами. Остатки денег, движение материалов и изменение данных пока недоступны.',
                         'mode':'local_analytics','intent':'unsupported','supported':False,'metrics':None,'source_report_ids':[],
                         'period':{'from_date':str(f.from_date) if f.from_date else None,'to_date':str(f.to_date) if f.to_date else None},
                         'limitations':['Свободный LLM-диалог отключён до согласования B13. Даты из текста не интерпретируются.']}
@@ -513,7 +530,10 @@ def create_app(database_url=None, storage=None, initialize=False):
             'site_timeline':'Хронология полученных отчётов доступна в источниках и дневной сводке.'}
         answers['incidents']=f"Указано событий: {result['incident_count']}. Проверяйте детали в исходных отчётах."
         answers['materials']=f"Записей материалов: {result['material_count']}. Движение материала не определено."
-        sources=([r.id for r in rows if r.payload.get(intent)] if intent in ('incidents','materials') else result['source_report_ids'])
+        answers['finance']=f"Денежных операций: {len(result['financial_entries'])}. Поступления, расходы и авансы разделены."
+        answers['equipment']=f"Записей спецтехники: {len(result['equipment'])}. Часы сгруппированы по виду техники."
+        key={'finance':'financial_entries','equipment':'equipment'}.get(intent,intent)
+        sources=([r.id for r in rows if r.payload.get(key)] if intent in ('incidents','materials','finance','equipment') else result['source_report_ids'])
         return {'answer':answers[intent],'mode':'local_analytics','intent':intent,'supported':True,
                 'period':result['period'],'metrics':result,'source_report_ids':sources,
                 'limitations':result['limitations']+['Используются только поддерживаемый сценарий и явные фильтры. LLM отключена до согласования B13. Хронология ограничена 200 последними записями.']}

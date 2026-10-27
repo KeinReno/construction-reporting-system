@@ -13,6 +13,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
@@ -147,6 +149,21 @@ fun ReportApp() {
     val materials=remember(ownerId) {mutableStateListOf<JSONObject>()}
     var incidentText by remember(ownerId) {mutableStateOf("")}
     val incidents=remember(ownerId) {mutableStateListOf<JSONObject>()}
+    var financeKind by remember(ownerId) {mutableStateOf("expense")}
+    var financeAmount by remember(ownerId) {mutableStateOf("")}
+    var financeCategory by remember(ownerId) {mutableStateOf("")}
+    var financeDate by remember(ownerId) {mutableStateOf("")}
+    var financeDescription by remember(ownerId) {mutableStateOf("")}
+    val financialEntries=remember(ownerId) {mutableStateListOf<JSONObject>()}
+    var equipmentType by remember(ownerId) {mutableStateOf("")}
+    var equipmentHours by remember(ownerId) {mutableStateOf("")}
+    var equipmentHired by remember(ownerId) {mutableStateOf(false)}
+    val equipment=remember(ownerId) {mutableStateListOf<JSONObject>()}
+    var planText by remember(ownerId) {mutableStateOf("")}
+    val nextShiftPlans=remember(ownerId) {mutableStateListOf<String>()}
+    var showFinance by remember(ownerId) {mutableStateOf(false)}
+    var showEquipment by remember(ownerId) {mutableStateOf(false)}
+    var showPlans by remember(ownerId) {mutableStateOf(false)}
     val photos = remember(ownerId) { mutableStateListOf<JSONObject>() }
     var editing by remember(ownerId) { mutableStateOf<Draft?>(null) }
     var editReason by remember(ownerId) { mutableStateOf("") }
@@ -158,15 +175,21 @@ fun ReportApp() {
     var pendingReplacement by remember(ownerId) {mutableStateOf<(() -> Unit)?>(null)}
     fun currentForm()=FormSnapshot(siteId=selectedSite,workDate=workDate,kind=kind,workType=workType,quantity=quantity,unit=unit,description=description,
         workEntriesJson=JSONArray(workEntries.toList()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),editing=editing,editReason=editReason,
-        crew=crew,materialName=materialName,materialQuantity=materialQuantity,materialUnit=materialUnit,materialsJson=JSONArray(materials.toList()).toString(),incidentText=incidentText,incidentsJson=JSONArray(incidents.toList()).toString())
+        crew=crew,materialName=materialName,materialQuantity=materialQuantity,materialUnit=materialUnit,materialsJson=JSONArray(materials.toList()).toString(),incidentText=incidentText,incidentsJson=JSONArray(incidents.toList()).toString(),
+        financeKind=financeKind,financeAmount=financeAmount,financeCategory=financeCategory,financeDate=financeDate,financeDescription=financeDescription,financialJson=JSONArray(financialEntries.toList()).toString(),
+        equipmentType=equipmentType,equipmentHours=equipmentHours,equipmentHired=equipmentHired,equipmentJson=JSONArray(equipment.toList()).toString(),planText=planText,plansJson=JSONArray(nextShiftPlans.toList()).toString())
     fun loadExtras(extras:JSONObject) {
         crew=if(extras.isNull("crew"))"" else extras.optString("crew","")
         materials.clear();val m=extras.optJSONArray("materials")?:JSONArray();for(i in 0 until m.length())materials.add(m.getJSONObject(i))
         incidents.clear();val events=extras.optJSONArray("incidents")?:JSONArray();for(i in 0 until events.length())incidents.add(events.getJSONObject(i))
+        financialEntries.clear();val finances=extras.optJSONArray("financial_entries")?:JSONArray();for(i in 0 until finances.length())financialEntries.add(finances.getJSONObject(i))
+        equipment.clear();val machines=extras.optJSONArray("equipment")?:JSONArray();for(i in 0 until machines.length())equipment.add(machines.getJSONObject(i))
+        nextShiftPlans.clear();val plans=extras.optJSONArray("next_shift_plans")?:JSONArray();for(i in 0 until plans.length())nextShiftPlans.add(plans.getString(i))
         materialName="";materialQuantity="";materialUnit="";incidentText=""
+        financeKind="expense";financeAmount="";financeCategory="";financeDate="";financeDescription="";equipmentType="";equipmentHours="";equipmentHired=false;planText=""
     }
     fun replaceForm(action:()->Unit) {
-        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
+        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || financialEntries.isNotEmpty() || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDescription.isNotBlank() || equipment.isNotEmpty() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || nextShiftPlans.isNotEmpty() || planText.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
         val replacement={quantity="";description="";workType="Сварка металлоконструкций";unit="шт";editReason="";action()}
         if(hasInput)pendingReplacement=replacement else replacement()
     }
@@ -179,6 +202,11 @@ fun ReportApp() {
             crew=saved.crew;materialName=saved.materialName;materialQuantity=saved.materialQuantity;materialUnit=saved.materialUnit;incidentText=saved.incidentText
             materials.clear();val savedMaterials=JSONArray(saved.materialsJson);for(i in 0 until savedMaterials.length())materials.add(savedMaterials.getJSONObject(i))
             incidents.clear();val savedIncidents=JSONArray(saved.incidentsJson);for(i in 0 until savedIncidents.length())incidents.add(savedIncidents.getJSONObject(i))
+            financeKind=saved.financeKind;financeAmount=saved.financeAmount;financeCategory=saved.financeCategory;financeDate=saved.financeDate;financeDescription=saved.financeDescription
+            financialEntries.clear();val savedFinances=JSONArray(saved.financialJson);for(i in 0 until savedFinances.length())financialEntries.add(savedFinances.getJSONObject(i))
+            equipmentType=saved.equipmentType;equipmentHours=saved.equipmentHours;equipmentHired=saved.equipmentHired
+            equipment.clear();val savedEquipment=JSONArray(saved.equipmentJson);for(i in 0 until savedEquipment.length())equipment.add(savedEquipment.getJSONObject(i))
+            planText=saved.planText;nextShiftPlans.clear();val savedPlans=JSONArray(saved.plansJson);for(i in 0 until savedPlans.length())nextShiftPlans.add(savedPlans.getString(i))
             workEntries.clear();val entries=JSONArray(saved.workEntriesJson)
             for(i in 0 until entries.length())workEntries.add(entries.getJSONObject(i))
             photos.clear();val images=JSONArray(saved.photosJson)
@@ -266,7 +294,7 @@ fun ReportApp() {
             // TEMPORARY proposal pending SPEC-00 B07; work type to come from server catalog.
             val types=listOf("Сварка металлоконструкций","Монтаж","Покраска","Разгрузка","Другое")
             CompactSelection("Вид работы *",workType,types.map { it to it },onSelect={workType=it})
-            OutlinedTextField(quantity,{quantity=it},label={Text("Выполненный объём")},modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(quantity,{quantity=it},label={Text("Выполненный объём")},modifier=Modifier.fillMaxWidth(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
             OutlinedTextField(unit,{unit=it},label={Text("Единица измерения")},modifier=Modifier.fillMaxWidth())
             OutlinedTextField(description,{description=it},label={Text("Описание (для работ без объёма / Другое)")},modifier=Modifier.fillMaxWidth())
             OutlinedButton(onClick={
@@ -283,7 +311,7 @@ fun ReportApp() {
         OutlinedTextField(crew,{crew=it},label={Text("Бригада (необязательно)")},modifier=Modifier.fillMaxWidth())
         Text("Материалы",style=MaterialTheme.typography.titleSmall)
         OutlinedTextField(materialName,{materialName=it},label={Text("Название материала")},modifier=Modifier.fillMaxWidth())
-        OutlinedTextField(materialQuantity,{materialQuantity=it},label={Text("Количество материала (необязательно)")},modifier=Modifier.fillMaxWidth())
+        OutlinedTextField(materialQuantity,{materialQuantity=it},label={Text("Количество материала (необязательно)")},modifier=Modifier.fillMaxWidth(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
         OutlinedTextField(materialUnit,{materialUnit=it},label={Text("Единица материала")},modifier=Modifier.fillMaxWidth())
         OutlinedButton(onClick={
             val n=materialQuantity.replace(',','.').toBigDecimalOrNull()
@@ -295,6 +323,60 @@ fun ReportApp() {
         OutlinedTextField(incidentText,{incidentText=it},label={Text("Что произошло (необязательно)")},modifier=Modifier.fillMaxWidth())
         OutlinedButton(onClick={if(incidentText.isBlank() || incidentText.length>2000 || incidents.size>=100)formError="Укажите событие" else {incidents.add(JSONObject().put("description",incidentText));incidentText="";formError=""}}){Text("+ Добавить событие")}
         incidents.forEachIndexed { i,event -> Row {Text(event.getString("description"),Modifier.weight(1f));TextButton(onClick={incidents.removeAt(i)}){Text("Удалить")}} }
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider()
+        TextButton(onClick={showFinance=!showFinance},modifier=Modifier.padding(top=8.dp)) {Text("Деньги (${financialEntries.size}) ${if(showFinance)"▴" else "▾"}")}
+        if(showFinance) {
+        Text("Каждая трата, поступление и аванс — отдельная запись. Дата операции может отличаться от даты отчёта.",style=MaterialTheme.typography.bodySmall)
+        CompactSelection("Вид операции",financeKind,listOf("expense" to "Расход","funding_received" to "Поступление","advance_issued" to "Выдача аванса"),onSelect={financeKind=it})
+        OutlinedTextField(financeAmount,{financeAmount=it},label={Text("Сумма, ₽")},modifier=Modifier.fillMaxWidth(),singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
+        OutlinedTextField(financeCategory,{financeCategory=it},label={Text("Категория (например, топливо)")},modifier=Modifier.fillMaxWidth())
+        OutlinedTextField(financeDate,{financeDate=it},label={Text("Дата операции YYYY-MM-DD")},placeholder={Text(workDate)},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        OutlinedTextField(financeDescription,{financeDescription=it},label={Text("Пояснение к операции")},modifier=Modifier.fillMaxWidth())
+        OutlinedButton(onClick={
+            val kopecks=parseMoneyKopecks(financeAmount)
+            val date=financeDate.ifBlank { workDate }
+            if(kopecks==null || financeCategory.isBlank() || financeCategory.length>100 || financeDescription.length>1000 || financialEntries.size>=100 || runCatching{LocalDate.parse(date)}.isFailure)
+                formError="Проверьте сумму, категорию и дату денежной операции"
+            else {
+                financialEntries.add(JSONObject().put("id",UUID.randomUUID().toString()).put("kind",financeKind).put("operation_date",date).put("amount_kopecks",kopecks).put("category",financeCategory.trim()).put("description",financeDescription.trim().ifBlank { null }?:JSONObject.NULL))
+                financeAmount="";financeCategory="";financeDate="";financeDescription="";formError=""
+            }
+        }){Text("+ Добавить денежную операцию")}
+        financialEntries.forEachIndexed { i,entry -> Row(Modifier.fillMaxWidth()) {
+            Text("${entry.getString("operation_date")} · ${entry.getString("category")} · ${java.math.BigDecimal.valueOf(entry.getLong("amount_kopecks"),2).toPlainString()} ₽",Modifier.weight(1f))
+            TextButton(onClick={financialEntries.removeAt(i)}){Text("Удалить")}
+        } }
+        }
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider()
+        TextButton(onClick={showEquipment=!showEquipment},modifier=Modifier.padding(top=8.dp)) {Text("Спецтехника (${equipment.size}) ${if(showEquipment)"▴" else "▾"}")}
+        if(showEquipment) {
+        OutlinedTextField(equipmentType,{equipmentType=it},label={Text("Вид техники")},modifier=Modifier.fillMaxWidth())
+        OutlinedTextField(equipmentHours,{equipmentHours=it},label={Text("Отработано часов")},modifier=Modifier.fillMaxWidth(),singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
+        Row(verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {Checkbox(checked=equipmentHired,onCheckedChange={equipmentHired=it});Text("Наёмная техника")}
+        OutlinedButton(onClick={
+            val hours=equipmentHours.replace(',','.').toBigDecimalOrNull()
+            if(equipmentType.isBlank() || equipmentType.length>100 || hours==null || hours<=java.math.BigDecimal.ZERO || hours.stripTrailingZeros().scale()>2 || hours.precision()-hours.scale()>6 || equipment.size>=50)
+                formError="Укажите вид техники и часы больше нуля"
+            else {equipment.add(JSONObject().put("type",equipmentType.trim()).put("hours",hours.toPlainString()).put("hired",equipmentHired));equipmentType="";equipmentHours="";equipmentHired=false;formError=""}
+        }){Text("+ Добавить технику")}
+        equipment.forEachIndexed { i,entry -> Row(Modifier.fillMaxWidth()) {
+            Text("${entry.getString("type")} · ${entry.getString("hours")} ч${if(entry.optBoolean("hired"))" · наёмная" else ""}",Modifier.weight(1f))
+            TextButton(onClick={equipment.removeAt(i)}){Text("Удалить")}
+        } }
+        }
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider()
+        TextButton(onClick={showPlans=!showPlans},modifier=Modifier.padding(top=8.dp)) {Text("План следующей смены (${nextShiftPlans.size}) ${if(showPlans)"▴" else "▾"}")}
+        if(showPlans) {
+        OutlinedTextField(planText,{planText=it},label={Text("Что планируется")},modifier=Modifier.fillMaxWidth())
+        OutlinedButton(onClick={
+            if(planText.isBlank() || planText.length>500 || nextShiftPlans.size>=30)formError="Укажите пункт плана до 500 знаков"
+            else {nextShiftPlans.add(planText.trim());planText="";formError=""}
+        }){Text("+ Добавить пункт плана")}
+        nextShiftPlans.forEachIndexed { i,item -> Row(Modifier.fillMaxWidth()) {Text(item,Modifier.weight(1f));TextButton(onClick={nextShiftPlans.removeAt(i)}){Text("Удалить")}} }
+        }
         Spacer(Modifier.height(12.dp))
         OutlinedButton(enabled=!busy,onClick={picker.launch("image/*")}) {Text("Добавить фотографии (${photos.size})")}
         photos.forEachIndexed { i,photo -> key(photo.getString("id")) {PhotoPreview(photo.getString("path"),i+1,!busy){photos.remove(photo)}} }
@@ -308,13 +390,16 @@ fun ReportApp() {
                 if(crew.length>1000)throw IllegalArgumentException("Бригада — до 1000 знаков")
                 if(quantity.isNotBlank() || description.isNotBlank())throw IllegalArgumentException("Добавьте заполненный вид работы либо очистите поля")
                 if(kind=="no_work" && workEntries.isNotEmpty())throw IllegalArgumentException("Удалите добавленные работы перед выбором отчёта без работ")
-                if(materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || incidentText.isNotBlank())throw IllegalArgumentException("Добавьте заполненный материал или событие либо очистите поля")
+                if(materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || incidentText.isNotBlank() || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || planText.isNotBlank())throw IllegalArgumentException("Добавьте или очистите незавершённые поля материалов, денег, техники и плана")
                 if(selectedSite.isBlank() || (kind=="work" && workEntries.isEmpty()) || (kind=="no_work" && reason.isBlank())) throw IllegalArgumentException("Заполните обязательные поля")
                 if(editing!=null && editReason.trim().length<2)throw IllegalArgumentException("Укажите причину исправления")
                 val saved=Draft(ownerId=ownerId,id=editing?.id?:UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,
                     workEntriesJson=JSONArray(if(kind=="work")workEntries.toList() else emptyList<JSONObject>()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),serverId=editing?.serverId,
                     serverRevision=editing?.serverRevision?:1,editRequested=editing!=null,editReason=editReason,createdAt=editing?.createdAt?:System.currentTimeMillis(),
-                    extrasJson=JSONObject().put("crew",crew.ifBlank { null }?:JSONObject.NULL).put("materials",if(materials.isEmpty())JSONObject.NULL else JSONArray(materials.toList())).put("incidents",if(incidents.isEmpty())JSONObject.NULL else JSONArray(incidents.toList())).toString())
+                    extrasJson=JSONObject().put("crew",crew.ifBlank { null }?:JSONObject.NULL).put("materials",if(materials.isEmpty())JSONObject.NULL else JSONArray(materials.toList())).put("incidents",if(incidents.isEmpty())JSONObject.NULL else JSONArray(incidents.toList()))
+                        .put("financial_entries",if(financialEntries.isEmpty())JSONObject.NULL else JSONArray(financialEntries.toList()))
+                        .put("equipment",if(equipment.isEmpty())JSONObject.NULL else JSONArray(equipment.toList()))
+                        .put("next_shift_plans",if(nextShiftPlans.isEmpty())JSONObject.NULL else JSONArray(nextShiftPlans.toList())).toString())
                 val consumed=formSession?:throw IllegalStateException("Форма ещё не загружена")
                 busy=true
                 scope.launch {

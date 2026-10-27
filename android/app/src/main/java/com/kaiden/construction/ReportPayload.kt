@@ -29,6 +29,25 @@ object ReportPayload {
                     .put("quantity",if(m.isNull("quantity"))JSONObject.NULL else m.getString("quantity").toBigDecimal().stripTrailingZeros().toPlainString())
             }))
         }
+        if(!data.isNull("financial_entries")) {
+            val entries=data.getJSONArray("financial_entries")
+            put("financial_entries",JSONArray((0 until entries.length()).map { i ->
+                val e=entries.getJSONObject(i)
+                JSONObject().put("id",e.getString("id")).put("kind",e.getString("kind"))
+                    .put("operation_date",e.getString("operation_date")).put("amount_kopecks",e.getLong("amount_kopecks"))
+                    .put("category",e.getString("category")).put("description",nullable(e,"description"))
+                    .put("receipt_photo_id",nullable(e,"receipt_photo_id"))
+            }))
+        }
+        if(!data.isNull("equipment")) {
+            val entries=data.getJSONArray("equipment")
+            put("equipment",JSONArray((0 until entries.length()).map { i ->
+                val e=entries.getJSONObject(i)
+                JSONObject().put("type",e.getString("type")).put("hired",e.optBoolean("hired",false))
+                    .put("hours",e.getString("hours").toBigDecimal().stripTrailingZeros().toPlainString())
+            }))
+        }
+        if(!data.isNull("next_shift_plans"))put("next_shift_plans",data.getJSONArray("next_shift_plans"))
     }
     private fun same(a:Any?,b:Any?):Boolean = when {
         a is JSONObject && b is JSONObject -> {
