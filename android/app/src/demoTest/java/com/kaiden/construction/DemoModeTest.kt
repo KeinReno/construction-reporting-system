@@ -61,6 +61,13 @@ class DemoModeTest {
             screenshot(context,"android-04-work-fields.png")
             compose.onNodeWithText("Выполненный объём").performTextInput("2.75")
             compose.onNodeWithText("+ Добавить вид работ").performScrollTo().performClick()
+            compose.onNodeWithText("Бригада (необязательно)").performScrollTo().performTextInput("Демо бригада")
+            compose.onNodeWithText("Название материала").performScrollTo().performTextInput("Демо материал")
+            compose.onNodeWithText("Количество материала (необязательно)").performScrollTo().performTextInput("2.5")
+            compose.onNodeWithText("Единица материала").performScrollTo().performTextInput("м")
+            compose.onNodeWithText("+ Добавить материал").performScrollTo().performClick()
+            compose.onNodeWithText("Что произошло (необязательно)").performScrollTo().performTextInput("Демо событие")
+            compose.onNodeWithText("+ Добавить событие").performScrollTo().performClick()
             compose.onNodeWithText("Сохранить и отправить").performScrollTo().performClick()
             compose.waitUntil(20_000){runBlocking{db.drafts().observeAll(DemoBackend.OWNER).first().any{r->r.createdAt>10000 && r.status=="delivered"}}}
         }
@@ -68,6 +75,9 @@ class DemoModeTest {
         assertNotNull(added.receiptId)
         val reopened=DemoBackend(context).request("/reports/by-client/${added.id}","GET",DemoBackend.TOKEN,null)
         assertEquals("submitted",reopened.getString("status"));assertEquals("2.75",reopened.getJSONObject("data").getJSONArray("work_entries").getJSONObject(0).getString("quantity"))
+        assertEquals("Демо бригада",reopened.getJSONObject("data").getString("crew"))
+        assertEquals("Демо материал",reopened.getJSONObject("data").getJSONArray("materials").getJSONObject(0).getString("name"))
+        assertEquals("Демо событие",reopened.getJSONObject("data").getJSONArray("incidents").getJSONObject(0).getString("description"))
         // Receipt is stable on replay; the simulated server is private local JSON, not HTTPS.
         assertEquals(added.receiptId,api.submit(DemoBackend.TOKEN,added.serverId!!,1).getString("receipt_id"))
     }

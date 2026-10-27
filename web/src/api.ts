@@ -4,7 +4,7 @@ export type Report = {
   id: string; site_id: string; client_report_id: string; revision: number;
   status: "draft" | "submitted" | "reviewed" | "needs_revision";
   receipt_id: string | null; submitted_at: string | null;
-  data: { work_date: string; kind: "work" | "no_work"; work_entries: WorkEntry[]; comment?: string | null; no_work_reason?: string | null; required_photo_ids?: string[] }
+  data: { work_date: string; kind: "work" | "no_work"; work_entries: WorkEntry[]; comment?: string | null; no_work_reason?: string | null; required_photo_ids?: string[]; crew?:string|null; materials?:Array<{name:string;quantity:string|null;unit:string|null}>|null; incidents?:Array<{description:string}>|null }
 }
 export const reportStatusLabels: Record<Report['status'], string> = {
   draft: 'Черновик', submitted: 'Доставлен', reviewed: 'Проверен', needs_revision: 'На уточнении'

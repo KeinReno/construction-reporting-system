@@ -14,4 +14,11 @@ class ReportPayloadTest {
         assertFalse(ReportPayload.equivalent(payload(),payload().put("site_id","other")))
         assertFalse(ReportPayload.equivalent(payload(),payload().put("comment","edited")))
     }
+    @Test fun extendedDataIsComparedAndDecimalIsNormalized() {
+        val local=payload().put("crew","Crew").put("materials",org.json.JSONArray("""[{"name":"Steel","quantity":"2.50","unit":"m"}]"""))
+        val remote=payload().put("crew","Crew").put("materials",org.json.JSONArray("""[{"name":"Steel","quantity":"2.5","unit":"m"}]"""))
+        assertTrue(ReportPayload.equivalent(local,remote))
+        assertFalse(ReportPayload.equivalent(payload(),remote))
+        assertFalse(ReportPayload.equivalent(local,remote.put("crew","Another")))
+    }
 }

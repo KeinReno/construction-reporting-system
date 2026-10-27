@@ -2,6 +2,7 @@ package com.kaiden.construction
 
 import android.content.Context
 import androidx.room.Dao
+import androidx.room.ColumnInfo
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.Insert
@@ -35,7 +36,8 @@ data class Draft(
     val serverRevision: Int = 1,
     val editRequested: Boolean = false,
     val editReason: String = "",
-    val businessStatus: String? = null
+    val businessStatus: String? = null,
+    @ColumnInfo(defaultValue="'{}'") val extrasJson:String = "{}"
 )
 
 @Dao
@@ -70,7 +72,7 @@ interface FormDao {
     suspend fun consume(ownerId:String,sessionId:String):Int
 }
 
-@Database(entities=[Draft::class,FormRecord::class], version=4, exportSchema=false)
+@Database(entities=[Draft::class,FormRecord::class], version=5, exportSchema=false)
 abstract class AppDatabase: RoomDatabase() {
     abstract fun drafts(): DraftDao
     abstract fun forms(): FormDao
@@ -93,9 +95,12 @@ abstract class AppDatabase: RoomDatabase() {
                 db.execSQL("CREATE TABLE IF NOT EXISTS report_forms (ownerId TEXT NOT NULL PRIMARY KEY, sessionId TEXT NOT NULL, payload TEXT NOT NULL)")
             }
         }
+        val MIGRATION_4_5=object:Migration(4,5) {
+            override fun migrate(db:SupportSQLiteDatabase) {db.execSQL("ALTER TABLE drafts ADD COLUMN extrasJson TEXT NOT NULL DEFAULT '{}'")}
+        }
         fun build(context:Context,name:String):AppDatabase =
             Room.databaseBuilder(context.applicationContext,AppDatabase::class.java,name)
-                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4).build()
+                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5).build()
         @Volatile private var INSTANCE:AppDatabase?=null
         fun get(context:Context):AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: build(context,"construction-local.db").also {INSTANCE=it}

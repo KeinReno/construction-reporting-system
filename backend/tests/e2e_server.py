@@ -20,9 +20,12 @@ client=TestClient(api)
 token=client.post('/api/v1/auth/login',json={'login':'manager','password':'SyntheticPassword123'}).json()['access_token']
 headers={'Authorization':'Bearer '+token}
 for day,quantity in [('2026-10-24','1.5'),('2026-10-25','2.5')]:
-    r=client.post('/api/v1/reports',headers=headers,json={'client_report_id':new_id(),'site_id':sid,'work_date':day,'kind':'work','work_entries':[{'type':'Synthetic weld','quantity':quantity,'unit':'m','description':'Synthetic work description'}]}).json()
+    data={'client_report_id':new_id(),'site_id':sid,'work_date':day,'kind':'work','work_entries':[{'type':'Synthetic weld','quantity':quantity,'unit':'m','description':'Synthetic work description'}]}
+    if day=='2026-10-25':data.update({'crew':'Synthetic crew','materials':[{'name':'Synthetic material','quantity':'2.5','unit':'m'}],'incidents':[{'description':'Synthetic incident'}]})
+    r=client.post('/api/v1/reports',headers=headers,json=data).json()
     if day=='2026-10-25':
         response=client.put(f"/api/v1/reports/{r['id']}/source",headers=headers,json={'source_ref':'synthetic-message','text':'Synthetic historical source','reported_author':'Synthetic author','message_date':'2026-10-26'})
         assert response.status_code==200,response.text
-    client.post(f"/api/v1/reports/{r['id']}/submit",headers=headers,json={'expected_revision':1})
+    response=client.post(f"/api/v1/reports/{r['id']}/submit",headers={**headers,'X-Report-Capabilities':'report-extras-v1'},json={'expected_revision':1})
+    assert response.status_code==200,response.text
 if __name__=='__main__':uvicorn.run(api,host='127.0.0.1',port=8000)

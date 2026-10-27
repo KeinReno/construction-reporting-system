@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
+import org.json.JSONObject
 
 @Composable fun DemoExamples(drafts:List<Draft>) {
     var opened by remember {mutableStateOf<Draft?>(null)}
@@ -21,6 +22,12 @@ import org.json.JSONArray
         if(r.kind=="no_work")Text("Причина: ${r.noWorkReason}")
         val rows=JSONArray(r.workEntriesJson)
         for(i in 0 until rows.length()){val w=rows.getJSONObject(i);Text(w.getString("type"));Text(w.optString("description",""));if(!w.isNull("quantity"))Text("${w.getString("quantity")} ${w.optString("unit")}")}
+        val extras=JSONObject(r.extrasJson)
+        if(!extras.isNull("crew"))Text("Бригада: ${extras.getString("crew")}")
+        val materials=extras.optJSONArray("materials")?:JSONArray()
+        for(i in 0 until materials.length()) {val m=materials.getJSONObject(i);Text("Материал: ${m.getString("name")}${if(m.isNull("quantity"))"" else " · ${m.getString("quantity")} ${m.optString("unit","")}"}")}
+        val incidents=extras.optJSONArray("incidents")?:JSONArray()
+        for(i in 0 until incidents.length())Text("Событие: ${incidents.getJSONObject(i).getString("description")}")
         Text(r.comment)
         val photos=JSONArray(r.photosJson)
         for(i in 0 until photos.length()) {

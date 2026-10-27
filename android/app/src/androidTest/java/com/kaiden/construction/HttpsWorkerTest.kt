@@ -55,7 +55,7 @@ class HttpsWorkerTest {
             val pid=UUID.randomUUID().toString();val id=UUID.randomUUID().toString()
             val bitmap=Bitmap.createBitmap(2,2,Bitmap.Config.ARGB_8888)
             photo.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
-            val draft=Draft(id=id,ownerId=owner,siteId=site.first,siteName=site.second,workDate="2026-10-26",kind="work",workEntriesJson="""[{"type":"Synthetic","quantity":"2.25","unit":"m"}]""",noWorkReason="",comment="",photosJson=JSONArray().put(JSONObject().put("id",pid).put("path",photo.absolutePath).put("mime","image/png")).toString())
+            val draft=Draft(id=id,ownerId=owner,siteId=site.first,siteName=site.second,workDate="2026-10-26",kind="work",workEntriesJson="""[{"type":"Synthetic","quantity":"2.25","unit":"m"}]""",noWorkReason="",comment="",photosJson=JSONArray().put(JSONObject().put("id",pid).put("path",photo.absolutePath).put("mime","image/png")).toString(),extrasJson="""{"crew":"Synthetic crew","materials":[{"name":"Synthetic material","quantity":"1.5","unit":"m"}],"incidents":[{"description":"Synthetic incident"}]}""")
             db.drafts().save(draft)
             suspend fun worker(){TestListenableWorkerBuilder<SyncWorker>(context).build().doWork()}
             worker()

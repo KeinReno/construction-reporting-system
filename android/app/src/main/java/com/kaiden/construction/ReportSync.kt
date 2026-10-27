@@ -24,6 +24,8 @@ class ReportSync(private val transport:ReportTransport,private val save:suspend 
                     if(draft.kind=="no_work") put("no_work_reason",draft.noWorkReason)
                     put("work_entries",JSONArray(draft.workEntriesJson))
                     put("comment",draft.comment)
+                    val extras=JSONObject(draft.extrasJson)
+                    for(key in listOf("crew","materials","incidents"))put(key,if(extras.has(key))extras.get(key) else JSONObject.NULL)
                     val photos=JSONArray(draft.photosJson)
                     put("required_photo_ids",JSONArray((0 until photos.length()).map{photos.getJSONObject(it).getString("id")}))
                 }

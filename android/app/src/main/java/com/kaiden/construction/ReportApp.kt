@@ -140,6 +140,13 @@ fun ReportApp() {
     val workEntries = remember(ownerId) { mutableStateListOf<JSONObject>() }
     var reason by remember(ownerId) { mutableStateOf("") }
     var comment by remember(ownerId) { mutableStateOf("") }
+    var crew by remember(ownerId) {mutableStateOf("")}
+    var materialName by remember(ownerId) {mutableStateOf("")}
+    var materialQuantity by remember(ownerId) {mutableStateOf("")}
+    var materialUnit by remember(ownerId) {mutableStateOf("")}
+    val materials=remember(ownerId) {mutableStateListOf<JSONObject>()}
+    var incidentText by remember(ownerId) {mutableStateOf("")}
+    val incidents=remember(ownerId) {mutableStateListOf<JSONObject>()}
     val photos = remember(ownerId) { mutableStateListOf<JSONObject>() }
     var editing by remember(ownerId) { mutableStateOf<Draft?>(null) }
     var editReason by remember(ownerId) { mutableStateOf("") }
@@ -150,9 +157,16 @@ fun ReportApp() {
     var autosaveStatus by remember(ownerId) {mutableStateOf("Восстановление формы…")}
     var pendingReplacement by remember(ownerId) {mutableStateOf<(() -> Unit)?>(null)}
     fun currentForm()=FormSnapshot(siteId=selectedSite,workDate=workDate,kind=kind,workType=workType,quantity=quantity,unit=unit,description=description,
-        workEntriesJson=JSONArray(workEntries.toList()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),editing=editing,editReason=editReason)
+        workEntriesJson=JSONArray(workEntries.toList()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),editing=editing,editReason=editReason,
+        crew=crew,materialName=materialName,materialQuantity=materialQuantity,materialUnit=materialUnit,materialsJson=JSONArray(materials.toList()).toString(),incidentText=incidentText,incidentsJson=JSONArray(incidents.toList()).toString())
+    fun loadExtras(extras:JSONObject) {
+        crew=if(extras.isNull("crew"))"" else extras.optString("crew","")
+        materials.clear();val m=extras.optJSONArray("materials")?:JSONArray();for(i in 0 until m.length())materials.add(m.getJSONObject(i))
+        incidents.clear();val events=extras.optJSONArray("incidents")?:JSONArray();for(i in 0 until events.length())incidents.add(events.getJSONObject(i))
+        materialName="";materialQuantity="";materialUnit="";incidentText=""
+    }
     fun replaceForm(action:()->Unit) {
-        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
+        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
         val replacement={quantity="";description="";workType="Сварка металлоконструкций";unit="шт";editReason="";action()}
         if(hasInput)pendingReplacement=replacement else replacement()
     }
@@ -162,6 +176,9 @@ fun ReportApp() {
             val saved=FormSnapshot.decode(record.payload,ownerId)
             selectedSite=saved.siteId;workDate=saved.workDate;kind=saved.kind;workType=saved.workType
             quantity=saved.quantity;unit=saved.unit;description=saved.description;reason=saved.noWorkReason;comment=saved.comment
+            crew=saved.crew;materialName=saved.materialName;materialQuantity=saved.materialQuantity;materialUnit=saved.materialUnit;incidentText=saved.incidentText
+            materials.clear();val savedMaterials=JSONArray(saved.materialsJson);for(i in 0 until savedMaterials.length())materials.add(savedMaterials.getJSONObject(i))
+            incidents.clear();val savedIncidents=JSONArray(saved.incidentsJson);for(i in 0 until savedIncidents.length())incidents.add(savedIncidents.getJSONObject(i))
             workEntries.clear();val entries=JSONArray(saved.workEntriesJson)
             for(i in 0 until entries.length())workEntries.add(entries.getJSONObject(i))
             photos.clear();val images=JSONArray(saved.photosJson)
@@ -263,6 +280,22 @@ fun ReportApp() {
             }}
         } else OutlinedTextField(reason,{reason=it},label={Text("Причина отсутствия работ *")},modifier=Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
+        OutlinedTextField(crew,{crew=it},label={Text("Бригада (необязательно)")},modifier=Modifier.fillMaxWidth())
+        Text("Материалы",style=MaterialTheme.typography.titleSmall)
+        OutlinedTextField(materialName,{materialName=it},label={Text("Название материала")},modifier=Modifier.fillMaxWidth())
+        OutlinedTextField(materialQuantity,{materialQuantity=it},label={Text("Количество материала (необязательно)")},modifier=Modifier.fillMaxWidth())
+        OutlinedTextField(materialUnit,{materialUnit=it},label={Text("Единица материала")},modifier=Modifier.fillMaxWidth())
+        OutlinedButton(onClick={
+            val n=materialQuantity.replace(',','.').toBigDecimalOrNull()
+            if(materialName.isBlank() || materialName.length>200 || materialUnit.length>50 || materials.size>=100 || (materialQuantity.isNotBlank() && (n==null || n<java.math.BigDecimal.ZERO || n.stripTrailingZeros().scale()>6 || n.precision()-n.scale()>14 || materialUnit.isBlank())))formError="Проверьте название, количество и единицу материала"
+            else {materials.add(JSONObject().put("name",materialName).put("quantity",n?.toPlainString()?:JSONObject.NULL).put("unit",materialUnit.ifBlank { null }?:JSONObject.NULL));materialName="";materialQuantity="";materialUnit="";formError=""}
+        }){Text("+ Добавить материал")}
+        materials.forEachIndexed { i,m -> Row {Text(m.getString("name"),Modifier.weight(1f));TextButton(onClick={materials.removeAt(i)}){Text("Удалить")}} }
+        Text("События и проблемы",style=MaterialTheme.typography.titleSmall)
+        OutlinedTextField(incidentText,{incidentText=it},label={Text("Что произошло (необязательно)")},modifier=Modifier.fillMaxWidth())
+        OutlinedButton(onClick={if(incidentText.isBlank() || incidentText.length>2000 || incidents.size>=100)formError="Укажите событие" else {incidents.add(JSONObject().put("description",incidentText));incidentText="";formError=""}}){Text("+ Добавить событие")}
+        incidents.forEachIndexed { i,event -> Row {Text(event.getString("description"),Modifier.weight(1f));TextButton(onClick={incidents.removeAt(i)}){Text("Удалить")}} }
+        Spacer(Modifier.height(12.dp))
         OutlinedButton(enabled=!busy,onClick={picker.launch("image/*")}) {Text("Добавить фотографии (${photos.size})")}
         photos.forEachIndexed { i,_ -> TextButton(enabled=!busy,onClick={photos.removeAt(i)}){Text("Удалить фото ${i+1}")} }
         OutlinedTextField(comment,{comment=it},label={Text("Комментарий (необязательно)")},modifier=Modifier.fillMaxWidth(),minLines=2)
@@ -272,17 +305,22 @@ fun ReportApp() {
             try {
                 LocalDate.parse(workDate)
                 if(comment.length>5000 || reason.length>2000)throw IllegalArgumentException("Комментарий — до 5000 знаков, причина — до 2000")
+                if(crew.length>1000)throw IllegalArgumentException("Бригада — до 1000 знаков")
+                if(quantity.isNotBlank() || description.isNotBlank())throw IllegalArgumentException("Добавьте заполненный вид работы либо очистите поля")
+                if(kind=="no_work" && workEntries.isNotEmpty())throw IllegalArgumentException("Удалите добавленные работы перед выбором отчёта без работ")
+                if(materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || incidentText.isNotBlank())throw IllegalArgumentException("Добавьте заполненный материал или событие либо очистите поля")
                 if(selectedSite.isBlank() || (kind=="work" && workEntries.isEmpty()) || (kind=="no_work" && reason.isBlank())) throw IllegalArgumentException("Заполните обязательные поля")
                 if(editing!=null && editReason.trim().length<2)throw IllegalArgumentException("Укажите причину исправления")
                 val saved=Draft(ownerId=ownerId,id=editing?.id?:UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,
                     workEntriesJson=JSONArray(if(kind=="work")workEntries.toList() else emptyList<JSONObject>()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),serverId=editing?.serverId,
-                    serverRevision=editing?.serverRevision?:1,editRequested=editing!=null,editReason=editReason,createdAt=editing?.createdAt?:System.currentTimeMillis())
+                    serverRevision=editing?.serverRevision?:1,editRequested=editing!=null,editReason=editReason,createdAt=editing?.createdAt?:System.currentTimeMillis(),
+                    extrasJson=JSONObject().put("crew",crew.ifBlank { null }?:JSONObject.NULL).put("materials",if(materials.isEmpty())JSONObject.NULL else JSONArray(materials.toList())).put("incidents",if(incidents.isEmpty())JSONObject.NULL else JSONArray(incidents.toList())).toString())
                 val consumed=formSession?:throw IllegalStateException("Форма ещё не загружена")
                 busy=true
                 scope.launch {
                     try {
                         withContext(Dispatchers.IO){formRepository.enqueue(consumed,saved)}
-                        workEntries.clear();photos.clear();reason="";comment="";quantity="";description="";editing=null;editReason="";formSession=null;formReload++;formError=if(BuildConfig.DEMO_MODE)"Демо: сохранено на телефоне. Внешней отправки нет." else "Отчёт сохранён локально. Отправка — автоматически."
+                        workEntries.clear();photos.clear();reason="";comment="";quantity="";description="";loadExtras(JSONObject());editing=null;editReason="";formSession=null;formReload++;formError=if(BuildConfig.DEMO_MODE)"Демо: сохранено на телефоне. Внешней отправки нет." else "Отчёт сохранён локально. Отправка — автоматически."
                         try {SyncWorker.schedule(context)}catch(e:Exception){formError="Отчёт сохранён в очереди. Не удалось запланировать отправку: ${e.message}"}
                     } catch(e:Exception){formError=e.message?:"Ошибка сохранения. Форма сохранена на экране."}
                     finally{busy=false}
@@ -301,6 +339,7 @@ fun ReportApp() {
                     if(draft.status=="failed" && editing==null)TextButton(enabled=!busy,onClick={replaceForm {
                         editing=draft;editReason="Исправление отклонённого отчёта";selectedSite=draft.siteId;workDate=draft.workDate
                         kind=draft.kind;reason=draft.noWorkReason;comment=draft.comment
+                        loadExtras(JSONObject(draft.extrasJson))
                         workEntries.clear();val entries=JSONArray(draft.workEntriesJson)
                         for(i in 0 until entries.length())workEntries.add(entries.getJSONObject(i))
                         photos.clear();val localPhotos=JSONArray(draft.photosJson)
@@ -325,6 +364,7 @@ fun ReportApp() {
                                     editing=updated;selectedSite=draft.siteId;workDate=data.getString("work_date");kind=data.getString("kind")
                                     reason=if(data.isNull("no_work_reason"))"" else data.getString("no_work_reason")
                                     comment=if(data.isNull("comment"))"" else data.getString("comment")
+                                    loadExtras(data)
                                     workEntries.clear();val entries=data.getJSONArray("work_entries")
                                     for(i in 0 until entries.length())workEntries.add(entries.getJSONObject(i))
                                     photos.clear();for(i in 0 until localPhotos.length())photos.add(localPhotos.getJSONObject(i))

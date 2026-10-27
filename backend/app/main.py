@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Request, Response, 
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, model_validator, ConfigDict
-from app.contracts import Input, Work, ReportData, HistoricalSource
+from app.contracts import Input, Work, ReportData, HistoricalSource, report_payload
 from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer, UniqueConstraint, delete, text, update
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
 from sqlalchemy.orm.exc import StaleDataError
@@ -297,7 +297,7 @@ def create_app(database_url=None, storage=None, initialize=False):
     def draft(data:ReportData,response:Response,db:Session=Depends(dbdep),u:User=Depends(current)):
         sid=str(data.site_id); allowed(db,u,sid)
         saved=db.scalar(select(Report).where(Report.client_report_id==str(data.client_report_id)))
-        payload=data.model_dump(mode='json')
+        payload=report_payload(data)
         if saved:
             if saved.author_id!=u.id or saved.payload!=payload: raise HTTPException(409,'UUID collision')
             response.status_code=200
@@ -314,10 +314,13 @@ def create_app(database_url=None, storage=None, initialize=False):
             raise HTTPException(409,'UUID collision')
         return present(r)
     @api.get('/api/v1/reports/by-client/{client_id}')
-    def by_client(client_id:uuid.UUID,db:Session=Depends(dbdep),u:User=Depends(current)):
+    def by_client(client_id:uuid.UUID,request:Request,db:Session=Depends(dbdep),u:User=Depends(current)):
         r=db.scalar(select(Report).where(Report.client_report_id==str(client_id)))
         if not r: raise HTTPException(404,'Unknown report')
-        return present(fetch(db,u,r.id))
+        r=fetch(db,u,r.id)
+        if any(key in r.payload for key in ('crew','materials','incidents')) and request.headers.get('X-Report-Capabilities')!='report-extras-v1':
+            raise HTTPException(409,'Client update required for extended report')
+        return present(r)
     @api.get('/api/v1/reports')
     def reports(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None,page:int=Query(1,ge=1),page_size:int=Query(100,ge=1,le=200)):
         q=select(Report)
@@ -354,7 +357,10 @@ def create_app(database_url=None, storage=None, initialize=False):
     def edit(rid:uuid.UUID,data:Edit,db:Session=Depends(dbdep),u:User=Depends(current)):
         r=fetch(db,u,str(rid))
         if r.status not in ('draft','needs_revision') or r.revision!=data.expected_revision: raise HTTPException(409,'Revision conflict')
-        payload=data.data.model_dump(mode='json')
+        for key in ('crew','materials','incidents'):
+            if key in r.payload and key not in data.data.model_fields_set:
+                raise HTTPException(409,'Client cannot preserve extended report fields')
+        payload=report_payload(data.data)
         if payload['client_report_id']!=r.client_report_id or payload['site_id']!=r.site_id: raise HTTPException(409,'Identity cannot change')
         previous=r.payload;r.payload=payload;r.work_date=payload['work_date'];r.revision+=1;r.status='draft';r.receipt_id=None;r.submitted_at=None
         log(db,r,u,'edited',previous,data.reason);db.commit();return present(r)
@@ -405,8 +411,10 @@ def create_app(database_url=None, storage=None, initialize=False):
         if not (folder/photo.filename).is_file():raise HTTPException(503,'Photo missing from storage')
         return FileResponse(folder/photo.filename,media_type=photo.content_type,headers={'Cache-Control':'private, no-store'})
     @api.post('/api/v1/reports/{rid}/submit')
-    def submit(rid:uuid.UUID,data:Revision,db:Session=Depends(dbdep),u:User=Depends(current)):
+    def submit(rid:uuid.UUID,data:Revision,request:Request,db:Session=Depends(dbdep),u:User=Depends(current)):
         r=fetch(db,u,str(rid))
+        if any(key in r.payload for key in ('crew','materials','incidents')) and request.headers.get('X-Report-Capabilities')!='report-extras-v1':
+            raise HTTPException(409,'Client update required for extended report')
         if data.expected_revision!=r.revision: raise HTTPException(409,'Revision conflict')
         if r.status in ('submitted','reviewed') and r.receipt_id: return present(r)
         if r.status!='draft': raise HTTPException(409,'Not ready for submission')

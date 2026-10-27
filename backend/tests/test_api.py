@@ -58,3 +58,39 @@ def test_photos_required(env):
     assert put.status_code==200,put.text
     assert c.post(f'/api/v1/reports/{rid}/submit',headers=f,json={'expected_revision':1}).status_code==200
     assert c.get(f'/api/v1/attachments/{pid}',headers=f).content==blob
+
+def test_extended_report_survives_legacy_retries_and_edits(env):
+    c,f,m,sid,_=env;legacy=report(sid)
+    first=c.post('/api/v1/reports',headers=f,json=legacy)
+    assert c.post('/api/v1/reports',headers=f,json=legacy).json()['id']==first.json()['id']
+    data=report(sid);data.update({'crew':'Synthetic crew','materials':[{'name':'Synthetic steel','quantity':'2.5','unit':'m'}],'incidents':[{'description':'No access'}]})
+    result=c.post('/api/v1/reports',headers=f,json=data);assert result.status_code==201,result.text
+    rid=result.json()['id'];assert c.post('/api/v1/reports',headers=f,json=data).status_code==200
+    capable={**f,'X-Report-Capabilities':'report-extras-v1'}
+    assert c.get(f'/api/v1/reports/by-client/{data["client_report_id"]}',headers=f).status_code==409
+    assert c.post(f'/api/v1/reports/{rid}/submit',headers=f,json={'expected_revision':1}).status_code==409
+    assert c.post(f'/api/v1/reports/{rid}/submit',headers=capable,json={'expected_revision':1}).status_code==200
+    assert c.post(f'/api/v1/reports/{rid}/review',headers=m,json={'expected_revision':1,'decision':'needs_revision','reason':'Clarify'}).status_code==200
+    without_new={k:v for k,v in data.items() if k not in ('crew','materials','incidents')}
+    edit={'expected_revision':1,'reason':'Correction','data':without_new}
+    assert c.patch(f'/api/v1/reports/{rid}',headers=f,json=edit).status_code==409
+    assert c.get(f'/api/v1/reports/{rid}',headers=m).json()['data']['crew']=='Synthetic crew'
+    data['comment']='Clarified';edit['data']=data
+    response=c.patch(f'/api/v1/reports/{rid}',headers=f,json=edit);assert response.status_code==200,response.text
+    assert response.json()['data']['materials'][0]['quantity']=='2.5'
+    assert response.json()['data']['incidents'][0]['description']=='No access'
+    assert c.post(f'/api/v1/reports/{rid}/submit',headers=capable,json={'expected_revision':2}).status_code==200
+    assert c.post(f'/api/v1/reports/{rid}/review',headers=m,json={'expected_revision':2,'decision':'needs_revision','reason':'Clarify again'}).status_code==200
+    data['materials']=None
+    response=c.patch(f'/api/v1/reports/{rid}',headers=f,json={'expected_revision':2,'reason':'Remove material','data':data})
+    assert response.status_code==200 and 'materials' not in response.json()['data']
+    events=c.get(f'/api/v1/reports/{rid}/history',headers=m).json()
+    assert any(e['payload_before'].get('materials') for e in events if e['payload_before'])
+
+def test_no_work_can_preserve_materials_and_incidents_without_fake_work(env):
+    c,f,m,sid,_=env;data=report(sid,'no_work')
+    data.update({'materials':[{'name':'Synthetic delivery'}],'incidents':[{'description':'No access'}]})
+    result=c.post('/api/v1/reports',headers=f,json=data)
+    assert result.status_code==201,result.text
+    assert result.json()['data']['work_entries']==[]
+    assert result.json()['data']['incidents'][0]['description']=='No access'

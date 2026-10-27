@@ -13,8 +13,8 @@ android {
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["crsApiBase"]=providers.gradleProperty("crsTestApiBase").orElse("").get()
-        versionCode = 4
-        versionName = "0.3.1"
+        versionCode = 5
+        versionName = "0.4.0"
         val baseUrl = providers.gradleProperty("apiBaseUrl").orElse("https://example.invalid/api/v1").get()
         buildConfigField("String", "API_BASE_URL", "\"$baseUrl\"")
         buildConfigField("boolean", "DEMO_MODE", "false")

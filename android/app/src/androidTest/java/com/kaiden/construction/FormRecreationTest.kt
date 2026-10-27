@@ -30,10 +30,12 @@ class FormRecreationTest {
             compose.onNodeWithText("Сварка металлоконструкций").performScrollTo().performClick()
             compose.onNodeWithText("Монтаж").performClick()
             compose.onNodeWithText("Выполненный объём").performScrollTo().performTextInput("1,")
+            compose.onNodeWithText("Бригада (необязательно)").performScrollTo().performTextInput("Synthetic crew")
+            compose.onNodeWithText("Название материала").performScrollTo().performTextInput("Unfinished material")
             compose.waitUntil(10_000) {
                 runBlocking { db.forms().get("synthetic-owner")?.let {
                     val form=FormSnapshot.decode(it.payload,it.ownerId)
-                    form.workDate=="2026-1" && form.quantity=="1," && form.workType=="Монтаж" && form.siteId=="synthetic-site-two"
+                    form.workDate=="2026-1" && form.quantity=="1," && form.workType=="Монтаж" && form.siteId=="synthetic-site-two" && form.crew=="Synthetic crew" && form.materialName=="Unfinished material"
                 }?:false }
             }
             scenario.recreate()
@@ -41,6 +43,7 @@ class FormRecreationTest {
             compose.onNodeWithText("Дата работ YYYY-MM-DD *").assertTextContains("2026-1")
             compose.onNodeWithText("Монтаж").assertExists()
             compose.onNodeWithText("Synthetic second site").assertExists()
+            compose.onNodeWithText("Название материала").performScrollTo().assertTextContains("Unfinished material")
             compose.onNodeWithText("Выполненный объём").assertTextContains("1,")
             compose.onNodeWithText("Исправить локальный отчёт").performScrollTo().performClick()
             compose.onNodeWithText("Открыть другой отчёт?").assertExists()

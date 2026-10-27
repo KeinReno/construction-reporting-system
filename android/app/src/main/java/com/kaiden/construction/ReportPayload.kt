@@ -18,6 +18,17 @@ object ReportPayload {
         }))
         val ids=data.optJSONArray("required_photo_ids")?:JSONArray()
         put("required_photo_ids",JSONArray((0 until ids.length()).map{ids.getString(it)}.sorted()))
+        for(key in listOf("crew","incidents")) {
+            if(!data.isNull(key))put(key,data.get(key))
+        }
+        if(!data.isNull("materials")) {
+            val materials=data.getJSONArray("materials")
+            put("materials",JSONArray((0 until materials.length()).map { i ->
+                val m=materials.getJSONObject(i)
+                JSONObject().put("name",m.getString("name")).put("unit",nullable(m,"unit"))
+                    .put("quantity",if(m.isNull("quantity"))JSONObject.NULL else m.getString("quantity").toBigDecimal().stripTrailingZeros().toPlainString())
+            }))
+        }
     }
     private fun same(a:Any?,b:Any?):Boolean = when {
         a is JSONObject && b is JSONObject -> {

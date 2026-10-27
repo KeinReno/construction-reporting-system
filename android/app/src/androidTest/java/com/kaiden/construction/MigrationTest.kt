@@ -21,6 +21,7 @@ class MigrationTest {
             if(version>=2)values.add("A")
             if(version>=3)values.addAll(listOf(7,1,"Correction","needs_revision"))
             old.execSQL("INSERT INTO drafts ($columns) VALUES ("+values.joinToString(","){"?"}+")",values.toTypedArray())
+            if(version>=4)old.execSQL("CREATE TABLE report_forms (ownerId TEXT NOT NULL PRIMARY KEY, sessionId TEXT NOT NULL, payload TEXT NOT NULL)")
             old.version=version
         }
         val db=AppDatabase.build(context,name)
@@ -32,6 +33,7 @@ class MigrationTest {
             val row=db.drafts().pending(owner).single()
             assertEquals("old",row.id);assertEquals("receipt",row.receiptId);assertEquals("server",row.serverId)
             assertEquals(123L,row.createdAt);assertEquals("preserved",row.comment);assertTrue(row.photosJson.contains("/private/photo"))
+            assertEquals("{}",row.extrasJson)
             assertEquals(if(version>=3)7 else 1,row.serverRevision);assertEquals(version>=3,row.editRequested)
             if(version>=3){assertEquals("Correction",row.editReason);assertEquals("needs_revision",row.businessStatus)}
             assertTrue(db.drafts().pending("B").isEmpty())
@@ -42,4 +44,5 @@ class MigrationTest {
     @Test fun v1ThroughV4PreservesUnownedLegacyData(){historical(1)}
     @Test fun v2ThroughV4PreservesKnownOwner(){historical(2)}
     @Test fun v3ThroughV4PreservesEditIntent(){historical(3)}
+    @Test fun v4ThroughV5PreservesExistingQueue(){historical(4)}
 }

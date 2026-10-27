@@ -8,6 +8,9 @@ test('Android-created report persists through real API into Web and review',asyn
   await page.locator('tbody tr').first().click();
   const report=page.getByRole('dialog');
   await expect(report.getByText('Corrected synthetic comment',{exact:true})).toBeVisible();
+  await expect(report.getByText('Synthetic crew',{exact:true})).toBeVisible();
+  await expect(report.getByText('Synthetic material',{exact:true})).toBeVisible();
+  await expect(report.getByText('Synthetic incident',{exact:true})).toBeVisible();
   await expect(report.getByText('Статус: Доставлен · ревизия 2')).toBeVisible();
   await expect(report.locator('img')).toHaveJSProperty('naturalWidth',2);
   await expect(report.locator('li').filter({hasText:'Доставлен'})).toHaveCount(2);

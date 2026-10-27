@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 import httpx
 from PIL import Image
 from pydantic import BaseModel,ConfigDict,Field
-from app.contracts import ReportData,HistoricalSource
+from app.contracts import ReportData,HistoricalSource,report_payload
 
 class PhotoInput(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -45,14 +45,14 @@ def read_bundle(path):
     return bundle,root
 
 def import_bundle(bundle,root,request,token,checkpoint=lambda results:None):
-    headers={'Authorization':'Bearer '+token}
+    headers={'Authorization':'Bearer '+token,'X-Report-Capabilities':'report-extras-v1'}
     def call(method,path,**kwargs):
         r=request(method,path,headers={**headers,**kwargs.pop('headers',{})},**kwargs);r.raise_for_status();return r.json()
     sites={s['id'] for s in call('GET','sites')}
     if any(str(item.data.site_id) not in sites for item in bundle.reports):raise ValueError('Bundle contains a site not assigned to this account')
     results=[]
     for item in bundle.reports:
-        payload=item.data.model_dump(mode='json');cid=payload['client_report_id']
+        payload=report_payload(item.data);cid=payload['client_report_id']
         # POST is also the authoritative author/idempotency check. Manager GET access
         # must never allow reusing another author's receipt during import.
         created=request('POST','reports',headers=headers,json=payload)

@@ -14,9 +14,12 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await page.locator('tbody tr').first().click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog').getByText('Synthetic work description')).toBeVisible();
-  await expect(page.getByRole('dialog').getByText('2.5 m',{exact:true})).toBeVisible();
+  await expect(page.getByRole('dialog').locator('.report-work').filter({hasText:'Synthetic weld'}).getByText('2.5 m',{exact:true})).toBeVisible();
   await expect(page.getByRole('dialog').getByRole('heading',{name:'Исходное сообщение'})).toBeVisible();
   await expect(page.getByRole('dialog').getByText('Synthetic historical source')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Synthetic crew')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Synthetic material')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Synthetic incident')).toBeVisible();
   await page.getByRole('button',{name:'Проверен',exact:true}).click();
   await expect(page.getByRole('dialog').getByText('Статус: Проверен · ревизия 1')).toBeVisible();
   await page.getByRole('button',{name:'Закрыть ✕'}).click();

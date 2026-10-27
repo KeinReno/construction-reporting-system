@@ -28,6 +28,7 @@ class ApiClient(endpoint:String=BuildConfig.API_BASE_URL,private val demo:DemoBa
             connection.connectTimeout=15000
             connection.readTimeout=30000
             connection.setRequestProperty("Accept","application/json")
+            connection.setRequestProperty("X-Report-Capabilities","report-extras-v1")
             if(token!=null) connection.setRequestProperty("Authorization","Bearer $token")
             if(sha!=null) connection.setRequestProperty("X-Content-SHA256",sha)
             if(body!=null) {
