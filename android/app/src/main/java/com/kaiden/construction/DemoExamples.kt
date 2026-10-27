@@ -25,7 +25,7 @@ import org.json.JSONObject
         val extras=JSONObject(r.extrasJson)
         if(!extras.isNull("crew"))Text("Бригада: ${extras.getString("crew")}")
         val materials=extras.optJSONArray("materials")?:JSONArray()
-        for(i in 0 until materials.length()) {val m=materials.getJSONObject(i);Text("Материал: ${m.getString("name")}${if(m.isNull("quantity"))"" else " · ${m.getString("quantity")} ${m.optString("unit","")}"}")}
+        for(i in 0 until materials.length()) {val m=materials.getJSONObject(i);Text("Материал: ${m.getString("name")}${if(!m.isNull("quantity"))" · ${m.getString("quantity")} ${m.optString("unit","")}" else if(!m.isNull("unit"))" · ${m.getString("unit")}" else ""}")}
         val incidents=extras.optJSONArray("incidents")?:JSONArray()
         for(i in 0 until incidents.length())Text("Событие: ${incidents.getJSONObject(i).getString("description")}")
         Text(r.comment)

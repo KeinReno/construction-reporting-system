@@ -141,7 +141,7 @@ class AnalyticsFilters(Input):
 
 class Ask(Input):
     question:str=Field(min_length=1,max_length=1000)
-    intent:Literal["auto","summary","work_volume","no_work","site_timeline","incidents"]="summary"
+    intent:Literal["auto","summary","work_volume","no_work","site_timeline","incidents","materials"]="summary"
     filters:AnalyticsFilters=Field(default_factory=AnalyticsFilters)
 
 def stamp(value):
@@ -445,7 +445,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         if to_date:q=q.where(Report.work_date<=str(to_date))
         return db.scalars(q.order_by(Report.work_date,Report.id)).unique().all()
     def metrics(rows,from_date,to_date):
-        volumes={}; daily={}; reasons={};incidents=[]
+        volumes={}; daily={}; reasons={};incidents=[];materials=[]
         for r in rows:
             daily[r.work_date]=daily.get(r.work_date,0)+1
             if r.payload['kind']=='no_work':
@@ -458,6 +458,8 @@ def create_app(database_url=None, storage=None, initialize=False):
                     volumes[key]=volumes.get(key,Decimal(0))+Decimal(w['quantity'])
             for event in r.payload.get('incidents') or []:
                 incidents.append({'report_id':r.id,'date':r.work_date,'description':event['description']})
+            for material in r.payload.get('materials') or []:
+                materials.append({'report_id':r.id,'date':r.work_date,'name':material['name'],'quantity':material.get('quantity'),'unit':material.get('unit')})
         return {'report_count':len(rows),'no_work_count':sum(r.payload['kind']=='no_work' for r in rows),
                 'period':{'from_date':str(from_date) if from_date else None,'to_date':str(to_date) if to_date else None},
                 'source_report_ids':[r.id for r in rows],
@@ -466,10 +468,13 @@ def create_app(database_url=None, storage=None, initialize=False):
                 'no_work_reasons':sorted(reasons.values(),key=lambda x:(-x['report_count'],x['reason'])),
                 'incident_count':len(incidents),
                 'incidents':incidents,
+                'material_count':len(materials),
+                'materials':materials,
                 'timeline':[{'report_id':r.id,'date':r.work_date,'kind':r.payload['kind'],'status':r.status} for r in rows[-200:]],
                 'timeline_truncated':len(rows)>200,
                 'limitations':['Только отправленные и проверенные отчёты. Нет отчётов — не означает отсутствие работ.',
                                'События считаются только по явно заполненным записям; отсутствие записи не подтверждает отсутствие события.',
+                               'Материалы перечислены по записям; движение (приход или расход) не задано и не суммируется.',
                                'Нет утверждённых планов и расписаний: план-факт и просрочки не рассчитаны.']}
     @api.get('/api/v1/analytics/summary')
     def summary(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None):
@@ -484,7 +489,7 @@ def create_app(database_url=None, storage=None, initialize=False):
             if intent is None:
                 validate_period(f.from_date,f.to_date)
                 if f.site_id:allowed(db,u,str(f.site_id))
-                return {'answer':'Такой вопрос не поддерживается локальным аналитиком. Выберите вид анализа; период задайте фильтрами. Материалы, финансы, ожидания и изменения данных пока недоступны.',
+                return {'answer':'Такой вопрос не поддерживается локальным аналитиком. Выберите вид анализа; период задайте фильтрами. Учёт движения материалов, финансы, ожидания и изменения данных пока недоступны.',
                         'mode':'local_analytics','intent':'unsupported','supported':False,'metrics':None,'source_report_ids':[],
                         'period':{'from_date':str(f.from_date) if f.from_date else None,'to_date':str(f.to_date) if f.to_date else None},
                         'limitations':['Свободный LLM-диалог отключён до согласования B13. Даты из текста не интерпретируются.']}
@@ -497,7 +502,8 @@ def create_app(database_url=None, storage=None, initialize=False):
             'work_volume':'Объёмы рассчитаны сервером отдельно по объектам, видам работ и единицам.',
             'site_timeline':'Хронология полученных отчётов доступна в источниках и дневной сводке.'}
         answers['incidents']=f"Указано событий: {result['incident_count']}. Проверяйте детали в исходных отчётах."
-        sources=([r.id for r in rows if r.payload.get('incidents')] if intent=='incidents' else result['source_report_ids'])
+        answers['materials']=f"Записей материалов: {result['material_count']}. Движение материала не определено."
+        sources=([r.id for r in rows if r.payload.get(intent)] if intent in ('incidents','materials') else result['source_report_ids'])
         return {'answer':answers[intent],'mode':'local_analytics','intent':intent,'supported':True,
                 'period':result['period'],'metrics':result,'source_report_ids':sources,
                 'limitations':result['limitations']+['Используются только поддерживаемый сценарий и явные фильтры. LLM отключена до согласования B13. Хронология ограничена 200 последними записями.']}

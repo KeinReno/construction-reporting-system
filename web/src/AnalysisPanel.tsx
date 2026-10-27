@@ -16,7 +16,7 @@ export function AnalysisPanel({token,siteId,fromDate,toDate,onSource}:{token:str
   return <section className="card tall"><h2>Аналитик по данным отчётов</h2>
     <p>Локальные серверные расчёты с источниками. Языковая модель пока не подключена.</p>
     <form onSubmit={e=>{e.preventDefault();void ask();}} className="analysis-form">
-      <label>Вид анализа<select value={intent} onChange={e=>setIntent(e.target.value)}><option value="auto">По вопросу (локальные сценарии)</option><option value="summary">Сводка</option><option value="work_volume">Объёмы работ</option><option value="no_work">Без работ</option><option value="incidents">События и проблемы</option><option value="site_timeline">Хронология</option></select></label>
+      <label>Вид анализа<select value={intent} onChange={e=>setIntent(e.target.value)}><option value="auto">По вопросу (локальные сценарии)</option><option value="summary">Сводка</option><option value="work_volume">Объёмы работ</option><option value="no_work">Без работ</option><option value="materials">Материалы в отчётах</option><option value="incidents">События и проблемы</option><option value="site_timeline">Хронология</option></select></label>
       <label>Вопрос (сохраняется только на экране)<input maxLength={1000} value={question} onChange={e=>setQuestion(e.target.value)}/></label>
       <p className="muted">Примеры: «Сколько отчётов?», «Какие объёмы работ?», «Какие простои повторяются?». Объект и период задаются только фильтрами. Другие формулировки могут потребовать выбора сценария.</p>
       <button className="primary" disabled={busy}>{busy?'Расчёт…':'Сформировать анализ'}</button>
@@ -26,6 +26,7 @@ export function AnalysisPanel({token,siteId,fromDate,toDate,onSource}:{token:str
       <h3>Исходные отчёты ({result.source_report_ids.length})</h3><div className="source-links">{result.source_report_ids.map((id,i)=><button className="quiet" key={id} onClick={()=>onSource(id)}>Отчёт {i+1}</button>)}</div>
       {result.intent==='no_work'&&<ul>{result.metrics.no_work_reasons.map(r=><li key={r.reason}>{r.reason}: {r.report_count} отчётов</li>)}</ul>}
       {result.intent==='incidents'&&<ul>{result.metrics.incidents.map((event,i)=><li key={`${event.report_id}-${i}`}><button className="quiet" onClick={()=>onSource(event.report_id)}>{event.date} · {event.description}</button></li>)}</ul>}
+      {result.intent==='materials'&&<ul>{result.metrics.materials.map((material,i)=><li key={`${material.report_id}-${i}`}><button className="quiet" onClick={()=>onSource(material.report_id)}>{material.date} · {material.name}{material.quantity!==null?` · ${material.quantity} ${material.unit||''}`:material.unit?` · ${material.unit}`:''}</button></li>)}</ul>}
       {result.intent==='site_timeline'&&<ul>{result.metrics.timeline.map(r=><li key={r.report_id}><button className="quiet" onClick={()=>onSource(r.report_id)}>{r.date} · {r.kind==='no_work'?'Без работ':'Работы'}</button></li>)}</ul>}
       </>}
       {result.limitations.map(x=><p className="muted" key={x}>{x}</p>)}

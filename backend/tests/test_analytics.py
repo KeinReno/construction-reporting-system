@@ -45,3 +45,20 @@ def test_event_analytics_counts_only_explicit_visible_events_and_links_sources(e
     assert c.get(f'/api/v1/analytics/summary?site_id={other}',headers=m).status_code==403
     filtered=c.get('/api/v1/analytics/summary?to_date=2026-10-24',headers=m).json()
     assert filtered['incident_count']==0 and filtered['incidents']==[]
+
+def test_materials_list_is_filtered_and_never_infers_consumption(env):
+    c,f,m,sid,other=env
+    data=report(sid);data['materials']=[{'name':'Steel','quantity':'2.5','unit':'m'},{'name':'Paint'}]
+    rid=c.post('/api/v1/reports',headers=f,json=data).json()['id']
+    headers={**f,'X-Report-Capabilities':'report-extras-v1'}
+    assert c.post(f'/api/v1/reports/{rid}/submit',headers=headers,json={'expected_revision':1}).status_code==200
+    answer=c.post('/api/v1/analytics/ask',headers=m,json={'question':'Какие материалы?','intent':'auto'}).json()
+    assert answer['intent']=='materials' and answer['source_report_ids']==[rid]
+    assert answer['metrics']['material_count']==2
+    assert answer['metrics']['materials'][0]['quantity']=='2.5'
+    assert answer['metrics']['materials'][1]['quantity'] is None
+    assert any('не суммируется' in text for text in answer['limitations'])
+    assert c.post('/api/v1/analytics/ask',headers=m,json={'question':'Сколько материалов потрачено?','intent':'auto'}).json()['supported'] is False
+    assert c.post('/api/v1/analytics/ask',headers=m,json={'question':'Материалы','intent':'auto','filters':{'site_id':other}}).status_code==403
+    filtered=c.post('/api/v1/analytics/ask',headers=m,json={'question':'Материалы','intent':'auto','filters':{'to_date':'2026-10-24'}}).json()
+    assert filtered['source_report_ids']==[] and filtered['metrics']['material_count']==0
