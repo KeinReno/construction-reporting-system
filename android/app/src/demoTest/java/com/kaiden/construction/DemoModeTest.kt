@@ -47,6 +47,8 @@ class DemoModeTest {
         assertEquals("Учебная бригада №1",sample.getString("crew"))
         assertEquals("Учебный материал",sample.getJSONArray("materials").getJSONObject(0).getString("name"))
         assertEquals("Учебное событие: временная задержка доступа.",sample.getJSONArray("incidents").getJSONObject(0).getString("description"))
+        assertEquals(12550,sample.getJSONArray("financial_entries").getJSONObject(0).getInt("amount_kopecks"))
+        assertEquals("Учебный кран",sample.getJSONArray("equipment").getJSONObject(0).getString("type"))
         db.drafts().save(synthetic.copy(comment="Не перезаписывать"))
         context.getSharedPreferences("demo-seed",Context.MODE_PRIVATE).edit().remove("seeded").commit()
         DemoBackend.prepare(context)
@@ -78,6 +80,18 @@ class DemoModeTest {
             compose.onNodeWithText("+ Добавить материал").performScrollTo().performClick()
             compose.onNodeWithText("Что произошло (необязательно)").performScrollTo().performTextInput("Демо событие")
             compose.onNodeWithText("+ Добавить событие").performScrollTo().performClick()
+            compose.onNodeWithText("Деньги (0)",substring=true).performScrollTo().performClick()
+            compose.onNodeWithText("Сумма, ₽").performScrollTo().performTextInput("125,50")
+            compose.onNodeWithText("Категория (например, топливо)").performScrollTo().performTextInput("Учебное топливо")
+            compose.onNodeWithText("+ Добавить денежную операцию").performScrollTo().performClick()
+            screenshot(context,"android-05-finance.png")
+            compose.onNodeWithText("Спецтехника (0)",substring=true).performScrollTo().performClick()
+            compose.onNodeWithText("Вид техники").performScrollTo().performTextInput("Учебный кран")
+            compose.onNodeWithText("Отработано часов").performScrollTo().performTextInput("7,5")
+            compose.onNodeWithText("+ Добавить технику").performScrollTo().performClick()
+            compose.onNodeWithText("План следующей смены (0)",substring=true).performScrollTo().performClick()
+            compose.onNodeWithText("Что планируется").performScrollTo().performTextInput("Проверить доступ")
+            compose.onNodeWithText("+ Добавить пункт плана").performScrollTo().performClick()
             compose.onNodeWithText("Сохранить и отправить").performScrollTo().performClick()
             compose.waitUntil(20_000){runBlocking{db.drafts().observeAll(DemoBackend.OWNER).first().any{r->r.createdAt>10000 && r.status=="delivered"}}}
         }
@@ -88,6 +102,9 @@ class DemoModeTest {
         assertEquals("Демо бригада",reopened.getJSONObject("data").getString("crew"))
         assertEquals("Демо материал",reopened.getJSONObject("data").getJSONArray("materials").getJSONObject(0).getString("name"))
         assertEquals("Демо событие",reopened.getJSONObject("data").getJSONArray("incidents").getJSONObject(0).getString("description"))
+        assertEquals(12550,reopened.getJSONObject("data").getJSONArray("financial_entries").getJSONObject(0).getInt("amount_kopecks"))
+        assertEquals("Учебный кран",reopened.getJSONObject("data").getJSONArray("equipment").getJSONObject(0).getString("type"))
+        assertEquals("Проверить доступ",reopened.getJSONObject("data").getJSONArray("next_shift_plans").getString(0))
         // Receipt is stable on replay; the simulated server is private local JSON, not HTTPS.
         assertEquals(added.receiptId,api.submit(DemoBackend.TOKEN,added.serverId!!,1).getString("receipt_id"))
     }

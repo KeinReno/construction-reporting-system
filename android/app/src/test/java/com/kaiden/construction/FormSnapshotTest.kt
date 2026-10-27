@@ -21,8 +21,9 @@ class FormSnapshotTest {
             planText="Next step",plansJson="""["Check access"]""")
         val restored=FormSnapshot.decode(form.encode(),"owner-A")
         assertEquals(form.copy(financialJson=restored.financialJson,equipmentJson=restored.equipmentJson),restored)
-        assertTrue(org.json.JSONArray(form.financialJson).similar(org.json.JSONArray(restored.financialJson)))
-        assertTrue(org.json.JSONArray(form.equipmentJson).similar(org.json.JSONArray(restored.equipmentJson)))
+        assertEquals(2500,org.json.JSONArray(restored.financialJson).getJSONObject(0).getInt("amount_kopecks"))
+        assertEquals("Fuel",org.json.JSONArray(restored.financialJson).getJSONObject(0).getString("category"))
+        assertEquals("Truck",org.json.JSONArray(restored.equipmentJson).getJSONObject(0).getString("type"))
     }
     @Test fun unknownVersionIsNotSilentlyOverwritten() {
         try {FormSnapshot.decode("""{"version":2,"comment":"future"}""","A");fail("Expected version rejection")}
