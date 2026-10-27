@@ -8,6 +8,8 @@ async function login(page:Page,name='manager') {
 test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await page.goto('/');await login(page);
   await expect(page.getByText('4.0 m',{exact:true})).toBeVisible();
+  await expect(page.getByRole('region',{name:'Деньги и спецтехника'})).toContainText('125,50');
+  await expect(page.getByRole('region',{name:'Деньги и спецтехника'})).toContainText('Synthetic crane');
   await page.getByLabel('Группировка').selectOption('month');
   await expect(page.getByLabel('Количество отчётов по периодам').locator('li')).toHaveCount(1);
   await expect(page.getByLabel('Количество отчётов по периодам').locator('li b').first()).toHaveText('2');
