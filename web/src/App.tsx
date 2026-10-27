@@ -6,6 +6,7 @@ import { http, login, ApiError, filterQuery, allReports, reportStatusLabels, typ
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
 type Page = 'overview' | 'objects' | 'reports' | 'analytics' | 'ai' | 'admin';
+type Interval = 'day' | 'month' | 'year';
 const labels: Record<Page, string> = {
   overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', analytics: 'Аналитика', ai: 'ИИ-аналитик', admin:'Управление'
 };
@@ -45,6 +46,7 @@ export default function App() {
   const [siteId, setSiteId] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [interval,setInterval]=useState<Interval>('day');
   const [selected, setSelected] = useState<Report | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -78,6 +80,14 @@ export default function App() {
   const received = visible.filter(r => r.status === 'submitted' || r.status === 'reviewed');
   const needsReview = visible.filter(r => r.status === 'submitted').length;
   const volumes = (summary?.volumes ?? []).filter(v => siteId === 'all' || v.site_id === siteId);
+  const reportPeriods=useMemo(()=>{
+    const buckets=new Map<string,number>();
+    for(const day of summary?.daily ?? []) {
+      const key=interval==='year'?day.date.slice(0,4):interval==='month'?day.date.slice(0,7):day.date;
+      buckets.set(key,(buckets.get(key)??0)+day.report_count);
+    }
+    return Array.from(buckets,([key,count])=>({key,count,label:interval==='day'?dateText(key):interval==='month'?new Date(key+'-01T12:00:00').toLocaleDateString('ru-RU',{month:'long',year:'numeric'}):key}));
+  },[summary,interval]);
   const pageTitle = labels[page];
   if (!token) return <Login onSuccess={setToken} demo={demo}/>;
   return <div className="app-shell">
@@ -107,7 +117,8 @@ export default function App() {
               {volumes.length ? <div className="volume-list">{volumes.map((v,i) => <div key={i} className="volume-row"><div><strong>{v.work_type}</strong><small>{siteName(v.site_id)} · {v.unit}</small></div><b>{v.quantity} {v.unit}</b></div>)}</div> : <p className="empty">Нет подтверждённых количественных работ.</p>}
               <p className="footnote">Сводка и журнал используют одинаковые фильтры объекта и периода.</p></div>
             <div className="card"><h2>Контроль отчётности</h2><p className="muted">Полученные отчёты по текущему фильтру</p>
-              <ul className="daily-chart" aria-label="Количество отчётов по датам">{summary?.daily.map(day=><li key={day.date}><span>{dateText(day.date)}</span><meter min={0} max={Math.max(...summary.daily.map(d=>d.report_count),1)} value={day.report_count}/><b>{day.report_count}</b></li>)}</ul>
+              <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
+              <ul className="daily-chart" aria-label="Количество отчётов по периодам">{reportPeriods.map(period=><li key={period.key}><span>{period.label}</span><meter min={0} max={Math.max(...reportPeriods.map(p=>p.count),1)} value={period.count}/><b>{period.count}</b></li>)}</ul>
               <div className="big-number">{received.length}<span> получено</span></div>
               <p className="footnote">Просрочки не рассчитываются, пока не согласованы графики и ожидаемые отчёты (SPEC-00 B01/B02).</p></div>
           </section>}

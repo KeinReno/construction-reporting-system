@@ -8,6 +8,11 @@ async function login(page:Page,name='manager') {
 test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await page.goto('/');await login(page);
   await expect(page.getByText('4.0 m',{exact:true})).toBeVisible();
+  await page.getByLabel('Группировка').selectOption('month');
+  await expect(page.getByLabel('Количество отчётов по периодам').locator('li')).toHaveCount(1);
+  await expect(page.getByLabel('Количество отчётов по периодам').locator('li b').first()).toHaveText('2');
+  await page.getByLabel('Группировка').selectOption('year');
+  await expect(page.getByLabel('Количество отчётов по периодам').locator('li').first()).toContainText('2026');
   await page.getByLabel('С',{exact:true}).fill('2026-10-25');
   await page.getByLabel('По',{exact:true}).fill('2026-10-25');
   await expect(page.getByText('2.5 m',{exact:true})).toBeVisible();
@@ -60,6 +65,22 @@ test('late response cannot expose previous account data',async({page})=>{
   release();await page.waitForResponse('**/api/v1/analytics/summary');
   await expect(page.getByText('4.0 m',{exact:true})).toHaveCount(0);
   await expect(page.getByText('Synthetic site A',{exact:true})).toHaveCount(0);
+});
+test('chart groups dates across months and years',async({page})=>{
+  await page.route('**/api/v1/analytics/summary',async route=>{
+    const response=await route.fetch();const body=await response.json();
+    body.daily=[{date:'2025-12-31',report_count:2},{date:'2026-01-01',report_count:1},{date:'2026-01-05',report_count:3},{date:'2026-02-01',report_count:4}];
+    await route.fulfill({response,json:body});
+  });
+  await page.goto('/');await login(page);
+  const chart=page.getByLabel('Количество отчётов по периодам');
+  await expect(chart.locator('li')).toHaveCount(4);
+  await page.getByLabel('Группировка').selectOption('month');
+  await expect(chart.locator('li')).toHaveCount(3);
+  await expect(chart.locator('li b')).toHaveText(['2','4','4']);
+  await page.getByLabel('Группировка').selectOption('year');
+  await expect(chart.locator('li')).toHaveCount(2);
+  await expect(chart.locator('li b')).toHaveText(['2','8']);
 });
 test('admin creates user and object, grants and revokes access',async({page})=>{
   await page.goto('/');await login(page,'admin');

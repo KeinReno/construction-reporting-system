@@ -3,3 +3,4 @@
 
 .analysis-form fieldset{border:0;padding:0;margin:0;display:grid;gap:12px;min-width:0}
 .report-dialog section{margin:22px 0}.report-dialog h3{font-size:15px;margin-bottom:10px}.report-work{display:flex;flex-wrap:wrap;gap:6px 16px;padding:12px 0;border-bottom:1px solid #e9eef5}.report-work strong{flex:1;min-width:160px}.report-work span{color:#236adb}.report-work p{flex-basis:100%;margin:0;color:#64748b;white-space:pre-wrap}.report-comment{white-space:pre-wrap;overflow-wrap:anywhere}
+.chart-period{display:flex;align-items:center;gap:10px;color:#64748a;font-size:12px}.chart-period select{padding:8px;border:1px solid #dce5ef;border-radius:7px;background:#fff;color:#263955}
