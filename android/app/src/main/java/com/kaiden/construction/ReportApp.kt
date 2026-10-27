@@ -259,7 +259,7 @@ fun ReportApp() {
         }
         CompactSelection("Объект *",selectedSite,sites,enabled=editing==null,onSelect={selectedSite=it})
         if(sites.isEmpty())Text("Нет доступных объектов. Проверьте подключение.")
-        OutlinedTextField(workDate,{workDate=it},label={Text("Дата работ YYYY-MM-DD *")},modifier=Modifier.fillMaxWidth())
+        WorkDateField(workDate){workDate=it}
         Spacer(Modifier.height(12.dp))
         Row { FilterChip(selected=kind=="work",onClick={kind="work"},label={Text("Работы выполнены")});Spacer(Modifier.width(8.dp));FilterChip(selected=kind=="no_work",onClick={kind="no_work"},label={Text("Работ не было")}) }
         if(kind=="work") {
