@@ -1,6 +1,7 @@
 package com.kaiden.construction
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.ParcelFileDescriptor
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import androidx.compose.ui.test.*
@@ -25,8 +26,14 @@ class DemoModeTest {
         val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         checkNotNull(bitmap){"Screenshot unavailable"}
         val directory=File(context.getExternalFilesDir(null),"screenshots").apply{mkdirs()}
-        File(directory,name).outputStream().use{check(bitmap.compress(Bitmap.CompressFormat.PNG,100,it))}
+        val output=File(directory,name)
+        output.outputStream().use{check(bitmap.compress(Bitmap.CompressFormat.PNG,100,it))}
         bitmap.recycle()
+        // Gradle removes the test app and its external files after instrumentation.
+        // Copy while the app is alive into an emulator-only export directory.
+        for(command in listOf("mkdir -p /sdcard/Download/crs-screenshots","cp ${output.absolutePath} /sdcard/Download/crs-screenshots/$name")) {
+            ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)).bufferedReader().use{it.readText()}
+        }
     }
     @Test fun isolatedOfflineExamplesAndNativeSubmissionPersist()=runBlocking {
         assertTrue(BuildConfig.DEMO_MODE)
