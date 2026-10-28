@@ -16,4 +16,14 @@
 
 Остаются задачами: каталог и состав бригады как отдельные записи, настройки обязательных фото и выбор чека в мобильной форме, график ожидаемых отчётов и дедлайны, резервное расписание, права/ресурсы/HTTPS/VPN на Windows 10, постоянная подпись APK, проверка на устройствах и приёмка заказчиком. До графика интерфейс не объявляет сотрудников «не отчитавшимися»; до начального остатка не считает баланс.
 
-Отдельная QA проверка исходного кода нашла три дефекта формы: скрытые количество материала и тип денежной операции в строках просмотра, а также потерю выбранной без типа и часов отметки наёмной техники при отправке. Исправления находятся в текущей ветке; подтверждение нативным демо-сценарием требуется для Android статуса DONE.
+Отдельная QA проверка исходного кода нашла три дефекта формы: скрытые количество материала и тип денежной операции в строках просмотра, а также потерю выбранной без типа и часов отметки наёмной техники при отправке. Исправления и нативная проверка строк просмотра включены в коммит `e91cb6b`; отметка наёмной техники без обязательных полей блокирует отправку и остаётся в форме.
+
+## Проверенные сборки коммита `e91cb6b`
+
+- [Backend CI](https://github.com/KeinReno/construction-reporting-system/actions/runs/40646658467) PASS; локальный полный pytest: 54 PASS / 1 SKIP.
+- [Web CI](https://github.com/KeinReno/construction-reporting-system/actions/runs/40646658366) PASS; локальный Playwright на синтетическом API: 7 PASS.
+- [Android CI](https://github.com/KeinReno/construction-reporting-system/actions/runs/40646658469) PASS: JVM, Android 35, HTTPS Worker и Web readback. Установочный debug APK: `dist/2026-10-28-e91cb6b/construction-android-debug/app-debug.apk`, SHA-256 `EA5F882F38752024BC435C3F275F902258FD840980BD66042617CBD909AE3935`. Release APK пока без подписи, SHA-256 `22D0EDBC5AFCC8832D874C18DFE0F9367BEC5DB453818BDCD711444275C77183`.
+- [Demo CI](https://github.com/KeinReno/construction-reporting-system/actions/runs/40646658345) PASS: Android 35 офлайн-отчёт, Windows frozen EXE и браузерный демо-сценарий. Demo APK: `dist/2026-10-28-e91cb6b/construction-android-demo/app-demo.apk`, SHA-256 `AEC5E35BDDDCD242D5CDD7A577A04291082F3DD9E5FE2CC2737CB208737868A8`. Windows demo: `dist/2026-10-28-e91cb6b/construction-windows-demo/construction-windows-demo.zip`, SHA-256 `4D45CAB9D5D7157183F35C1C96EFFA485F91474852B67F16CE28A916E78EFCF5`.
+- [Windows runtime CI](https://github.com/KeinReno/construction-reporting-system/actions/runs/40646658359) PASS: `dist/2026-10-28-e91cb6b/windows-runtime/construction-windows-runtime.zip`, SHA-256 `5DF1A338DCFFA8B062869877F7FF4E4E2E635231268EE655F45385EE22B15F7D`.
+
+Пути в `dist` локальные и игнорируются Git. CI артефакты имеют ограниченный срок хранения; скачанные копии остаются в этой рабочей папке. Успех на эмуляторе и CI не заменяет полевое испытание и постоянную подпись.
