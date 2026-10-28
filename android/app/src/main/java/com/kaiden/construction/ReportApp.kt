@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -167,6 +168,7 @@ fun ReportApp() {
     var showEquipment by remember(ownerId) {mutableStateOf(false)}
     var showPlans by remember(ownerId) {mutableStateOf(false)}
     val photos = remember(ownerId) { mutableStateListOf<JSONObject>() }
+    val pendingPhotoDeletes=remember(ownerId) {mutableStateListOf<String>()}
     var editing by remember(ownerId) { mutableStateOf<Draft?>(null) }
     var editReason by remember(ownerId) { mutableStateOf("") }
     var formError by remember(ownerId) { mutableStateOf("") }
@@ -194,6 +196,17 @@ fun ReportApp() {
         val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned" || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || financialEntries.isNotEmpty() || financeKind!="expense" || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || financeReceiptPhotoId.isNotBlank() || equipment.isNotEmpty() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || equipmentHired || nextShiftPlans.isNotEmpty() || planText.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
         val replacement={quantity="";description="";workType="Сварка металлоконструкций";unit="шт";editReason="";action()}
         if(hasInput)pendingReplacement=replacement else replacement()
+    }
+    suspend fun cleanupRemovedPhotos() {
+        for(id in pendingPhotoDeletes.toList()) {
+            if(runCatching { UUID.fromString(id) }.isFailure)continue
+            try {
+                val referenced=withContext(Dispatchers.IO){formRepository.photoReferenced(id)}
+                if(referenced || withContext(Dispatchers.IO){val file=File(context.filesDir,"photo-$id");!file.exists() || file.delete()})pendingPhotoDeletes.remove(id)
+                else formError="Фото удалено из формы, но файл не удалось очистить с устройства"
+            }catch(e:CancellationException){throw e}
+            catch(_:Exception){formError="Фото удалено из формы, но файл не удалось очистить с устройства"}
+        }
     }
     LaunchedEffect(ownerId,formReload) {
         try {
@@ -227,7 +240,7 @@ fun ReportApp() {
                 autosaveStatus="Сохранение формы…"
                 try {
                     val saved=withContext(Dispatchers.IO){formRepository.save(record.copy(payload=snapshot.encode()))}
-                    if(saved && formSession?.sessionId==record.sessionId && currentForm()==snapshot)autosaveStatus="Форма сохранена на устройстве"
+                    if(saved && formSession?.sessionId==record.sessionId && currentForm()==snapshot){autosaveStatus="Форма сохранена на устройстве";cleanupRemovedPhotos()}
                 }catch(e:CancellationException){throw e}
                 catch(e:Exception){autosaveStatus="Автосохранение не выполнено: ${e.message?:"ошибка хранилища"}"}
             }
@@ -359,7 +372,7 @@ fun ReportApp() {
                 FilterChip(selected=financeReceiptPhotoId==id,onClick={financeReceiptPhotoId=id},label={Text("Фото ${index+1}")})
             }
         }
-        OutlinedButton(onClick={
+        OutlinedButton(enabled=!busy,onClick={
             val kopecks=parseMoneyKopecks(financeAmount)
             val date=financeDate.ifBlank { workDate }
             if(kopecks==null || financeCategory.isBlank() || financeCategory.length>100 || financeDescription.length>1000 || financialEntries.size>=100 || runCatching{LocalDate.parse(date)}.isFailure || (financeReceiptPhotoId.isNotBlank() && photos.none{it.getString("id")==financeReceiptPhotoId}))
@@ -411,7 +424,7 @@ fun ReportApp() {
         photos.forEachIndexed { i,photo -> key(photo.getString("id")) {PhotoPreview(photo.getString("path"),i+1,!busy){
             val id=photo.getString("id")
             if(financialEntries.any{!it.isNull("receipt_photo_id") && it.getString("receipt_photo_id")==id})formError="Сначала удалите денежную операцию, к которой прикреплён этот чек"
-            else {if(financeReceiptPhotoId==id)financeReceiptPhotoId="";photos.remove(photo)}
+            else {if(financeReceiptPhotoId==id)financeReceiptPhotoId="";photos.remove(photo);pendingPhotoDeletes.add(id)}
         }} }
         OutlinedTextField(comment,{comment=it},label={Text("Комментарий (необязательно)")},modifier=Modifier.fillMaxWidth(),minLines=2)
         if(formError.isNotBlank())Text(formError,color=MaterialTheme.colorScheme.error)
@@ -442,6 +455,7 @@ fun ReportApp() {
                 scope.launch {
                     try {
                         withContext(Dispatchers.IO){formRepository.enqueue(consumed,saved)}
+                        cleanupRemovedPhotos()
                         workEntries.clear();photos.clear();reason="";comment="";quantity="";description="";loadExtras(JSONObject());editing=null;editReason="";formSession=null;formReload++;formError=if(BuildConfig.DEMO_MODE)"Демо: сохранено на телефоне. Внешней отправки нет." else "Отчёт сохранён локально. Отправка — автоматически."
                         try {SyncWorker.schedule(context)}catch(e:Exception){formError="Отчёт сохранён в очереди. Не удалось запланировать отправку: ${e.message}"}
                     } catch(e:Exception){formError=e.message?:"Ошибка сохранения. Форма сохранена на экране."}

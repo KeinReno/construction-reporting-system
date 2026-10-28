@@ -44,6 +44,8 @@ data class Draft(
 interface DraftDao {
     @Query("SELECT COUNT(*) FROM drafts")
     suspend fun countAll():Int
+    @Query("SELECT COUNT(*) FROM drafts WHERE photosJson LIKE '%' || :photoId || '%'")
+    suspend fun photoReferenceCount(photoId:String):Int
     @Query("SELECT * FROM drafts WHERE ownerId = :ownerId ORDER BY createdAt DESC")
     fun observeAll(ownerId: String): Flow<List<Draft>>
     @Query("SELECT * FROM drafts WHERE ownerId = :ownerId AND status IN ('queued','uploading') ORDER BY createdAt ASC")
@@ -62,6 +64,8 @@ data class FormRecord(@PrimaryKey val ownerId:String,val sessionId:String,val pa
 interface FormDao {
     @Query("SELECT COUNT(*) FROM report_forms")
     suspend fun countAll():Int
+    @Query("SELECT COUNT(*) FROM report_forms WHERE payload LIKE '%' || :photoId || '%'")
+    suspend fun photoReferenceCount(photoId:String):Int
     @Query("SELECT * FROM report_forms WHERE ownerId = :ownerId")
     suspend fun get(ownerId:String):FormRecord?
     @Insert(onConflict=OnConflictStrategy.ABORT)
@@ -110,6 +114,9 @@ abstract class AppDatabase: RoomDatabase() {
 
 /** Session IDs make late autosaves harmless after an atomic enqueue+consume. */
 class FormRepository(private val database:AppDatabase) {
+    suspend fun photoReferenced(photoId:String):Boolean=database.withTransaction {
+        database.drafts().photoReferenceCount(photoId)>0 || database.forms().photoReferenceCount(photoId)>0
+    }
     suspend fun open(ownerId:String):FormRecord=database.withTransaction {
         require(ownerId.isNotBlank()) {"Owner required"}
         database.forms().get(ownerId) ?: FormRecord(ownerId,java.util.UUID.randomUUID().toString(),"{}").also {database.forms().insert(it)}

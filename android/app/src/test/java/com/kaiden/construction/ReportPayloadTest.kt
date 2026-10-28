@@ -35,7 +35,7 @@ class ReportPayloadTest {
         assertTrue(ReportPayload.equivalent(local,remote))
         assertFalse(ReportPayload.equivalent(local,remote.put("next_shift_plans",org.json.JSONArray("""["Different"]"""))))
         assertFalse(ReportPayload.equivalent(payload(),local))
-        val withReceipt=payload().put("required_photo_ids",org.json.JSONArray("""["photo"]""))
+        val withReceipt=payload().put("required_photo_ids",org.json.JSONArray().put("photo"))
             .put("financial_entries",org.json.JSONArray("""[{"id":"entry","kind":"expense","operation_date":"2026-10-20","amount_kopecks":12550,"category":"Fuel","receipt_photo_id":"photo"}]"""))
         assertFalse(ReportPayload.equivalent(withReceipt,payload().put("financial_entries",org.json.JSONArray(finance))))
     }
