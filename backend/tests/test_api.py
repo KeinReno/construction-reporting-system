@@ -136,6 +136,8 @@ def test_finance_equipment_and_plans_survive_revision_without_double_count(env):
     assert summary['financial_totals_kopecks']['expense']==12550
     invalid=report(sid);invalid['financial_entries']=[{**data['financial_entries'][0],'amount_kopecks':-1}]
     assert c.post('/api/v1/reports',headers=f,json=invalid).status_code==422
+    invalid_receipt=report(sid);invalid_receipt['financial_entries']=[{**data['financial_entries'][0],'receipt_photo_id':uid()}]
+    assert c.post('/api/v1/reports',headers=f,json=invalid_receipt).status_code==422
 
 def test_material_movement_requires_quantity_and_keeps_directions_separate(env):
     c,f,m,sid,_=env

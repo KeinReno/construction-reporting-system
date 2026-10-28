@@ -55,7 +55,7 @@ class HttpsWorkerTest {
             val pid=UUID.randomUUID().toString();val id=UUID.randomUUID().toString()
             val bitmap=Bitmap.createBitmap(2,2,Bitmap.Config.ARGB_8888)
             photo.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
-            val draft=Draft(id=id,ownerId=owner,siteId=site.first,siteName=site.second,workDate="2026-10-26",kind="work",workEntriesJson="""[{"type":"Synthetic","quantity":"2.25","unit":"m"}]""",noWorkReason="",comment="",photosJson=JSONArray().put(JSONObject().put("id",pid).put("path",photo.absolutePath).put("mime","image/png")).toString(),extrasJson="""{"crew":"Synthetic crew","materials":[{"name":"Synthetic material","quantity":"1.5","unit":"m","direction":"consumed"}],"incidents":[{"description":"Synthetic incident"}],"financial_entries":[{"id":"${UUID.randomUUID()}","kind":"expense","operation_date":"2026-10-20","amount_kopecks":12550,"category":"Synthetic fuel"}],"equipment":[{"type":"Synthetic crane","hours":"7.5","hired":true}],"next_shift_plans":["Check access"]}""")
+            val draft=Draft(id=id,ownerId=owner,siteId=site.first,siteName=site.second,workDate="2026-10-26",kind="work",workEntriesJson="""[{"type":"Synthetic","quantity":"2.25","unit":"m"}]""",noWorkReason="",comment="",photosJson=JSONArray().put(JSONObject().put("id",pid).put("path",photo.absolutePath).put("mime","image/png")).toString(),extrasJson="""{"crew":"Synthetic crew","materials":[{"name":"Synthetic material","quantity":"1.5","unit":"m","direction":"consumed"}],"incidents":[{"description":"Synthetic incident"}],"financial_entries":[{"id":"${UUID.randomUUID()}","kind":"expense","operation_date":"2026-10-20","amount_kopecks":12550,"category":"Synthetic fuel","receipt_photo_id":"$pid"}],"equipment":[{"type":"Synthetic crane","hours":"7.5","hired":true}],"next_shift_plans":["Check access"]}""")
             db.drafts().save(draft)
             suspend fun worker(){TestListenableWorkerBuilder<SyncWorker>(context).build().doWork()}
             worker()
@@ -65,6 +65,7 @@ class HttpsWorkerTest {
             worker()
             local=db.drafts().observeAll(owner).first().single()
             assertEquals("delivered",local.status);val firstReceipt=local.receiptId;assertNotNull(firstReceipt)
+            assertEquals(pid,api.existingByClient(token,id).getJSONObject("data").getJSONArray("financial_entries").getJSONObject(0).getString("receipt_photo_id"))
             var counters=JSONObject(call("/test/stats",token));assertEquals(1,counters.getInt("photo_put_count"));assertEquals(1,counters.getInt("submit_count"))
             val manager=api.login("manager","SyntheticPassword123")
             call("/reports/${local.serverId}/review",manager,JSONObject().put("expected_revision",1).put("decision","needs_revision").put("reason","Clarify synthetic comment"))

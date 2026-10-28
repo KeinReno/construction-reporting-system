@@ -10,7 +10,7 @@ data class FormSnapshot(
     val editing:Draft?=null,val editReason:String="",
     val crew:String="",val materialName:String="",val materialQuantity:String="",val materialUnit:String="",val materialDirection:String="mentioned",
     val materialsJson:String="[]",val incidentText:String="",val incidentsJson:String="[]",
-    val financeKind:String="expense",val financeAmount:String="",val financeCategory:String="",val financeDate:String="",val financeDescription:String="",val financialJson:String="[]",
+    val financeKind:String="expense",val financeAmount:String="",val financeCategory:String="",val financeDate:String="",val financeDescription:String="",val financeReceiptPhotoId:String="",val financialJson:String="[]",
     val equipmentType:String="",val equipmentHours:String="",val equipmentHired:Boolean=false,val equipmentJson:String="[]",
     val planText:String="",val plansJson:String="[]"
 ) {
@@ -19,7 +19,7 @@ data class FormSnapshot(
         put("quantity",quantity);put("unit",unit);put("description",description)
         put("workEntries",JSONArray(workEntriesJson));put("noWorkReason",noWorkReason);put("comment",comment);put("photos",JSONArray(photosJson));put("editReason",editReason)
         put("crew",crew);put("materialName",materialName);put("materialQuantity",materialQuantity);put("materialUnit",materialUnit);put("materialDirection",materialDirection);put("materials",JSONArray(materialsJson));put("incidentText",incidentText);put("incidents",JSONArray(incidentsJson))
-        put("financeKind",financeKind);put("financeAmount",financeAmount);put("financeCategory",financeCategory);put("financeDate",financeDate);put("financeDescription",financeDescription);put("financialEntries",JSONArray(financialJson))
+        put("financeKind",financeKind);put("financeAmount",financeAmount);put("financeCategory",financeCategory);put("financeDate",financeDate);put("financeDescription",financeDescription);put("financeReceiptPhotoId",financeReceiptPhotoId);put("financialEntries",JSONArray(financialJson))
         put("equipmentType",equipmentType);put("equipmentHours",equipmentHours);put("equipmentHired",equipmentHired);put("equipment",JSONArray(equipmentJson))
         put("planText",planText);put("nextShiftPlans",JSONArray(plansJson))
         editing?.let { d -> put("editing",JSONObject().apply {
@@ -46,7 +46,7 @@ data class FormSnapshot(
                 workType=o.optString("workType","Сварка металлоконструкций"),quantity=o.optString("quantity",""),unit=o.optString("unit","шт"),description=o.optString("description",""),
                 workEntriesJson=(o.optJSONArray("workEntries")?:JSONArray()).toString(),noWorkReason=o.optString("noWorkReason",""),comment=o.optString("comment",""),photosJson=(o.optJSONArray("photos")?:JSONArray()).toString(),editing=editing,editReason=o.optString("editReason",""),
                 crew=o.optString("crew",""),materialName=o.optString("materialName",""),materialQuantity=o.optString("materialQuantity",""),materialUnit=o.optString("materialUnit",""),materialDirection=o.optString("materialDirection","mentioned"),materialsJson=(o.optJSONArray("materials")?:JSONArray()).toString(),incidentText=o.optString("incidentText",""),incidentsJson=(o.optJSONArray("incidents")?:JSONArray()).toString(),
-                financeKind=o.optString("financeKind","expense"),financeAmount=o.optString("financeAmount",""),financeCategory=o.optString("financeCategory",""),financeDate=o.optString("financeDate",""),financeDescription=o.optString("financeDescription",""),financialJson=(o.optJSONArray("financialEntries")?:JSONArray()).toString(),
+                financeKind=o.optString("financeKind","expense"),financeAmount=o.optString("financeAmount",""),financeCategory=o.optString("financeCategory",""),financeDate=o.optString("financeDate",""),financeDescription=o.optString("financeDescription",""),financeReceiptPhotoId=o.optString("financeReceiptPhotoId",""),financialJson=(o.optJSONArray("financialEntries")?:JSONArray()).toString(),
                 equipmentType=o.optString("equipmentType",""),equipmentHours=o.optString("equipmentHours",""),equipmentHired=o.optBoolean("equipmentHired",false),equipmentJson=(o.optJSONArray("equipment")?:JSONArray()).toString(),planText=o.optString("planText",""),plansJson=(o.optJSONArray("nextShiftPlans")?:JSONArray()).toString())
         }
         private fun JSONObject.nullable(key:String):String?=if(isNull(key))null else getString(key)

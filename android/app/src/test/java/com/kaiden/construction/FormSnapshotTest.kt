@@ -15,14 +15,16 @@ class FormSnapshotTest {
         catch(_:IllegalArgumentException){}
     }
     @Test fun unfinishedFinanceEquipmentAndPlansSurviveProcessRestart() {
-        val form=FormSnapshot(financeKind="advance_issued",financeAmount="1250,50",financeCategory="Crew",financeDate="2026-10-20",financeDescription="Synthetic",
-            financialJson="""[{"id":"entry","kind":"expense","operation_date":"2026-10-19","amount_kopecks":2500,"category":"Fuel"}]""",
+        val form=FormSnapshot(financeKind="advance_issued",financeAmount="1250,50",financeCategory="Crew",financeDate="2026-10-20",financeDescription="Synthetic",financeReceiptPhotoId="pending-photo",
+            financialJson="""[{"id":"entry","kind":"expense","operation_date":"2026-10-19","amount_kopecks":2500,"category":"Fuel","receipt_photo_id":"receipt-photo"}]""",
             equipmentType="Crane",equipmentHours="7,5",equipmentHired=true,equipmentJson="""[{"type":"Truck","hours":"2","hired":false}]""",
             planText="Next step",plansJson="""["Check access"]""")
         val restored=FormSnapshot.decode(form.encode(),"owner-A")
         assertEquals(form.copy(financialJson=restored.financialJson,equipmentJson=restored.equipmentJson),restored)
         assertEquals(2500,org.json.JSONArray(restored.financialJson).getJSONObject(0).getInt("amount_kopecks"))
         assertEquals("Fuel",org.json.JSONArray(restored.financialJson).getJSONObject(0).getString("category"))
+        assertEquals("pending-photo",restored.financeReceiptPhotoId)
+        assertEquals("receipt-photo",org.json.JSONArray(restored.financialJson).getJSONObject(0).getString("receipt_photo_id"))
         assertEquals("Truck",org.json.JSONArray(restored.equipmentJson).getJSONObject(0).getString("type"))
     }
     @Test fun unknownVersionIsNotSilentlyOverwritten() {
