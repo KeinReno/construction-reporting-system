@@ -27,3 +27,5 @@
 - [Windows runtime CI](https://github.com/KeinReno/construction-reporting-system/actions/runs/40646658359) PASS: `dist/2026-10-28-e91cb6b/windows-runtime/construction-windows-runtime.zip`, SHA-256 `5DF1A338DCFFA8B062869877F7FF4E4E2E635231268EE655F45385EE22B15F7D`.
 
 Пути в `dist` локальные и игнорируются Git. CI артефакты имеют ограниченный срок хранения; скачанные копии остаются в этой рабочей папке. Успех на эмуляторе и CI не заменяет полевое испытание и постоянную подпись.
+
+Локально на Windows демо-архив распакован в `dist/2026-10-28-e91cb6b/windows-demo-runnable/`; `ConstructionReportingDemo.exe` имеет SHA-256 `80613F78812E18F60167895C090C6492E700C245F6855A47B7B68839BE29FD43`. Команда `.\.venv\Scripts\python.exe scripts/demo/test_frozen_demo.py dist/2026-10-28-e91cb6b/windows-demo-runnable/ConstructionReportingDemo.exe` прошла: loopback, Web, вход, шесть отчётов, PNG, точный объём и запрет второго экземпляра.
