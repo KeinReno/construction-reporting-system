@@ -190,7 +190,7 @@ fun ReportApp() {
         financeKind="expense";financeAmount="";financeCategory="";financeDate="";financeDescription="";equipmentType="";equipmentHours="";equipmentHired=false;planText=""
     }
     fun replaceForm(action:()->Unit) {
-        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned" || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || financialEntries.isNotEmpty() || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || equipment.isNotEmpty() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || equipmentHired || nextShiftPlans.isNotEmpty() || planText.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
+        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned" || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || financialEntries.isNotEmpty() || financeKind!="expense" || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || equipment.isNotEmpty() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || equipmentHired || nextShiftPlans.isNotEmpty() || planText.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
         val replacement={quantity="";description="";workType="Сварка металлоконструкций";unit="шт";editReason="";action()}
         if(hasInput)pendingReplacement=replacement else replacement()
     }
@@ -323,7 +323,7 @@ fun ReportApp() {
             if(materialName.isBlank() || materialName.length>200 || materialUnit.length>50 || materials.size>=100 || (materialDirection!="mentioned" && (n==null || n<=java.math.BigDecimal.ZERO)) || (materialQuantity.isNotBlank() && (n==null || n<java.math.BigDecimal.ZERO || n.stripTrailingZeros().scale()>6 || n.precision()-n.scale()>14 || materialUnit.isBlank())))formError="Проверьте название, направление, количество и единицу материала"
             else {materials.add(JSONObject().put("name",materialName.trim()).put("quantity",n?.toPlainString()?:JSONObject.NULL).put("unit",materialUnit.ifBlank { null }?:JSONObject.NULL).put("direction",materialDirection));materialName="";materialQuantity="";materialUnit="";materialDirection="mentioned";formError=""}
         }){Text("+ Добавить материал")}
-        materials.forEachIndexed { i,m -> Row {Text("${m.getString("name")} · ${when(m.optString("direction","mentioned")){"received"->"поступило";"consumed"->"израсходовано";else->"упомянуто"}}",Modifier.weight(1f));TextButton(onClick={materials.removeAt(i)}){Text("Удалить")}} }
+        materials.forEachIndexed { i,m -> Row {Text("${m.getString("name")} · ${when(m.optString("direction","mentioned")){"received"->"поступило";"consumed"->"израсходовано";else->"упомянуто"}}${if(m.isNull("quantity"))"" else " · ${m.getString("quantity")} ${m.optString("unit")}"}",Modifier.weight(1f));TextButton(onClick={materials.removeAt(i)}){Text("Удалить")}} }
         Text("События и проблемы",style=MaterialTheme.typography.titleSmall)
         OutlinedTextField(incidentText,{incidentText=it},label={Text("Что произошло (необязательно)")},modifier=Modifier.fillMaxWidth())
         OutlinedButton(onClick={if(incidentText.isBlank() || incidentText.length>2000 || incidents.size>=100)formError="Укажите событие" else {incidents.add(JSONObject().put("description",incidentText));incidentText="";formError=""}}){Text("+ Добавить событие")}
@@ -345,11 +345,11 @@ fun ReportApp() {
                 formError="Проверьте сумму, категорию и дату денежной операции"
             else {
                 financialEntries.add(JSONObject().put("id",UUID.randomUUID().toString()).put("kind",financeKind).put("operation_date",date).put("amount_kopecks",kopecks).put("category",financeCategory.trim()).put("description",financeDescription.trim().ifBlank { null }?:JSONObject.NULL))
-                financeAmount="";financeCategory="";financeDate="";financeDescription="";formError=""
+                financeKind="expense";financeAmount="";financeCategory="";financeDate="";financeDescription="";formError=""
             }
         }){Text("+ Добавить денежную операцию")}
         financialEntries.forEachIndexed { i,entry -> Row(Modifier.fillMaxWidth()) {
-            Text("${entry.getString("operation_date")} · ${entry.getString("category")} · ${java.math.BigDecimal.valueOf(entry.getLong("amount_kopecks"),2).toPlainString()} ₽",Modifier.weight(1f))
+            Text("${when(entry.getString("kind")){"funding_received"->"Поступление";"advance_issued"->"Выдача аванса";else->"Расход"}} · ${entry.getString("operation_date")} · ${entry.getString("category")} · ${java.math.BigDecimal.valueOf(entry.getLong("amount_kopecks"),2).toPlainString()} ₽",Modifier.weight(1f))
             TextButton(onClick={financialEntries.removeAt(i)}){Text("Удалить")}
         } }
         }
@@ -396,8 +396,8 @@ fun ReportApp() {
                 if(quantity.isNotBlank() || description.isNotBlank())throw IllegalArgumentException("Добавьте заполненный вид работы либо очистите поля")
                 if(kind=="no_work" && workEntries.isNotEmpty())throw IllegalArgumentException("Удалите добавленные работы перед выбором отчёта без работ")
                 if(materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned" || incidentText.isNotBlank())throw IllegalArgumentException("Добавьте или очистите незавершённый материал или событие")
-                if(financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank()){showFinance=true;throw IllegalArgumentException("Добавьте или очистите незавершённую денежную операцию")}
-                if(equipmentType.isNotBlank() || equipmentHours.isNotBlank()){showEquipment=true;throw IllegalArgumentException("Добавьте или очистите незавершённую запись техники")}
+                if(financeKind!="expense" || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank()){showFinance=true;throw IllegalArgumentException("Добавьте или очистите незавершённую денежную операцию")}
+                if(equipmentType.isNotBlank() || equipmentHours.isNotBlank() || equipmentHired){showEquipment=true;throw IllegalArgumentException("Добавьте или очистите незавершённую запись техники")}
                 if(planText.isNotBlank()){showPlans=true;throw IllegalArgumentException("Добавьте или очистите незавершённый план")}
                 if(selectedSite.isBlank() || (kind=="work" && workEntries.isEmpty()) || (kind=="no_work" && reason.isBlank())) throw IllegalArgumentException("Заполните обязательные поля")
                 if(editing!=null && editReason.trim().length<2)throw IllegalArgumentException("Укажите причину исправления")
