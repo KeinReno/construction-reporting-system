@@ -44,6 +44,9 @@ class ReceiptFormTest {
                 compose.waitUntil(10_000){compose.onAllNodesWithText("Деньги (0)",substring=true).fetchSemanticsNodes().isNotEmpty()}
                 compose.onNodeWithText("Деньги (0)",substring=true).performScrollTo().performClick()
                 compose.onNodeWithText("Фото 1").performScrollTo().performClick()
+                compose.waitUntil(5_000) {
+                    runBlocking {db.forms().get(owner)?.let {FormSnapshot.decode(it.payload,owner).financeReceiptPhotoId==id}?:false}
+                }
                 compose.onNodeWithText("Фото 1").assertIsSelected()
                 compose.onNodeWithText("Сумма, ₽").performScrollTo().performTextInput("125,50")
                 compose.onNodeWithText("Категория (например, топливо)").performScrollTo().performTextInput("Synthetic fuel")
