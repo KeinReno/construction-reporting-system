@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -365,12 +364,10 @@ fun ReportApp() {
         OutlinedTextField(financeDescription,{financeDescription=it},label={Text("Пояснение к операции")},modifier=Modifier.fillMaxWidth())
         Text("Чек (необязательно)",style=MaterialTheme.typography.titleSmall)
         OutlinedButton(enabled=!busy,onClick={pickingReceipt=true;picker.launch("image/*")}){Text("Добавить фото чека")}
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected=financeReceiptPhotoId.isBlank(),onClick={financeReceiptPhotoId=""},label={Text("Без чека")})
-            photos.forEachIndexed { index,photo ->
-                val id=photo.getString("id")
-                FilterChip(selected=financeReceiptPhotoId==id,onClick={financeReceiptPhotoId=id},label={Text("Фото ${index+1}")})
-            }
+        FilterChip(selected=financeReceiptPhotoId.isBlank(),onClick={financeReceiptPhotoId=""},label={Text("Без чека")},modifier=Modifier.fillMaxWidth())
+        photos.forEachIndexed { index,photo ->
+            val id=photo.getString("id")
+            FilterChip(selected=financeReceiptPhotoId==id,onClick={financeReceiptPhotoId=id},label={Text("Фото ${index+1}")},modifier=Modifier.fillMaxWidth())
         }
         OutlinedButton(enabled=!busy,onClick={
             val kopecks=parseMoneyKopecks(financeAmount)
