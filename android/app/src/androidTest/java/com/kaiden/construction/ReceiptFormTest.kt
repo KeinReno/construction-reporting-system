@@ -44,10 +44,13 @@ class ReceiptFormTest {
                 compose.waitUntil(10_000){compose.onAllNodesWithText("Деньги (0)",substring=true).fetchSemanticsNodes().isNotEmpty()}
                 compose.onNodeWithText("Деньги (0)",substring=true).performScrollTo().performClick()
                 compose.onNodeWithText("Фото 1").performScrollTo().performClick()
+                compose.onNodeWithText("Фото 1").assertIsSelected()
                 compose.onNodeWithText("Сумма, ₽").performScrollTo().performTextInput("125,50")
                 compose.onNodeWithText("Категория (например, топливо)").performScrollTo().performTextInput("Synthetic fuel")
                 compose.onNodeWithText("+ Добавить денежную операцию").performScrollTo().performClick()
-                compose.onNodeWithText("чек: фото 1",substring=true).assertExists()
+                compose.onNodeWithText("Деньги (1)",substring=true).assertExists()
+                try {compose.onNodeWithText("чек: фото 1",substring=true).assertExists()}
+                catch(e:AssertionError){println(compose.onRoot().printToString());throw e}
                 compose.onNodeWithText("Удалить фото 1").performScrollTo().performClick()
                 compose.onNodeWithText("Сначала удалите денежную операцию",substring=true).assertExists()
                 assertTrue(photo.exists())
