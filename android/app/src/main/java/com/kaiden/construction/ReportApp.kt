@@ -314,7 +314,10 @@ fun ReportApp() {
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(crew,{crew=it},label={Text("Бригада (необязательно)")},modifier=Modifier.fillMaxWidth())
         Text("Материалы",style=MaterialTheme.typography.titleSmall)
-        CompactSelection("Движение материала",materialDirection,listOf("mentioned" to "Упоминание","received" to "Поступило","consumed" to "Израсходовано"),onSelect={materialDirection=it})
+        Text("Движение материала",style=MaterialTheme.typography.titleSmall)
+        listOf("mentioned" to "Упоминание","received" to "Поступило","consumed" to "Израсходовано").forEach { (direction,label) ->
+            FilterChip(selected=materialDirection==direction,onClick={materialDirection=direction},label={Text(label)},modifier=Modifier.fillMaxWidth())
+        }
         OutlinedTextField(materialName,{materialName=it},label={Text("Название материала")},modifier=Modifier.fillMaxWidth())
         OutlinedTextField(materialQuantity,{materialQuantity=it},label={Text("Количество материала (необязательно)")},modifier=Modifier.fillMaxWidth(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
         OutlinedTextField(materialUnit,{materialUnit=it},label={Text("Единица материала")},modifier=Modifier.fillMaxWidth())

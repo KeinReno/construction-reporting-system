@@ -77,9 +77,7 @@ class DemoModeTest {
             compose.onNodeWithText("Бригада (необязательно)").performScrollTo().performTextInput("Демо бригада")
             ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("input keyevent 4")).use{it.readBytes()}
             compose.onNodeWithText("Движение материала").performScrollTo()
-            compose.onNodeWithText("Упоминание").performClick()
-            compose.waitUntil(5_000){compose.onAllNodesWithText("Поступило").fetchSemanticsNodes().isNotEmpty()}
-            compose.onNodeWithText("Поступило").performClick()
+            compose.onNodeWithText("Поступило").performScrollTo().performClick()
             compose.onNodeWithText("Название материала").performScrollTo().performTextInput("Демо материал")
             compose.onNodeWithText("Количество материала (необязательно)").performScrollTo().performTextInput("2.5")
             compose.onNodeWithText("Единица материала").performScrollTo().performTextInput("м")
