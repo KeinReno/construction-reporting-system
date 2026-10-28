@@ -314,10 +314,10 @@ fun ReportApp() {
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(crew,{crew=it},label={Text("Бригада (необязательно)")},modifier=Modifier.fillMaxWidth())
         Text("Материалы",style=MaterialTheme.typography.titleSmall)
+        CompactSelection("Движение материала",materialDirection,listOf("mentioned" to "Упоминание","received" to "Поступило","consumed" to "Израсходовано"),onSelect={materialDirection=it})
         OutlinedTextField(materialName,{materialName=it},label={Text("Название материала")},modifier=Modifier.fillMaxWidth())
         OutlinedTextField(materialQuantity,{materialQuantity=it},label={Text("Количество материала (необязательно)")},modifier=Modifier.fillMaxWidth(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
         OutlinedTextField(materialUnit,{materialUnit=it},label={Text("Единица материала")},modifier=Modifier.fillMaxWidth())
-        CompactSelection("Движение материала",materialDirection,listOf("mentioned" to "Упоминание","received" to "Поступило","consumed" to "Израсходовано"),onSelect={materialDirection=it})
         OutlinedButton(onClick={
             val n=materialQuantity.replace(',','.').toBigDecimalOrNull()
             if(materialName.isBlank() || materialName.length>200 || materialUnit.length>50 || materials.size>=100 || (materialDirection!="mentioned" && (n==null || n<=java.math.BigDecimal.ZERO)) || (materialQuantity.isNotBlank() && (n==null || n<java.math.BigDecimal.ZERO || n.stripTrailingZeros().scale()>6 || n.precision()-n.scale()>14 || materialUnit.isBlank())))formError="Проверьте название, направление, количество и единицу материала"
