@@ -424,7 +424,7 @@ fun ReportApp() {
         photos.forEachIndexed { i,photo -> key(photo.getString("id")) {PhotoPreview(photo.getString("path"),i+1,!busy){
             val id=photo.getString("id")
             if(financialEntries.any{!it.isNull("receipt_photo_id") && it.getString("receipt_photo_id")==id})formError="Сначала удалите денежную операцию, к которой прикреплён этот чек"
-            else {if(financeReceiptPhotoId==id)financeReceiptPhotoId="";photos.remove(photo);pendingPhotoDeletes.add(id)}
+            else {if(financeReceiptPhotoId==id)financeReceiptPhotoId="";photos.remove(photo);pendingPhotoDeletes.add(id);formError=""}
         }} }
         OutlinedTextField(comment,{comment=it},label={Text("Комментарий (необязательно)")},modifier=Modifier.fillMaxWidth(),minLines=2)
         if(formError.isNotBlank())Text(formError,color=MaterialTheme.colorScheme.error)
