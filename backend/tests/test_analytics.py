@@ -11,7 +11,9 @@ def test_qualitative_work_counts_reports_and_keeps_drilldown(env):
     summary=c.get('/api/v1/analytics/summary',headers=m).json()
     assert summary['volumes']==[]
     assert summary['qualitative_work_count']==2
-    assert summary['qualitative_works']==[{'site_id':sid,'work_type':'Монтаж сетки','report_count':2,'source_report_ids':ids}]
+    works=summary['qualitative_works']
+    assert len(works)==1 and works[0]['site_id']==sid and works[0]['work_type']=='Монтаж сетки' and works[0]['report_count']==2
+    assert sorted(works[0]['source_report_ids'])==sorted(ids)
     filtered=c.get('/api/v1/analytics/summary?to_date=2026-10-24',headers=m).json()
     assert filtered['qualitative_works']==[]
 

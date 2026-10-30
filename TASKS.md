@@ -2,7 +2,7 @@
 
 ## UI-07 — CRS Industrial Premium 2.0 (редизайн Web/Android)
 
-**IN_PROGRESS (30.10.2026).** Ветка `feat/crs-uiux-redesign-v2`. Сделаны: токены Industrial Premium 2.0; журнал/карточка/страница отчёта; `SituationBoard` на главной; `SiteList` + переработанный `SiteCard` (шапка состояния, хронология, фото, деньги/ресурсы); журнал денег с выравниванием сумм. API/БД не менялись. `npm run build` — PASS. Playwright — NOT_TESTED. Далее: аналитика/ИИ/админ, затем Android.
+**IN_PROGRESS (30.10.2026).** Ветка `feat/crs-uiux-redesign-v2`. После рецензии: старые правила `.modal`/`.report-dialog`/`.money-entry`/`.photo-list` больше не сжимают новый слой; шрифт IBM Plex с запасным Arial, без Google Fonts. Объём на главной не дублируется отдельным элементом. Фото различает «не приложено / загрузка / ошибка». `npm run build` PASS. Playwright `workflows.spec.ts` 9 PASS локально (повтор object/money после обрыва сервера — 2 PASS). Диалог отчёта на 1440 px шире 900 px. Снимки: `web/tmp/redesign-shots/`. Порядок id в качественных работах сравнивается как множество. Страница отчёта по URL и Android — ещё нет.
 
 | ID | Задача | Статус | Критерий |
 |---|---|---|---|

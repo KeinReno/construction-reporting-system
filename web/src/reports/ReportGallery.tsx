@@ -14,6 +14,7 @@ export function ReportPhoto({
 }) {
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
   useEffect(() => {
     let active = true;
     let objectUrl = '';
@@ -21,25 +22,64 @@ export function ReportPhoto({
       .then(async r => {
         if (!r.ok) throw new Error(`Не удалось загрузить фото (код ${r.status}).`);
         objectUrl = URL.createObjectURL(await r.blob());
-        if (active) setUrl(objectUrl);
-        else URL.revokeObjectURL(objectUrl);
+        if (active) {
+          setUrl(objectUrl);
+          setPhase('ready');
+        } else URL.revokeObjectURL(objectUrl);
       })
       .catch(e => {
-        if (active) setError(e instanceof TypeError ? 'Нет связи с сервером. Не удалось загрузить фото.' : e.message);
+        if (active) {
+          setPhase('error');
+          setError(e instanceof TypeError ? 'Нет связи с сервером. Не удалось загрузить фото.' : e.message);
+        }
       });
     return () => {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [id, token]);
-  if (error) return <p role="alert">{error}</p>;
-  if (!url) return <p className="muted">Загрузка фото…</p>;
+  if (phase === 'error') return <p role="alert">{error || 'Не удалось загрузить фото.'}</p>;
+  if (phase === 'loading' || !url) return <p className="muted">Загрузка фото…</p>;
   return (
     <a href={url} target="_blank" rel="noreferrer">
       <img className={className} src={url} alt={alt} />
     </a>
   );
 }
+
+export function useAttachmentPreview(id: string | undefined, token: string) {
+  const [url, setUrl] = useState('');
+  const [phase, setPhase] = useState<'empty' | 'loading' | 'ready' | 'error'>(id ? 'loading' : 'empty');
+  useEffect(() => {
+    if (!id) {
+      setPhase('empty');
+      setUrl('');
+      return;
+    }
+    let active = true;
+    let objectUrl = '';
+    setPhase('loading');
+    void fetch(BASE + '/attachments/' + id, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async r => {
+        if (!r.ok) throw new Error('photo');
+        objectUrl = URL.createObjectURL(await r.blob());
+        if (active) {
+          setUrl(objectUrl);
+          setPhase('ready');
+        } else URL.revokeObjectURL(objectUrl);
+      })
+      .catch(() => {
+        if (active) setPhase('error');
+      });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [id, token]);
+  return { url, phase };
+}
+
+const thumbLabel = { empty: 'Фото не приложены', loading: 'Загрузка фото…', error: 'Фото не загрузилось' };
 
 export function ReportThumb({
   id,
@@ -50,29 +90,10 @@ export function ReportThumb({
   token: string;
   count?: number;
 }) {
-  const [url, setUrl] = useState('');
-  useEffect(() => {
-    if (!id) return;
-    let active = true;
-    let objectUrl = '';
-    void fetch(BASE + '/attachments/' + id, { headers: { Authorization: `Bearer ${token}` } })
-      .then(async r => {
-        if (!r.ok) throw new Error('photo');
-        objectUrl = URL.createObjectURL(await r.blob());
-        if (active) setUrl(objectUrl);
-        else URL.revokeObjectURL(objectUrl);
-      })
-      .catch(() => {
-        if (active) setUrl('');
-      });
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [id, token]);
+  const { url, phase } = useAttachmentPreview(id, token);
   return (
     <div className={`report-row-thumb${url ? ' has-image' : ''}`}>
-      {url ? <img src={url} alt="" /> : <span>Нет фото</span>}
+      {phase === 'ready' && url ? <img src={url} alt="" /> : <span>{thumbLabel[phase === 'ready' ? 'empty' : phase]}</span>}
       {count > 0 && <small className="photo-count">{count}</small>}
     </div>
   );

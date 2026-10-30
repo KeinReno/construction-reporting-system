@@ -60,8 +60,11 @@ export function SituationBoard({
                     </span>
                   </span>
                   <span className="situation-site-work">
-                    <span>{view ? view.workSummary : 'Последняя смена не попала в фильтр'}</span>
-                    {view?.quantityHint && <b>{view.quantityHint}</b>}
+                    <span>
+                      {view
+                        ? `${view.workSummary}${view.quantityHint ? ` · ${view.quantityHint}` : ''}`
+                        : 'Последняя смена не попала в фильтр'}
+                    </span>
                     {problem && (
                       <span>
                         Заявлено в отчёте {formatDate(latest!.data.work_date)}: {problem.description}

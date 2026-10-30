@@ -1,32 +1,13 @@
-import { useEffect, useState } from 'react';
-import { BASE } from '../api';
 import { ReportStatus } from './ReportStatus';
+import { useAttachmentPreview } from './ReportGallery';
 import type { ReportView } from './reportView';
 
 function CardMedia({ id, token, count }: { id?: string; token: string; count: number }) {
-  const [url, setUrl] = useState('');
-  useEffect(() => {
-    if (!id) return;
-    let active = true;
-    let objectUrl = '';
-    void fetch(BASE + '/attachments/' + id, { headers: { Authorization: `Bearer ${token}` } })
-      .then(async r => {
-        if (!r.ok) throw new Error('photo');
-        objectUrl = URL.createObjectURL(await r.blob());
-        if (active) setUrl(objectUrl);
-        else URL.revokeObjectURL(objectUrl);
-      })
-      .catch(() => {
-        if (active) setUrl('');
-      });
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [id, token]);
+  const { url, phase } = useAttachmentPreview(id, token);
+  const label = phase === 'loading' ? 'Загрузка фото…' : phase === 'error' ? 'Фото не загрузилось' : 'Фото не приложены';
   return (
     <div className="report-card-media">
-      {url ? <img src={url} alt="" /> : <span className="placeholder">Фото не приложены</span>}
+      {phase === 'ready' && url ? <img src={url} alt="" /> : <span className="placeholder">{label}</span>}
       {count > 0 && <small className="photo-count" style={{ position: 'absolute', right: 8, bottom: 8, padding: '4px 7px', borderRadius: 3, background: 'rgba(11,20,20,.86)', color: '#fff', fontSize: 10 }}>{count} фото</small>}
     </div>
   );
