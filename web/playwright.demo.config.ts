@@ -1,0 +1,2 @@
+import {defineConfig} from '@playwright/test';
+export default defineConfig({testDir:'./demo-tests',workers:1,use:{baseURL:process.env.DEMO_BASE_URL||'http://127.0.0.1:8001',headless:true},webServer:process.env.DEMO_BASE_URL?undefined:{command:'python ../backend/tests/demo_server.py',url:'http://127.0.0.1:8001/ready',reuseExistingServer:false},reporter:[['line'],['junit',{outputFile:'test-results/demo/results.xml'}]]});

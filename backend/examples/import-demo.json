@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "reports": [
+    {
+      "source_ref": "synthetic-message-001",
+      "data": {
+        "client_report_id": "10000000-0000-4000-8000-000000000001",
+        "site_id": "20000000-0000-4000-8000-000000000002",
+        "work_date": "2026-05-15",
+        "kind": "no_work",
+        "no_work_reason": "Синтетический пример: нет допуска",
+        "work_entries": [],
+        "comment": null,
+        "required_photo_ids": []
+      },
+      "photos": []
+    }
+  ]
+}
