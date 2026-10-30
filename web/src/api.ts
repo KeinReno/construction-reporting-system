@@ -13,14 +13,15 @@ export const reportStatusLabels: Record<Report['status'], string> = {
 };
 export type Summary = {
   report_count: number; no_work_count: number;
-  volumes: Array<{ site_id: string; work_type: string; unit: string; quantity: string }>;
+  volumes: Array<{ site_id: string; work_type: string; unit: string; quantity: string; source_report_ids?: string[]; confirmed_zero?: boolean }>;
+  qualitative_works:Array<{site_id:string;work_type:string;report_count:number;source_report_ids:string[]}>;qualitative_work_count:number;
   no_work_reasons: Array<{reason:string;report_count:number;source_report_ids:string[]}>; timeline:Array<{report_id:string;date:string;kind:string;status:string}>; timeline_truncated:boolean;
   incident_count:number; incidents:Array<{report_id:string;date:string;description:string}>;
   material_count:number; materials:Array<{report_id:string;date:string;name:string;quantity:string|null;unit:string|null;direction:'mentioned'|'received'|'consumed'}>;
   material_movements:Array<{site_id:string;name:string;unit:string;direction:'received'|'consumed';quantity:string}>;
   financial_entries:Array<FinancialEntry & {report_id:string}>;financial_totals_kopecks:Partial<Record<FinancialEntry['kind'],number>>;
   equipment:Array<{report_id:string;date:string;type:string;hours:string;hired:boolean}>;equipment_hours:Array<{type:string;hours:string;hired:boolean}>;
-  limitations: string[]; source_report_ids: string[]; daily: Array<{date:string; report_count:number}>; period: {from_date:string|null;to_date:string|null};
+  limitations: string[]; source_report_ids: string[]; daily: Array<{date:string; report_count:number; source_report_ids?: string[]}>; period: {from_date:string|null;to_date:string|null};
 }
 export type Profile = { id: string; login: string; role: string }
 export type ReportAuthor = {id:string;login:string}
@@ -28,18 +29,40 @@ export type ReportAuthor = {id:string;login:string}
 // During development Vite proxies /api to FastAPI; in deployment reverse proxy does the same.
 // External server domains and secrets must not be hardcoded in web assets.
 export const BASE = "/api/v1";
+function apiMessage(status:number,detail:unknown):string {
+  const messages:Record<string,string>={
+    'Revision conflict':'Отчёт изменился. Обновите данные перед повтором.',
+    'Revision/status conflict':'Версия или статус отчёта изменились. Обновите данные.',
+    'Reason required':'Укажите причину возврата.',
+    'Object access denied':'Нет доступа к объекту.',
+    'Author access denied':'Нет доступа к отчёту.',
+    'Manager role required':'Для проверки отчёта нужна роль руководителя.',
+    'Client update required for extended report':'Необходимо обновить приложение для работы с этим отчётом.',
+    'Client update required for material movements':'Необходимо обновить приложение для работы с движением материалов.',
+    'Client cannot preserve extended report fields':'Обновите приложение: текущая версия не может сохранить все поля отчёта.',
+    'Assignment changed; retry':'Назначение изменилось. Обновите данные и повторите.',
+    'Too many login attempts':'Слишком много попыток входа. Попробуйте позже.',
+    'Photo missing from storage':'Фотография недоступна в хранилище.',
+  };
+  if(typeof detail==='string' && messages[detail])return messages[detail];
+  return ({400:'Некорректный запрос.',401:'Сессия завершилась. Войдите снова.',403:'Недостаточно прав для этого действия.',404:'Запрошенные данные не найдены.',409:'Данные изменились или действие недоступно. Обновите страницу.',413:'Размер файла превышает допустимый.',422:'Проверьте введённые данные.',429:'Слишком много запросов. Попробуйте позже.'} as Record<number,string>)[status] || (status>=500?'Ошибка сервера. Попробуйте позже.':`Ошибка сервера (код ${status}).`);
+}
 export class ApiError extends Error { constructor(public status:number, message:string) { super(message); } }
 export async function http<T>(url: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(BASE + url, { ...options, headers: { "Content-Type":"application/json", ...options?.headers, Authorization: `Bearer ${token}` } });
+  let response:Response;
+  try {response = await fetch(BASE + url, { ...options, headers: { "Content-Type":"application/json", ...options?.headers, Authorization: `Bearer ${token}` } });}
+  catch {throw new Error('Нет связи с сервером. Проверьте подключение и повторите.');}
   if (!response.ok) {
-    let reason = `HTTP ${response.status}`;
-    try { const data = await response.json(); reason = typeof data.detail === 'string' ? data.detail : reason; } catch { /* non-JSON */ }
-    throw new ApiError(response.status,reason);
+    let detail:unknown;
+    try { detail = (await response.json()).detail; } catch { /* non-JSON */ }
+    throw new ApiError(response.status,apiMessage(response.status,detail));
   }
   return response.json() as Promise<T>;
 }
 export async function login(login: string, password: string): Promise<string> {
-  const response = await fetch(BASE + "/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login, password }) });
+  let response:Response;
+  try {response = await fetch(BASE + "/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login, password }) });}
+  catch {throw new Error('Нет связи с сервером. Проверьте подключение и повторите.');}
   if (!response.ok) throw new Error("Неверные учётные данные или сервер недоступен");
   const data: { access_token: string } = await response.json();
   return data.access_token;

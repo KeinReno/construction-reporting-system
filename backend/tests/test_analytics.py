@@ -1,5 +1,20 @@
 from test_api import env,report
 
+def test_qualitative_work_counts_reports_and_keeps_drilldown(env):
+    c,f,m,sid,_=env
+    first=report(sid);first['work_entries']=[{'type':'Монтаж сетки','description':'Монтаж сетки'}, {'type':'Монтаж сетки','description':'Повторная строка'}]
+    second=report(sid);second['work_entries']=[{'type':'Монтаж сетки','description':'Монтаж сетки'}]
+    ids=[]
+    for data in (first,second):
+        rid=c.post('/api/v1/reports',headers=f,json=data).json()['id'];ids.append(rid)
+        assert c.post(f'/api/v1/reports/{rid}/submit',headers=f,json={'expected_revision':1}).status_code==200
+    summary=c.get('/api/v1/analytics/summary',headers=m).json()
+    assert summary['volumes']==[]
+    assert summary['qualitative_work_count']==2
+    assert summary['qualitative_works']==[{'site_id':sid,'work_type':'Монтаж сетки','report_count':2,'source_report_ids':ids}]
+    filtered=c.get('/api/v1/analytics/summary?to_date=2026-10-24',headers=m).json()
+    assert filtered['qualitative_works']==[]
+
 def test_local_question_routes_to_exact_source_metrics(env):
     c,f,m,sid,_=env;data=report(sid,'no_work');data['no_work_reason']='Synthetic permit unavailable'
     for _ in range(2):

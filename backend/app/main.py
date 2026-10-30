@@ -193,6 +193,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         u=db.get(User,token.user_id)
         if not u or not u.active or expiry<utcnow() or token.auth_version!=u.auth_version: raise HTTPException(401,'Expired token')
         return u
+    api.state.current_user=current
     def allowed(db,u,sid):
         if not db.get(Site,sid): raise HTTPException(404,'Unknown object')
         if u.role!='admin' and not db.scalar(select(Assignment.id).where(Assignment.user_id==u.id,Assignment.site_id==sid)):
@@ -449,7 +450,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         r.status=data.decision;log(db,r,u,data.decision,reason=data.reason);db.commit();return present(r)
     def validate_period(start,end):
         if start and end and start>end:raise HTTPException(422,'Invalid date range')
-    def analytic_rows(db,u,site_id=None,from_date=None,to_date=None,author_id=None):
+    def analytic_rows(db,u,site_id=None,from_date=None,to_date=None,author_id=None,by_work_date=True):
         validate_period(from_date,to_date)
         q=select(Report).where(Report.status.in_(['submitted','reviewed']))
         if site_id:
@@ -457,13 +458,15 @@ def create_app(database_url=None, storage=None, initialize=False):
         if u.role!='admin':q=q.join(Assignment,Assignment.site_id==Report.site_id).where(Assignment.user_id==u.id)
         if u.role=='foreman':q=q.where(Report.author_id==u.id)
         if author_id:q=q.where(Report.author_id==str(author_id))
-        if from_date:q=q.where(Report.work_date>=str(from_date))
-        if to_date:q=q.where(Report.work_date<=str(to_date))
+        if by_work_date and from_date:q=q.where(Report.work_date>=str(from_date))
+        if by_work_date and to_date:q=q.where(Report.work_date<=str(to_date))
         return db.scalars(q.order_by(Report.work_date,Report.id)).unique().all()
-    def metrics(rows,from_date,to_date):
-        volumes={}; daily={}; reasons={};incidents=[];materials=[];movements={};financial=[];financial_totals={};equipment=[];equipment_hours={}
+    def metrics(rows,from_date,to_date,money_rows=None):
+        volumes={}; qualitative={}; daily={}; reasons={};incidents=[];materials=[];movements={};financial=[];financial_totals={};equipment=[];equipment_hours={}
         for r in rows:
-            daily[r.work_date]=daily.get(r.work_date,0)+1
+            day=daily.setdefault(r.work_date,{'count':0,'ids':[]})
+            day['count']+=1
+            if r.id not in day['ids']:day['ids'].append(r.id)
             if r.payload['kind']=='no_work':
                 reason=r.payload['no_work_reason'].strip()
                 item=reasons.setdefault(reason,{'reason':reason,'report_count':0,'source_report_ids':[]})
@@ -471,7 +474,15 @@ def create_app(database_url=None, storage=None, initialize=False):
             for w in r.payload.get('work_entries',[]):
                 if w['quantity'] is not None:
                     key=(r.site_id,w['type'],w['unit'])
-                    volumes[key]=volumes.get(key,Decimal(0))+Decimal(w['quantity'])
+                    bucket=volumes.setdefault(key,{'qty':Decimal(0),'ids':[]})
+                    bucket['qty']+=Decimal(w['quantity'])
+                    if r.id not in bucket['ids']:bucket['ids'].append(r.id)
+                else:
+                    key=(r.site_id,w['type'])
+                    item=qualitative.setdefault(key,{'site_id':r.site_id,'work_type':w['type'],'report_count':0,'source_report_ids':[]})
+                    if r.id not in item['source_report_ids']:
+                        item['report_count']+=1
+                        item['source_report_ids'].append(r.id)
             for event in r.payload.get('incidents') or []:
                 incidents.append({'report_id':r.id,'date':r.work_date,'description':event['description']})
             for material in r.payload.get('materials') or []:
@@ -480,18 +491,24 @@ def create_app(database_url=None, storage=None, initialize=False):
                 if direction!='mentioned':
                     key=(r.site_id,material['name'],material['unit'],direction)
                     movements[key]=movements.get(key,Decimal(0))+Decimal(material['quantity'])
-            for entry in r.payload.get('financial_entries') or []:
-                financial.append({'report_id':r.id,**entry})
-                financial_totals[entry['kind']]=financial_totals.get(entry['kind'],0)+entry['amount_kopecks']
             for entry in r.payload.get('equipment') or []:
                 equipment.append({'report_id':r.id,'date':r.work_date,**entry})
                 key=(entry['type'],entry['hired'])
                 equipment_hours[key]=equipment_hours.get(key,Decimal(0))+Decimal(entry['hours'])
+        for r in (rows if money_rows is None else money_rows):
+            for entry in r.payload.get('financial_entries') or []:
+                op=str(entry['operation_date'])
+                if from_date and op<str(from_date):continue
+                if to_date and op>str(to_date):continue
+                financial.append({'report_id':r.id,**entry})
+                financial_totals[entry['kind']]=financial_totals.get(entry['kind'],0)+entry['amount_kopecks']
         return {'report_count':len(rows),'no_work_count':sum(r.payload['kind']=='no_work' for r in rows),
                 'period':{'from_date':str(from_date) if from_date else None,'to_date':str(to_date) if to_date else None},
                 'source_report_ids':[r.id for r in rows],
-                'volumes':[{'site_id':s,'work_type':t,'unit':unit,'quantity':str(qty)} for (s,t,unit),qty in sorted(volumes.items())],
-                'daily':[{'date':d,'report_count':n} for d,n in sorted(daily.items())],
+                'volumes':[{'site_id':s,'work_type':t,'unit':unit,'quantity':str(item['qty']),'source_report_ids':item['ids'],'confirmed_zero':item['qty']==0} for (s,t,unit),item in sorted(volumes.items())],
+                'qualitative_works':sorted(qualitative.values(),key=lambda item:(-item['report_count'],item['work_type'],item['site_id'])),
+                'qualitative_work_count':sum(item['report_count'] for item in qualitative.values()),
+                'daily':[{'date':d,'report_count':item['count'],'source_report_ids':item['ids']} for d,item in sorted(daily.items())],
                 'no_work_reasons':sorted(reasons.values(),key=lambda x:(-x['report_count'],x['reason'])),
                 'incident_count':len(incidents),
                 'incidents':incidents,
@@ -507,12 +524,15 @@ def create_app(database_url=None, storage=None, initialize=False):
                 'limitations':['Только отправленные и проверенные отчёты. Нет отчётов — не означает отсутствие работ.',
                                'События считаются только по явно заполненным записям; отсутствие записи не подтверждает отсутствие события.',
                                'Материалы без указанного движения не входят в суммы прихода и расхода; остаток не рассчитывается.',
-                               'Деньги — заявленные операции по датам отчётов; поступления, расходы и авансы не смешиваются. Баланс и зарплата не рассчитываются.',
+                               'Деньги — только зарегистрированные операции по дате операции. Упоминания в переписке не входят. Поступления, расходы и авансы не смешиваются. Баланс не рассчитывается: нет начального остатка.',
                                'Часы техники заявлены отправителем и не превращаются в стоимость без тарифа.',
-                               'Нет утверждённых планов и расписаний: план-факт и просрочки не рассчитаны.']}
+                               'Нет утверждённых планов и расписаний: план-факт, процент готовности и просрочки не рассчитаны.',
+                               'Живая сводка строится из доставленных структурированных отчётов, не из текста архива.']}
     @api.get('/api/v1/analytics/summary')
     def summary(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,author_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None):
-        return metrics(analytic_rows(db,u,site_id,from_date,to_date,author_id),from_date,to_date)
+        work=analytic_rows(db,u,site_id,from_date,to_date,author_id)
+        money=analytic_rows(db,u,site_id,from_date,to_date,author_id,by_work_date=False)
+        return metrics(work,from_date,to_date,money)
     @api.post('/api/v1/analytics/ask')
     def ask(data:Ask,db:Session=Depends(dbdep),u:User=Depends(current)):
         f=data.filters
@@ -528,7 +548,8 @@ def create_app(database_url=None, storage=None, initialize=False):
                         'period':{'from_date':str(f.from_date) if f.from_date else None,'to_date':str(f.to_date) if f.to_date else None},
                         'limitations':['Свободный LLM-диалог отключён до согласования B13. Даты из текста не интерпретируются.']}
         rows=analytic_rows(db,u,f.site_id,f.from_date,f.to_date,f.author_id)
-        result=metrics(rows,f.from_date,f.to_date)
+        money=analytic_rows(db,u,f.site_id,f.from_date,f.to_date,f.author_id,by_work_date=False)
+        result=metrics(rows,f.from_date,f.to_date,money)
         # Explicit intent is the entire whitelist. Free text never becomes SQL, tools or instructions.
         answers={
             'summary':f"Получено отчётов: {result['report_count']}. Без работ: {result['no_work_count']}.",
@@ -540,7 +561,12 @@ def create_app(database_url=None, storage=None, initialize=False):
         answers['finance']=f"Денежных операций: {len(result['financial_entries'])}. Поступления, расходы и авансы разделены."
         answers['equipment']=f"Записей спецтехники: {len(result['equipment'])}. Часы сгруппированы по виду техники."
         key={'finance':'financial_entries','equipment':'equipment'}.get(intent,intent)
-        sources=([r.id for r in rows if r.payload.get(key)] if intent in ('incidents','materials','finance','equipment') else result['source_report_ids'])
+        if intent=='finance':
+            sources=[]
+            for entry in result['financial_entries']:
+                if entry['report_id'] not in sources:sources.append(entry['report_id'])
+        else:
+            sources=([r.id for r in rows if r.payload.get(key)] if intent in ('incidents','materials','equipment') else result['source_report_ids'])
         return {'answer':answers[intent],'mode':'local_analytics','intent':intent,'supported':True,
                 'period':result['period'],'metrics':result,'source_report_ids':sources,
                 'limitations':result['limitations']+['Используются только поддерживаемый сценарий и явные фильтры. LLM отключена до согласования B13. Хронология ограничена 200 последними записями.']}

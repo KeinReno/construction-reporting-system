@@ -62,7 +62,7 @@ class ReportSync(private val transport:ReportTransport,private val save:suspend 
             } catch(e:CancellationException) { throw e
             } catch (e:Exception) {
                 val permanent=(e is ApiException && !SyncPolicy.retryable(e.status)) || e is IllegalArgumentException || e is java.io.FileNotFoundException
-                save(progress.copy(status=if(permanent) "failed" else "queued",lastError=e.message?.take(200)))
+                save(progress.copy(status=if(permanent) "failed" else "queued",lastError=connectionMessage(e,"Не удалось отправить отчёт. Проверьте его состояние").take(200)))
                 return !permanent
             }
         return false

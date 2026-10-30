@@ -5,7 +5,7 @@ import androidx.room.withTransaction
 
 object HttpsEndpoint {
     fun normalize(value:String):String {
-        val uri=URI(value.trim())
+        val uri=runCatching { URI(value.trim()) }.getOrElse { throw IllegalArgumentException("Некорректный адрес сервера") }
         require(uri.scheme.equals("https",ignoreCase=true) && !uri.host.isNullOrBlank()) {"Нужен HTTPS-адрес сервера"}
         require(uri.rawUserInfo==null && uri.rawQuery==null && uri.rawFragment==null) {"Адрес не должен содержать логин, параметры или #"}
         require(uri.port==-1 || uri.port in 1..65535) {"Неверный порт"}

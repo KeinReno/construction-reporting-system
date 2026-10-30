@@ -9,6 +9,28 @@ import java.security.MessageDigest
 
 /** Must only be called from Dispatchers.IO / Worker, never directly on the UI thread. */
 class ApiException(val status:Int, message:String): Exception(message)
+internal fun connectionMessage(error:Exception, fallback:String):String = when(error) {
+    is java.io.FileNotFoundException -> "Не найден локальный файл фотографии. Проверьте вложения отчёта"
+    is java.io.IOException -> "Нет связи с сервером. Проверьте подключение и повторите"
+    is ApiException -> error.message ?: fallback
+    else -> error.message?.takeIf { message -> message.any { it in 'А'..'я' || it=='ё' || it=='Ё' } } ?: fallback
+}
+private fun apiMessage(status:Int,detail:String=""):String = when(detail) {
+    "Revision conflict", "Revision/status conflict" -> "Отчёт изменился. Обновите статус перед повтором"
+    "Client update required for extended report", "Client update required for material movements", "Client cannot preserve extended report fields" -> "Обновите приложение для работы с этим отчётом"
+    "Required photos incomplete" -> "Не все обязательные фотографии загружены"
+    else -> when(status) {
+        401 -> "Сессия завершилась. Войдите снова"
+        403 -> "Недостаточно прав для этого действия"
+        404 -> "Запрошенные данные не найдены"
+        409 -> "Данные изменились или действие недоступно. Проверьте отчёт"
+        413 -> "Размер фотографии превышает допустимый"
+        422 -> "Проверьте данные отчёта"
+        429 -> "Слишком много запросов. Попробуйте позже"
+        in 500..599 -> "Ошибка сервера. Повторите отправку позже"
+        else -> "Не удалось выполнить запрос (код $status)"
+    }
+}
 
 class ApiClient(endpoint:String=BuildConfig.API_BASE_URL,private val demo:DemoBackend?=null) {
     companion object {
@@ -38,7 +60,7 @@ class ApiClient(endpoint:String=BuildConfig.API_BASE_URL,private val demo:DemoBa
             }
             val status=connection.responseCode
             val text=(if(status in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use{it.readText()} ?: ""
-            if(status !in 200..299) throw ApiException(status,"HTTP $status: ${text.take(250)}")
+            if(status !in 200..299) throw ApiException(status,apiMessage(status,runCatching { JSONObject(text).optString("detail") }.getOrDefault("")))
             return JSONObject(text)
         } finally { connection.disconnect() }
     }
@@ -58,7 +80,7 @@ class ApiClient(endpoint:String=BuildConfig.API_BASE_URL,private val demo:DemoBa
             connection.instanceFollowRedirects=false
             connection.connectTimeout=15000;connection.readTimeout=15000
             connection.setRequestProperty("Authorization","Bearer $token")
-            if(connection.responseCode !in 200..299) throw ApiException(connection.responseCode,"Cannot load objects: HTTP ${connection.responseCode}")
+            if(connection.responseCode !in 200..299) throw ApiException(connection.responseCode,apiMessage(connection.responseCode))
             val array=JSONArray(connection.inputStream.bufferedReader().use{it.readText()})
             return (0 until array.length()).map { i ->
                 val item=array.getJSONObject(i)

@@ -33,10 +33,10 @@ data class FormSnapshot(
     companion object {
         fun decode(payload:String,ownerId:String):FormSnapshot {
             val o=JSONObject(payload)
-            require(o.optInt("version",1)==1) {"Unsupported saved form version"}
+            require(o.optInt("version",1)==1) {"Версия сохранённой формы не поддерживается"}
             val d=o.optJSONObject("editing")
             val editing=d?.let {
-                require(it.getString("ownerId")==ownerId) {"Saved form owner mismatch"}
+                require(it.getString("ownerId")==ownerId) {"Сохранённая форма принадлежит другой учётной записи"}
                 Draft(id=it.getString("id"),ownerId=ownerId,siteId=it.getString("siteId"),siteName=it.getString("siteName"),workDate=it.getString("workDate"),kind=it.getString("kind"),
                     workEntriesJson=it.getString("workEntriesJson"),noWorkReason=it.getString("noWorkReason"),comment=it.getString("comment"),photosJson=it.getString("photosJson"),
                     status=it.getString("status"),serverId=it.nullable("serverId"),receiptId=it.nullable("receiptId"),lastError=it.nullable("lastError"),createdAt=it.getLong("createdAt"),

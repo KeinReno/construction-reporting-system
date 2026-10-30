@@ -22,41 +22,46 @@ class FormRecreationTest {
         SecureSession(context).save("synthetic-offline-token","synthetic-owner")
         context.getSharedPreferences("site-cache",Context.MODE_PRIVATE).edit().putString("synthetic-owner","""[{"id":"synthetic-site","name":"Synthetic offline site"},{"id":"synthetic-site-two","name":"Synthetic second site"}]""").commit()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            compose.waitUntil(10_000) {compose.onAllNodesWithText("Дата работ YYYY-MM-DD *").fetchSemanticsNodes().isNotEmpty()}
+            compose.waitUntil(10_000) {compose.onAllNodesWithText("Дата работ дд/мм/гггг *").fetchSemanticsNodes().isNotEmpty()}
             compose.waitUntil(10_000) {compose.onAllNodesWithText("Synthetic offline site").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("Synthetic offline site").performScrollTo().performClick()
             compose.onNodeWithText("Synthetic second site").performClick()
-            compose.onNodeWithText("Дата работ YYYY-MM-DD *").performScrollTo().performTextReplacement("1899-12-31")
+            compose.onNodeWithText("Дата работ дд/мм/гггг *").performScrollTo().performTextReplacement("31/12/1899")
             compose.onNodeWithText("Выбрать дату в календаре").performScrollTo().performClick()
             compose.onNodeWithText("Отмена").performClick()
-            compose.onNodeWithText("Дата работ YYYY-MM-DD *").assertTextContains("1899-12-31")
-            compose.onNodeWithText("Дата работ YYYY-MM-DD *").performScrollTo().performTextReplacement("2026-1")
+            compose.onNodeWithText("Дата работ дд/мм/гггг *").assertTextContains("31/12/1899")
+            compose.onNodeWithText("Дата работ дд/мм/гггг *").performScrollTo().performTextReplacement("25/10/2")
             compose.onNodeWithText("Выбрать дату в календаре").performScrollTo().performClick()
             compose.onNodeWithText("Отмена").performClick()
-            compose.onNodeWithText("Дата работ YYYY-MM-DD *").assertTextContains("2026-1")
+            compose.onNodeWithText("Дата работ дд/мм/гггг *").assertTextContains("25/10/2")
             compose.onNodeWithText("Сварка металлоконструкций").performScrollTo().performClick()
             compose.onNodeWithText("Монтаж").performClick()
             compose.onNodeWithText("Выполненный объём").performScrollTo().performTextInput("1,")
             compose.onNodeWithText("Бригада (необязательно)").performScrollTo().performTextInput("Synthetic crew")
+            compose.onNodeWithText("Материалы (0)",substring=true).performScrollTo().performClick()
             compose.onNodeWithText("Название материала").performScrollTo().performTextInput("Unfinished material")
             compose.waitUntil(10_000) {
                 runBlocking { db.forms().get("synthetic-owner")?.let {
                     val form=FormSnapshot.decode(it.payload,it.ownerId)
-                    form.workDate=="2026-1" && form.quantity=="1," && form.workType=="Монтаж" && form.siteId=="synthetic-site-two" && form.crew=="Synthetic crew" && form.materialName=="Unfinished material"
+                    form.workDate=="25/10/2" && form.quantity=="1," && form.workType=="Монтаж" && form.siteId=="synthetic-site-two" && form.crew=="Synthetic crew" && form.materialName=="Unfinished material"
                 }?:false }
             }
             scenario.recreate()
-            compose.waitUntil(10_000) {compose.onAllNodesWithText("Дата работ YYYY-MM-DD *").fetchSemanticsNodes().isNotEmpty()}
-            compose.onNodeWithText("Дата работ YYYY-MM-DD *").assertTextContains("2026-1")
+            compose.waitUntil(10_000) {compose.onAllNodesWithText("Дата работ дд/мм/гггг *").fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithText("Дата работ дд/мм/гггг *").assertTextContains("25/10/2")
             compose.onNodeWithText("Монтаж").assertExists()
             compose.onNodeWithText("Synthetic second site").assertExists()
+            compose.onNodeWithText("Материалы (0)",substring=true).performScrollTo().performClick()
             compose.onNodeWithText("Название материала").performScrollTo().assertTextContains("Unfinished material")
             compose.onNodeWithText("Выполненный объём").assertTextContains("1,")
+            compose.onNodeWithText("История").performClick()
             compose.onNodeWithText("Исправить локальный отчёт").performScrollTo().performClick()
             compose.onNodeWithText("Открыть другой отчёт?").assertExists()
             compose.onNodeWithText("Продолжить текущую форму").performClick()
+            compose.onNodeWithText("Отчёт").performClick()
             compose.onNodeWithText("Выполненный объём").assertTextContains("1,")
-            compose.onNodeWithText("Дата работ YYYY-MM-DD *").assertTextContains("2026-1")
+            compose.onNodeWithText("Дата работ дд/мм/гггг *").assertTextContains("25/10/2")
+            compose.onNodeWithText("История").performClick()
             compose.onNodeWithText("Исправить локальный отчёт").performScrollTo().performClick()
             compose.onNodeWithText("Открыть отчёт").performClick()
             compose.onNodeWithText("Выполненный объём").assert(SemanticsMatcher("Discarded pending quantity is cleared"){it.config[SemanticsProperties.EditableText].text.isEmpty()})

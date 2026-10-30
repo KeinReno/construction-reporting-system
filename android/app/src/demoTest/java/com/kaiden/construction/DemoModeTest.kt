@@ -60,22 +60,27 @@ class DemoModeTest {
         assertEquals(2,api.sites(DemoBackend.TOKEN).size)
         ActivityScenario.launch(MainActivity::class.java).use {
             compose.waitUntil(15_000){compose.onAllNodesWithText("Посмотреть примеры (6)").fetchSemanticsNodes().isNotEmpty()}
-            compose.onNodeWithText("2026-05-15 · Работы · Проверен").assertDoesNotExist()
+            compose.onNodeWithText("15/05/2026 · Работы · Проверен").assertDoesNotExist()
             compose.onNodeWithText("Посмотреть примеры (6)").performClick()
             screenshot(context,"android-01-examples.png")
-            compose.onNodeWithText("2026-05-15 · Работы · Проверен").performScrollTo().performClick()
-            compose.onNodeWithText("Демо-отчёт 2026-05-15").assertExists()
+            compose.onNodeWithText("15/05/2026 · Работы · Проверен").performScrollTo().performClick()
+            compose.onNodeWithText("Демо-отчёт 15/05/2026").assertExists()
             compose.onNodeWithContentDescription("Демо-схема, не фото объекта").assertExists()
             screenshot(context,"android-02-report.png")
             compose.onNodeWithText("Закрыть пример").performClick()
             compose.onNodeWithText("Новый отчёт").performScrollTo()
             screenshot(context,"android-03-form.png")
+            compose.onNodeWithText("Дата работ дд/мм/гггг *").performScrollTo().performTextReplacement("31/02/2026")
+            compose.onNodeWithText("Сохранить и отправить").performScrollTo().performClick()
+            compose.onNodeWithText("Укажите корректную дату работ в формате дд/мм/гггг").assertExists()
+            compose.onNodeWithText("Дата работ дд/мм/гггг *").performScrollTo().performTextReplacement("22/10/2026")
             compose.onNodeWithText("Выполненный объём").performScrollTo()
             screenshot(context,"android-04-work-fields.png")
             compose.onNodeWithText("Выполненный объём").performTextInput("2.75")
             compose.onNodeWithText("+ Добавить вид работ").performScrollTo().performClick()
             compose.onNodeWithText("Бригада (необязательно)").performScrollTo().performTextInput("Демо бригада")
             ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("input keyevent 4")).use{it.readBytes()}
+            compose.onNodeWithText("Материалы (0)",substring=true).performScrollTo().performClick()
             compose.onNodeWithText("Движение материала").performScrollTo()
             compose.onNodeWithText("Поступило").performScrollTo().performClick()
             compose.onNodeWithText("Название материала").performScrollTo().performTextInput("Демо материал")
@@ -83,11 +88,13 @@ class DemoModeTest {
             compose.onNodeWithText("Единица материала").performScrollTo().performTextInput("м")
             compose.onNodeWithText("+ Добавить материал").performScrollTo().performClick()
             compose.onNodeWithText("2.5 м",substring=true).assertExists()
+            compose.onNodeWithText("События и проблемы (0)",substring=true).performScrollTo().performClick()
             compose.onNodeWithText("Что произошло (необязательно)").performScrollTo().performTextInput("Демо событие")
             compose.onNodeWithText("+ Добавить событие").performScrollTo().performClick()
             compose.onNodeWithText("Деньги (0)",substring=true).performScrollTo().performClick()
             compose.onNodeWithText("Сумма, ₽").performScrollTo().performTextInput("125,50")
             compose.onNodeWithText("Категория (например, топливо)").performScrollTo().performTextInput("Учебное топливо")
+            compose.onNodeWithText("Дата операции дд/мм/гггг").performScrollTo().performTextReplacement("20/10/2026")
             compose.onNodeWithText("+ Добавить денежную операцию").performScrollTo().performClick()
             compose.onNodeWithText("Расход ·",substring=true).assertExists()
             ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("input keyevent 4")).use{it.readBytes()}
@@ -104,6 +111,7 @@ class DemoModeTest {
             compose.waitUntil(20_000){runBlocking{db.drafts().observeAll(DemoBackend.OWNER).first().any{r->r.createdAt>10000 && r.status=="delivered"}}}
         }
         val added=db.drafts().observeAll(DemoBackend.OWNER).first().single{it.createdAt>10000}
+        assertEquals("2026-10-22",added.workDate)
         assertNotNull(added.receiptId)
         val reopened=DemoBackend(context).request("/reports/by-client/${added.id}","GET",DemoBackend.TOKEN,null)
         assertEquals("submitted",reopened.getString("status"));assertEquals("2.75",reopened.getJSONObject("data").getJSONArray("work_entries").getJSONObject(0).getString("quantity"))
@@ -112,6 +120,7 @@ class DemoModeTest {
         assertEquals("received",reopened.getJSONObject("data").getJSONArray("materials").getJSONObject(0).getString("direction"))
         assertEquals("Демо событие",reopened.getJSONObject("data").getJSONArray("incidents").getJSONObject(0).getString("description"))
         assertEquals(12550,reopened.getJSONObject("data").getJSONArray("financial_entries").getJSONObject(0).getInt("amount_kopecks"))
+        assertEquals("2026-10-20",reopened.getJSONObject("data").getJSONArray("financial_entries").getJSONObject(0).getString("operation_date"))
         assertEquals("Учебный кран",reopened.getJSONObject("data").getJSONArray("equipment").getJSONObject(0).getString("type"))
         assertEquals("Проверить доступ",reopened.getJSONObject("data").getJSONArray("next_shift_plans").getString(0))
         // Receipt is stable on replay; the simulated server is private local JSON, not HTTPS.

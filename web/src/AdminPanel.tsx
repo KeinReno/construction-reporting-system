@@ -1,3 +1,4 @@
+import { formatTimestamp } from './date';
 import { useCallback,useEffect,useRef,useState } from 'react';
 import { ApiError,http,type Site } from './api';
 type User={id:string;login:string;role:'admin'|'manager'|'foreman';active:boolean};
@@ -47,6 +48,6 @@ export function AdminPanel({token,onExpired}:{token:string;onExpired:()=>void}) 
       <label>Новый пароль<input required type="password" minLength={12} maxLength={1024} autoComplete="new-password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/></label><button className="primary">Сменить пароль</button></fieldset>
     </form></div>
     <section className="card"><h2>Выданные доступы</h2><ul>{assignments.map(a=><li key={a.id}>{users.find(u=>u.id===a.user_id)?.login||a.user_id} → {sites.find(s=>s.id===a.site_id)?.name||a.site_id} <button disabled={busy} className="quiet" onClick={()=>void execute(async()=>{await http('/admin/assignments/'+a.id,token,{method:'DELETE'});})}>Отозвать доступ</button></li>)}</ul>{!assignments.length&&<p>Назначений пока нет.</p>}</section>
-    <section className="card"><h2>Журнал управления</h2><ol>{audit.map(e=><li key={e.id}>{actions[e.action]||e.action} · {users.find(u=>u.id===e.target_id)?.login||sites.find(s=>s.id===e.target_id)?.name||''} · {new Date(e.occurred_at).toLocaleString('ru-RU')}</li>)}</ol></section>
+    <section className="card"><h2>Журнал управления</h2><ol>{audit.map(e=><li key={e.id}>{actions[e.action]||e.action} · {users.find(u=>u.id===e.target_id)?.login||sites.find(s=>s.id===e.target_id)?.name||''} · {formatTimestamp(e.occurred_at)}</li>)}</ol></section>
   </section>;
 }

@@ -120,6 +120,12 @@ def test_finance_equipment_and_plans_survive_revision_without_double_count(env):
     assert c.post(f'/api/v1/reports/{rid}/submit',headers=capable,json={'expected_revision':1}).status_code==200
     summary=c.get('/api/v1/analytics/summary',headers=m).json()
     assert summary['financial_totals_kopecks']=={'expense':12550,'advance_issued':500000}
+    by_operation=c.get('/api/v1/analytics/summary?from_date=2026-10-20&to_date=2026-10-20',headers=m).json()
+    assert by_operation['report_count']==0 and by_operation['financial_totals_kopecks']=={'expense':12550}
+    by_shift=c.get('/api/v1/analytics/summary?from_date=2026-10-25&to_date=2026-10-25',headers=m).json()
+    assert by_shift['financial_totals_kopecks']=={'advance_issued':500000}
+    late=c.post('/api/v1/analytics/ask',headers=m,json={'intent':'finance','question':'Расход','filters':{'from_date':'2026-10-20','to_date':'2026-10-20'}}).json()
+    assert late['source_report_ids']==[rid]
     assert summary['equipment_hours']==[{'type':'Crane','hired':True,'hours':'7.5'}]
     assert summary['financial_entries'][0]['operation_date']=='2026-10-20'
     finance=c.post('/api/v1/analytics/ask',headers=m,json={'intent':'finance','question':'Покажи расходы','filters':{}})

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -12,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,7 +36,24 @@ fun businessStatusLabel(status:String?):String = when(status) {
     "reviewed" -> "Проверен"
     "needs_revision" -> "На уточнении"
     null -> "Черновик"
-    else -> status
+    else -> "Неизвестный статус"
+}
+private fun localErrorMessage(error:Exception,fallback:String):String =
+    error.message?.takeIf { message -> message.any { it in 'А'..'я' || it=='ё' || it=='Ё' } } ?: fallback
+
+@Composable
+private fun NavigationIcon(history:Boolean) {
+    val color=LocalContentColor.current
+    Canvas(Modifier.size(24.dp)) {
+        val w=size.width
+        fun line(x1:Float,y1:Float,x2:Float,y2:Float) = drawLine(color,Offset(x1*w,y1*w),Offset(x2*w,y2*w),strokeWidth=1.8.dp.toPx())
+        if(history) {
+            line(.22f,.25f,.78f,.25f);line(.22f,.5f,.78f,.5f);line(.22f,.75f,.78f,.75f)
+        } else {
+            line(.25f,.14f,.72f,.14f);line(.25f,.14f,.25f,.86f);line(.25f,.86f,.75f,.86f);line(.75f,.86f,.75f,.32f)
+            line(.38f,.40f,.62f,.40f);line(.38f,.56f,.62f,.56f);line(.38f,.72f,.55f,.72f)
+        }
+    }
 }
 
 @Composable
@@ -93,7 +112,7 @@ fun ReportApp() {
                 siteCache.edit().putString(ownerId,JSONArray(sites.map { JSONObject().put("id",it.first).put("name",it.second) }).toString()).apply()
                 SyncWorker.schedule(context)
             } catch(e:CancellationException){throw e}
-            catch (e:Exception) {error=e.message?:"Ошибка подключения";if(e is ApiException && e.status==401){session.clear();token=null}}
+            catch (e:Exception) {error=connectionMessage(e,"Не удалось загрузить объекты");if(e is ApiException && e.status==401){session.clear();token=null}}
         }
     }
     if(token==null && BuildConfig.DEMO_MODE) {
@@ -125,7 +144,7 @@ fun ReportApp() {
                         val result=withContext(Dispatchers.IO){api.login(login,password)}
                         val userId=withContext(Dispatchers.IO){api.me(result)}
                         endpointSettings.bindAfterLogin(serverUrl);session.save(result,userId,serverUrl);token=result;password=""
-                    }catch(e:Exception){error=e.message?:"Неверные данные"}
+                    }catch(e:Exception){error=connectionMessage(e,"Не удалось войти. Проверьте данные и подключение")}
                     finally{busy=false}
                 }
             },modifier=Modifier.fillMaxWidth()){Text(if(busy) "Подключение…" else "Войти")}
@@ -135,7 +154,7 @@ fun ReportApp() {
     var selectedSite by remember(ownerId) { mutableStateOf("") }
     var workDate by remember(ownerId) { mutableStateOf(LocalDate.now().toString()) }
     var kind by remember(ownerId) { mutableStateOf("work") }
-    var workType by remember(ownerId) { mutableStateOf("Сварка металлоконструкций") }
+    var workType by remember(ownerId) { mutableStateOf(WorkCatalog.DEFAULT) }
     var quantity by remember(ownerId) { mutableStateOf("") }
     var unit by remember(ownerId) { mutableStateOf("шт") }
     var description by remember(ownerId) { mutableStateOf("") }
@@ -192,8 +211,8 @@ fun ReportApp() {
         financeKind="expense";financeAmount="";financeCategory="";financeDate="";financeDescription="";financeReceiptPhotoId="";equipmentType="";equipmentHours="";equipmentHired=false;planText=""
     }
     fun replaceForm(action:()->Unit) {
-        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned" || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || financialEntries.isNotEmpty() || financeKind!="expense" || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || financeReceiptPhotoId.isNotBlank() || equipment.isNotEmpty() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || equipmentHired || nextShiftPlans.isNotEmpty() || planText.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!="Сварка металлоконструкций" || unit!="шт"
-        val replacement={quantity="";description="";workType="Сварка металлоконструкций";unit="шт";editReason="";action()}
+        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned" || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || financialEntries.isNotEmpty() || financeKind!="expense" || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || financeReceiptPhotoId.isNotBlank() || equipment.isNotEmpty() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || equipmentHired || nextShiftPlans.isNotEmpty() || planText.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!=WorkCatalog.DEFAULT || unit!=WorkCatalog.unitFor(WorkCatalog.DEFAULT)
+        val replacement={quantity="";description="";workType=WorkCatalog.DEFAULT;unit=WorkCatalog.unitFor(WorkCatalog.DEFAULT);editReason="";action()}
         if(hasInput)pendingReplacement=replacement else replacement()
     }
     suspend fun cleanupRemovedPhotos() {
@@ -230,7 +249,7 @@ fun ReportApp() {
             for(i in 0 until images.length())photos.add(images.getJSONObject(i))
             editing=saved.editing;editReason=saved.editReason;restoreError="";formSession=record
         }catch(e:CancellationException){throw e}
-        catch(e:Exception){restoreError=e.message?:"Не удалось восстановить форму"}
+        catch(e:Exception){restoreError=localErrorMessage(e,"Не удалось восстановить форму. Повторите загрузку")}
     }
     LaunchedEffect(formSession?.sessionId) {
         val record=formSession?:return@LaunchedEffect
@@ -241,7 +260,7 @@ fun ReportApp() {
                     val saved=withContext(Dispatchers.IO){formRepository.save(record.copy(payload=snapshot.encode()))}
                     if(saved && formSession?.sessionId==record.sessionId && currentForm()==snapshot){autosaveStatus="Форма сохранена на устройстве";cleanupRemovedPhotos()}
                 }catch(e:CancellationException){throw e}
-                catch(e:Exception){autosaveStatus="Автосохранение не выполнено: ${e.message?:"ошибка хранилища"}"}
+                catch(e:Exception){autosaveStatus="Автосохранение не выполнено: ${localErrorMessage(e,"ошибка хранилища")}"}
             }
     }
     LaunchedEffect(sites,formSession?.sessionId) {if(formSession!=null && selectedSite.isBlank() && sites.isNotEmpty()) selectedSite=sites.first().first}
@@ -289,19 +308,31 @@ fun ReportApp() {
                         if(attachToFinance)financeReceiptPhotoId=id
                     } else file.delete()
                 }catch(e:CancellationException){throw e}
-                catch(e:Exception){formError=e.message?:"Не удалось добавить фото"}
+                catch(e:Exception){formError=localErrorMessage(e,"Не удалось добавить фото. Попробуйте ещё раз")}
             }} finally {busy=false}
         }
         }
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+    var showHistory by remember(ownerId) { mutableStateOf(false) }
+    var showMaterials by remember(ownerId) { mutableStateOf(false) }
+    var showIncidents by remember(ownerId) { mutableStateOf(false) }
+    val formScroll=rememberScrollState()
+    val historyScroll=rememberScrollState()
+    Scaffold(modifier=Modifier.statusBarsPadding(),bottomBar={
+        NavigationBar {
+            NavigationBarItem(selected=!showHistory,onClick={showHistory=false},icon={NavigationIcon(false)},label={Text("Отчёт")})
+            NavigationBarItem(selected=showHistory,onClick={showHistory=true},icon={NavigationIcon(true)},label={Text("История")})
+        }
+    }) { innerPadding ->
+    Column(Modifier.fillMaxSize().padding(innerPadding).verticalScroll(if(showHistory) historyScroll else formScroll).padding(horizontal=20.dp, vertical=16.dp), verticalArrangement=Arrangement.spacedBy(8.dp)) {
         if(BuildConfig.DEMO_MODE) {
             Text("ДЕМО · всё хранится только на этом телефоне",style=MaterialTheme.typography.titleMedium)
             Text("6 примеров на основе обезличенных сообщений. Схемы вместо фото. Синхронизации с Windows в этом режиме нет.")
             DemoExamples(drafts)
         }
+        if(!showHistory) {
         Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()) {
-            Text("Новый отчёт",style=MaterialTheme.typography.headlineSmall)
+            Column { Text("CRS  /  ОТЧЁТ БРИГАДИРА",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary); Text("Новый отчёт",style=MaterialTheme.typography.headlineSmall) }
             TextButton(enabled=!busy,onClick={val oldToken=token;session.clear();token=null;sites=emptyList();scope.launch(Dispatchers.IO){try{if(oldToken!=null)api.logout(oldToken)}catch(_:Exception){}}}) {Text("Выход")}
         }
         if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
@@ -310,31 +341,44 @@ fun ReportApp() {
             Text("Исправление возвращённого отчёта · версия ${editing!!.serverRevision}")
             OutlinedTextField(editReason,{editReason=it},label={Text("Причина исправления *")},modifier=Modifier.fillMaxWidth())
         }
+        HorizontalDivider(Modifier.padding(top=8.dp))
+        Text("01  ОБЪЕКТ И СМЕНА",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
         CompactSelection("Объект *",selectedSite,sites,enabled=editing==null,onSelect={selectedSite=it})
         if(sites.isEmpty())Text("Нет доступных объектов. Проверьте подключение.")
         WorkDateField(workDate){workDate=it}
         Spacer(Modifier.height(12.dp))
+        HorizontalDivider(Modifier.padding(top=8.dp))
+        Text("02  РАБОТЫ",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
         Row { FilterChip(selected=kind=="work",onClick={kind="work"},label={Text("Работы выполнены")});Spacer(Modifier.width(8.dp));FilterChip(selected=kind=="no_work",onClick={kind="no_work"},label={Text("Работ не было")}) }
         if(kind=="work") {
-            // TEMPORARY proposal pending SPEC-00 B07; work type to come from server catalog.
-            val types=listOf("Сварка металлоконструкций","Монтаж","Покраска","Разгрузка","Другое")
-            CompactSelection("Вид работы *",workType,types.map { it to it },onSelect={workType=it})
-            OutlinedTextField(quantity,{quantity=it},label={Text("Выполненный объём")},modifier=Modifier.fillMaxWidth(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
-            OutlinedTextField(unit,{unit=it},label={Text("Единица измерения")},modifier=Modifier.fillMaxWidth())
-            OutlinedTextField(description,{description=it},label={Text("Описание (для работ без объёма / Другое)")},modifier=Modifier.fillMaxWidth())
+            CompactSelection("Вид работы *",workType,WorkCatalog.names.map { it to it },onSelect={ next ->
+                val applied=WorkCatalog.applyType(workType,next,quantity)
+                workType=next;unit=applied.first;quantity=applied.second
+            })
+            if(WorkCatalog.qualitative(workType)) Text("Без численного объёма")
+            else {
+                OutlinedTextField(quantity,{quantity=it},label={Text("Выполненный объём")},modifier=Modifier.fillMaxWidth(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
+                Text("Единица: $unit")
+            }
+            OutlinedTextField(description,{description=it},label={Text(if(workType=="Другое") "Пояснение для «Другое» *" else "Описание (необязательно)")},modifier=Modifier.fillMaxWidth())
             OutlinedButton(onClick={
-                val n=quantity.replace(',','.').toBigDecimalOrNull()
-                if(workEntries.size>=100 || description.length>2000 || unit.length>50 || (n!=null && (n.stripTrailingZeros().scale()>6 || n.precision()-n.scale()>14)) || (quantity.isNotBlank() && n==null) || (n==null && description.isBlank()) || (n!=null && n< java.math.BigDecimal.ZERO) || (n!=null && unit.isBlank()) || (workType=="Другое" && description.isBlank()))formError="Укажите корректный объём или описание"
-                else {workEntries.add(JSONObject().apply {put("type",workType);if(n!=null){put("quantity",n.toPlainString());put("unit",unit)};if(description.isNotBlank())put("description",description)});quantity="";description="";formError=""}
+                val problem=WorkCatalog.addError(workType,quantity,unit,description,workEntries.size)
+                if(problem!=null)formError=problem
+                else {workEntries.add(WorkCatalog.entry(workType,quantity,unit,description));quantity="";description="";workType=WorkCatalog.DEFAULT;unit=WorkCatalog.unitFor(WorkCatalog.DEFAULT);formError=""}
             }) {Text("+ Добавить вид работ")}
             workEntries.forEachIndexed{ i,w -> Row {
-                Text("${i+1}. ${w.getString("type")} — ${w.optString("quantity",w.optString("description"))}",Modifier.weight(1f))
+                Text("${i+1}. ${WorkCatalog.rowLabel(w)}",Modifier.weight(1f))
                 TextButton(onClick={workEntries.removeAt(i)}){Text("Удалить")}
             }}
         } else OutlinedTextField(reason,{reason=it},label={Text("Причина отсутствия работ *")},modifier=Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(crew,{crew=it},label={Text("Бригада (необязательно)")},modifier=Modifier.fillMaxWidth())
-        Text("Материалы",style=MaterialTheme.typography.titleSmall)
+        HorizontalDivider(Modifier.padding(top=8.dp))
+        Text("03  МАТЕРИАЛЫ И СОБЫТИЯ",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+        TextButton(onClick={showMaterials=!showMaterials},modifier=Modifier.fillMaxWidth()) {
+            Text("Материалы (${materials.size})${if(materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned") " · не завершено" else ""} ${if(showMaterials) "▴" else "▾"}",modifier=Modifier.weight(1f))
+        }
+        if(showMaterials) {
         Text("Движение материала",style=MaterialTheme.typography.titleSmall)
         listOf("mentioned" to "Упоминание","received" to "Поступило","consumed" to "Израсходовано").forEach { (direction,label) ->
             FilterChip(selected=materialDirection==direction,onClick={materialDirection=direction},label={Text(label)},modifier=Modifier.fillMaxWidth())
@@ -342,16 +386,23 @@ fun ReportApp() {
         OutlinedTextField(materialName,{materialName=it},label={Text("Название материала")},modifier=Modifier.fillMaxWidth())
         OutlinedTextField(materialQuantity,{materialQuantity=it},label={Text("Количество материала (необязательно)")},modifier=Modifier.fillMaxWidth(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
         OutlinedTextField(materialUnit,{materialUnit=it},label={Text("Единица материала")},modifier=Modifier.fillMaxWidth())
+        if(formError.startsWith("Проверьте название"))Text(formError,color=MaterialTheme.colorScheme.error)
         OutlinedButton(onClick={
             val n=materialQuantity.replace(',','.').toBigDecimalOrNull()
             if(materialName.isBlank() || materialName.length>200 || materialUnit.length>50 || materials.size>=100 || (materialDirection!="mentioned" && (n==null || n<=java.math.BigDecimal.ZERO)) || (materialQuantity.isNotBlank() && (n==null || n<java.math.BigDecimal.ZERO || n.stripTrailingZeros().scale()>6 || n.precision()-n.scale()>14 || materialUnit.isBlank())))formError="Проверьте название, направление, количество и единицу материала"
             else {materials.add(JSONObject().put("name",materialName.trim()).put("quantity",n?.toPlainString()?:JSONObject.NULL).put("unit",materialUnit.ifBlank { null }?:JSONObject.NULL).put("direction",materialDirection));materialName="";materialQuantity="";materialUnit="";materialDirection="mentioned";formError=""}
         }){Text("+ Добавить материал")}
         materials.forEachIndexed { i,m -> Row {Text("${m.getString("name")} · ${when(m.optString("direction","mentioned")){"received"->"поступило";"consumed"->"израсходовано";else->"упомянуто"}}${if(m.isNull("quantity"))"" else " · ${m.getString("quantity")} ${m.optString("unit")}"}",Modifier.weight(1f));TextButton(onClick={materials.removeAt(i)}){Text("Удалить")}} }
-        Text("События и проблемы",style=MaterialTheme.typography.titleSmall)
+        }
+        TextButton(onClick={showIncidents=!showIncidents},modifier=Modifier.fillMaxWidth()) {
+            Text("События и проблемы (${incidents.size})${if(incidentText.isNotBlank()) " · не завершено" else ""} ${if(showIncidents) "▴" else "▾"}",modifier=Modifier.weight(1f))
+        }
+        if(showIncidents) {
         OutlinedTextField(incidentText,{incidentText=it},label={Text("Что произошло (необязательно)")},modifier=Modifier.fillMaxWidth())
+        if(formError=="Укажите событие")Text(formError,color=MaterialTheme.colorScheme.error)
         OutlinedButton(onClick={if(incidentText.isBlank() || incidentText.length>2000 || incidents.size>=100)formError="Укажите событие" else {incidents.add(JSONObject().put("description",incidentText));incidentText="";formError=""}}){Text("+ Добавить событие")}
         incidents.forEachIndexed { i,event -> Row {Text(event.getString("description"),Modifier.weight(1f));TextButton(onClick={incidents.removeAt(i)}){Text("Удалить")}} }
+        }
         Spacer(Modifier.height(20.dp))
         HorizontalDivider()
         TextButton(onClick={showFinance=!showFinance},modifier=Modifier.padding(top=8.dp)) {Text("Деньги (${financialEntries.size}) ${if(showFinance)"▴" else "▾"}")}
@@ -360,7 +411,7 @@ fun ReportApp() {
         CompactSelection("Вид операции",financeKind,listOf("expense" to "Расход","funding_received" to "Поступление","advance_issued" to "Выдача аванса"),onSelect={financeKind=it})
         OutlinedTextField(financeAmount,{financeAmount=it},label={Text("Сумма, ₽")},modifier=Modifier.fillMaxWidth(),singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
         OutlinedTextField(financeCategory,{financeCategory=it},label={Text("Категория (например, топливо)")},modifier=Modifier.fillMaxWidth())
-        OutlinedTextField(financeDate,{financeDate=it},label={Text("Дата операции YYYY-MM-DD")},placeholder={Text(workDate)},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        OutlinedTextField(displayDate(financeDate),{financeDate=storedDate(it)},label={Text("Дата операции дд/мм/гггг")},placeholder={Text(displayDate(workDate))},modifier=Modifier.fillMaxWidth(),singleLine=true)
         OutlinedTextField(financeDescription,{financeDescription=it},label={Text("Пояснение к операции")},modifier=Modifier.fillMaxWidth())
         Text("Чек (необязательно)",style=MaterialTheme.typography.titleSmall)
         OutlinedButton(enabled=!busy,onClick={pickingReceipt=true;picker.launch("image/*")}){Text("Добавить фото чека")}
@@ -369,6 +420,7 @@ fun ReportApp() {
             val id=photo.getString("id")
             FilterChip(selected=financeReceiptPhotoId==id,onClick={financeReceiptPhotoId=id},label={Text("Фото ${index+1}")},modifier=Modifier.fillMaxWidth())
         }
+        if(formError=="Проверьте сумму, категорию и дату денежной операции")Text(formError,color=MaterialTheme.colorScheme.error)
         OutlinedButton(enabled=!busy,onClick={
             val kopecks=parseMoneyKopecks(financeAmount)
             val date=financeDate.ifBlank { workDate }
@@ -383,7 +435,7 @@ fun ReportApp() {
             val receiptId=entry.optString("receipt_photo_id").takeUnless{it.isBlank() || it=="null"}
             val receiptIndex=if(receiptId==null)-1 else photos.indexOfFirst{it.getString("id")==receiptId}
             Row(Modifier.fillMaxWidth()) {
-            Text("${when(entry.getString("kind")){"funding_received"->"Поступление";"advance_issued"->"Выдача аванса";else->"Расход"}} · ${entry.getString("operation_date")} · ${entry.getString("category")} · ${java.math.BigDecimal.valueOf(entry.getLong("amount_kopecks"),2).toPlainString()} ₽${if(receiptId==null)"" else if(receiptIndex<0)" · чек: фото отсутствует" else " · чек: фото ${receiptIndex+1}"}",Modifier.weight(1f))
+            Text("${when(entry.getString("kind")){"funding_received"->"Поступление";"advance_issued"->"Выдача аванса";else->"Расход"}} · ${displayDate(entry.getString("operation_date"))} · ${entry.getString("category")} · ${java.math.BigDecimal.valueOf(entry.getLong("amount_kopecks"),2).toPlainString()} ₽${if(receiptId==null)"" else if(receiptIndex<0)" · чек: фото отсутствует" else " · чек: фото ${receiptIndex+1}"}",Modifier.weight(1f))
             TextButton(onClick={financialEntries.removeAt(i)}){Text("Удалить")}
         } }
         }
@@ -394,6 +446,7 @@ fun ReportApp() {
         OutlinedTextField(equipmentType,{equipmentType=it},label={Text("Вид техники")},modifier=Modifier.fillMaxWidth())
         OutlinedTextField(equipmentHours,{equipmentHours=it},label={Text("Отработано часов")},modifier=Modifier.fillMaxWidth(),singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
         Row(verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {Checkbox(checked=equipmentHired,onCheckedChange={equipmentHired=it});Text("Наёмная техника")}
+        if(formError=="Укажите вид техники и часы больше нуля")Text(formError,color=MaterialTheme.colorScheme.error)
         OutlinedButton(onClick={
             val hours=equipmentHours.replace(',','.').toBigDecimalOrNull()
             if(equipmentType.isBlank() || equipmentType.length>100 || hours==null || hours<=java.math.BigDecimal.ZERO || hours.stripTrailingZeros().scale()>2 || hours.precision()-hours.scale()>6 || equipment.size>=50)
@@ -410,6 +463,7 @@ fun ReportApp() {
         TextButton(onClick={showPlans=!showPlans},modifier=Modifier.padding(top=8.dp)) {Text("План следующей смены (${nextShiftPlans.size}) ${if(showPlans)"▴" else "▾"}")}
         if(showPlans) {
         OutlinedTextField(planText,{planText=it},label={Text("Что планируется")},modifier=Modifier.fillMaxWidth())
+        if(formError=="Укажите пункт плана до 500 знаков")Text(formError,color=MaterialTheme.colorScheme.error)
         OutlinedButton(onClick={
             if(planText.isBlank() || planText.length>500 || nextShiftPlans.size>=30)formError="Укажите пункт плана до 500 знаков"
             else {nextShiftPlans.add(planText.trim());planText="";formError=""}
@@ -417,6 +471,8 @@ fun ReportApp() {
         nextShiftPlans.forEachIndexed { i,item -> Row(Modifier.fillMaxWidth()) {Text(item,Modifier.weight(1f));TextButton(onClick={nextShiftPlans.removeAt(i)}){Text("Удалить")}} }
         }
         Spacer(Modifier.height(12.dp))
+        HorizontalDivider(Modifier.padding(top=8.dp))
+        Text("04  ФОТО И ОТПРАВКА",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
         OutlinedButton(enabled=!busy,onClick={pickingReceipt=false;picker.launch("image/*")}) {Text("Добавить фотографии (${photos.size})")}
         photos.forEachIndexed { i,photo -> key(photo.getString("id")) {PhotoPreview(photo.getString("path"),i+1,!busy){
             val id=photo.getString("id")
@@ -428,12 +484,12 @@ fun ReportApp() {
         Spacer(Modifier.height(16.dp))
         Button(enabled=!busy,onClick={
             try {
-                LocalDate.parse(workDate)
+                if(runCatching { LocalDate.parse(workDate) }.isFailure)throw IllegalArgumentException("Укажите корректную дату работ в формате дд/мм/гггг")
                 if(comment.length>5000 || reason.length>2000)throw IllegalArgumentException("Комментарий — до 5000 знаков, причина — до 2000")
                 if(crew.length>1000)throw IllegalArgumentException("Бригада — до 1000 знаков")
                 if(quantity.isNotBlank() || description.isNotBlank())throw IllegalArgumentException("Добавьте заполненный вид работы либо очистите поля")
                 if(kind=="no_work" && workEntries.isNotEmpty())throw IllegalArgumentException("Удалите добавленные работы перед выбором отчёта без работ")
-                if(materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned" || incidentText.isNotBlank())throw IllegalArgumentException("Добавьте или очистите незавершённый материал или событие")
+                if(materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned" || incidentText.isNotBlank()){showMaterials=true;showIncidents=true;throw IllegalArgumentException("Добавьте или очистите незавершённый материал или событие")}
                 if(financeKind!="expense" || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || financeReceiptPhotoId.isNotBlank()){showFinance=true;throw IllegalArgumentException("Добавьте или очистите незавершённую денежную операцию")}
                 if(financialEntries.any{entry -> !entry.isNull("receipt_photo_id") && photos.none{it.getString("id")==entry.getString("receipt_photo_id")}})throw IllegalArgumentException("Фото чека отсутствует в отчёте")
                 if(equipmentType.isNotBlank() || equipmentHours.isNotBlank() || equipmentHired){showEquipment=true;throw IllegalArgumentException("Добавьте или очистите незавершённую запись техники")}
@@ -460,17 +516,22 @@ fun ReportApp() {
                 }
             }catch(e:Exception){formError=e.message?:"Проверьте форму"}
         },modifier=Modifier.fillMaxWidth()){Text("Сохранить и отправить")}
-        Spacer(Modifier.height(20.dp))
+        } else {
+        Text("Мои отчёты",style=MaterialTheme.typography.headlineSmall)
+        Text("Доставка и состояние проверки показаны отдельно",style=MaterialTheme.typography.bodySmall)
+        if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
+        if(formError.isNotBlank())Text(formError,color=MaterialTheme.colorScheme.error)
+        Spacer(Modifier.height(8.dp))
         TextButton(enabled=!busy && editing==null,onClick={scope.launch{dao.retryFailed(ownerId);SyncWorker.schedule(context)}}){Text("Повторить отправку")}
-        Text("Мои отчёты",style=MaterialTheme.typography.titleMedium)
+        if(drafts.isEmpty())Text("Сохранённых отчётов пока нет",style=MaterialTheme.typography.bodyMedium)
         drafts.forEach { draft ->
             Card(Modifier.fillMaxWidth().padding(vertical=5.dp)) {
                 Column(Modifier.padding(12.dp)) {
-                    Text("${draft.siteName} · ${draft.workDate}")
+                    Text("${draft.siteName} · ${displayDate(draft.workDate)}")
                     val label=when(draft.status){"delivered"->if(BuildConfig.DEMO_MODE)"Демо: сохранён локально ✓" else "Доставлен ✓";"uploading"->"Загрузка…";"failed"->"Нужна проверка / повторный вход";else->"Ожидает отправки"}
                     Text(label,color=if(draft.status=="delivered") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
                     if(draft.status=="failed" && editing==null)TextButton(enabled=!busy,onClick={replaceForm {
-                        editing=draft;editReason="Исправление отклонённого отчёта";selectedSite=draft.siteId;workDate=draft.workDate
+                        showHistory=false;scope.launch { formScroll.scrollTo(0) };editing=draft;editReason="Исправление отклонённого отчёта";selectedSite=draft.siteId;workDate=draft.workDate
                         kind=draft.kind;reason=draft.noWorkReason;comment=draft.comment
                         loadExtras(JSONObject(draft.extrasJson))
                         workEntries.clear();val entries=JSONArray(draft.workEntriesJson)
@@ -494,7 +555,7 @@ fun ReportApp() {
                                     val localIds=(0 until localPhotos.length()).map{localPhotos.getJSONObject(it).getString("id")}.toSet()
                                     require((0 until ids.length()).map{ids.getString(it)}.toSet()==localIds){"Фото сервера отличаются от локальных"}
                                     replaceForm {
-                                    editing=updated;selectedSite=draft.siteId;workDate=data.getString("work_date");kind=data.getString("kind")
+                                    showHistory=false;scope.launch { formScroll.scrollTo(0) };editing=updated;selectedSite=draft.siteId;workDate=data.getString("work_date");kind=data.getString("kind")
                                     reason=if(data.isNull("no_work_reason"))"" else data.getString("no_work_reason")
                                     comment=if(data.isNull("comment"))"" else data.getString("comment")
                                     loadExtras(data)
@@ -504,7 +565,7 @@ fun ReportApp() {
                                     formError="Возвращённый отчёт загружен в форму выше"
                                     }
                                 }
-                            }catch(e:Exception){formError=e.message?:"Не удалось обновить статус"}
+                            }catch(e:Exception){formError=connectionMessage(e,"Не удалось обновить статус")}
                             finally{busy=false}
                         }
                     }){Text("Проверить статус / исправить")}
@@ -512,7 +573,9 @@ fun ReportApp() {
                 }
             }
         }
+        }
         Spacer(Modifier.height(24.dp))
+    }
     }
     pendingReplacement?.let { action ->
         AlertDialog(onDismissRequest={pendingReplacement=null},title={Text("Открыть другой отчёт?")},

@@ -16,8 +16,8 @@ import org.json.JSONObject
     var opened by remember {mutableStateOf<Draft?>(null)}
     var expanded by remember {mutableStateOf(false)}
     TextButton(onClick={expanded=!expanded}){Text(if(expanded)"Скрыть примеры" else "Посмотреть примеры (${drafts.size})")}
-    if(expanded)drafts.forEach{r->OutlinedButton(onClick={opened=r},modifier=Modifier.fillMaxWidth()){Text("${r.workDate} · ${if(r.kind=="no_work")"Без работ" else "Работы"} · ${businessStatusLabel(r.businessStatus)}")}}
-    opened?.let{r->AlertDialog(onDismissRequest={opened=null},title={Text("Демо-отчёт ${r.workDate}")},text={Column(Modifier.verticalScroll(rememberScrollState())){
+    if(expanded)drafts.forEach{r->OutlinedButton(onClick={opened=r},modifier=Modifier.fillMaxWidth()){Text("${displayDate(r.workDate)} · ${if(r.kind=="no_work")"Без работ" else "Работы"} · ${businessStatusLabel(r.businessStatus)}")}}
+    opened?.let{r->AlertDialog(onDismissRequest={opened=null},title={Text("Демо-отчёт ${displayDate(r.workDate)}")},text={Column(Modifier.verticalScroll(rememberScrollState())){
         Text(r.siteName);Text("Учебный статус: ${businessStatusLabel(r.businessStatus)}")
         if(r.kind=="no_work")Text("Причина: ${r.noWorkReason}")
         val rows=JSONArray(r.workEntriesJson)

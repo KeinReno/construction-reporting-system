@@ -45,7 +45,7 @@ def read_bundle(path):
     return bundle,root
 
 def import_bundle(bundle,root,request,token,checkpoint=lambda results:None):
-    headers={'Authorization':'Bearer '+token,'X-Report-Capabilities':'report-extras-v1'}
+    headers={'Authorization':'Bearer '+token,'X-Report-Capabilities':'report-extras-v2'}
     def call(method,path,**kwargs):
         r=request(method,path,headers={**headers,**kwargs.pop('headers',{})},**kwargs);r.raise_for_status();return r.json()
     sites={s['id'] for s in call('GET','sites')}

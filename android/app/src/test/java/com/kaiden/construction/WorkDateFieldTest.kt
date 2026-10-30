@@ -8,6 +8,12 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class WorkDateFieldTest {
+    @Test fun displayDateKeepsIsoForValidInputAndRawIncompleteInput() {
+        assertEquals("25/10/2026",displayDate("2026-10-25"))
+        assertEquals("2026-10-25",storedDate("25/10/2026"))
+        assertEquals("31/02/2026",storedDate("31/02/2026"))
+        assertEquals("25/10/2",storedDate("25/10/2"))
+    }
     @Test fun pickerDateDoesNotShiftWithDeviceTimezone() {
         val previous=TimeZone.getDefault()
         try {
