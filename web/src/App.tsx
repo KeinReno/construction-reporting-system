@@ -5,6 +5,9 @@ import { AnalysisPanel } from './AnalysisPanel';
 import { ReportDetails } from './ReportDetails';
 import { OwnerDemo, type OwnerContext } from './OwnerDemo';
 import { OwnerJournal } from './OwnerJournal';
+import { ReportsJournal } from './reports/ReportsJournal';
+import { SituationBoard } from './overview/SituationBoard';
+import { SiteList } from './sites/SiteList';
 import { http, login, ApiError, filterQuery, allReports, reportStatusLabels, type Profile, type Report, type ReportAuthor, type Site, type Summary } from './api';
 import { SiteCard } from './SiteCard';
 import { MoneyPage } from './MoneyPage';
@@ -186,17 +189,31 @@ export default function App() {
             {page==='overview' && <div className="metric"><span>Заявленные расходы</span><strong>{!dataCurrent?'—':expenseKopecks==null?'Нет':new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format(expenseKopecks/100)}</strong><small>{!dataCurrent?'По дате операции':expenseKopecks==null?'Нет расходных операций за период. Это не ноль.':'Только расходы, без поступлений и авансов'}</small></div>}
             <div className="metric"><span>Указано событий</span><strong>{currentSummary?.incident_count ?? '—'}</strong><small>Только явно внесённые записи</small></div>
           </section>}
-          {page==='overview' && <section className="situation" aria-label="Ситуация на объектах"><div><div className="section-heading"><h2>Объекты</h2></div>
-            {dataCurrent ? sites.filter(s=>siteId==='all'||s.id===siteId).map(site=>{const latest=latestReport(site.id);const problem=latest?.data.incidents?.[0];return <button type="button" className="situation-row" key={site.id} onClick={()=>{setSiteId(site.id);setPage('objects');}}><strong>{site.name}</strong><span>{latest?`Последний отчёт ${dateText(latest.data.work_date)} · ${displayAuthor(latest.author_login)}`:'В выбранном периоде сведений нет'}</span><span>{latest?briefResult(latest):'Последняя смена не попала в фильтр'}</span><span>{latest?<b className={`badge ${latest.status}`}>{reportStatusLabels[latest.status]}</b>:<b className="badge">Нет данных</b>}{problem?` Заявлено в отчёте ${dateText(latest.data.work_date)}: ${problem.description}`:''}</span></button>;}) : <p className="empty">{error?'Данные не загружены.':'Загрузка…'}</p>}
-            {dataCurrent && !sites.length && <p className="empty">Нет назначенных объектов.</p>}<p className="footnote">Ожидания по сменам не настроены. Отсутствие записи не считается просрочкой. Строка показывает последний отчёт внутри выбранного периода.</p></div>
-            <aside><h2>Требует внимания {dataCurrent?attentionReports.length:'—'}</h2>
-              {dataCurrent && attentionReports.map(report=><button type="button" className="attention-item" key={report.id} onClick={()=>openReport(report)}><strong>{siteName(report.site_id)}</strong><span>{dateText(report.data.work_date)} · {briefResult(report)}</span><span className={`badge ${report.status}`}>{reportStatusLabels[report.status]}</span></button>)}
-              {dataCurrent && !attentionReports.length && <p className="empty">Новых и возвращённых отчётов в периоде нет.</p>}
-              {dataCurrent && statedProblems.map(item=><p className="attention-item" key={item.report.id}><strong>Заявлено в отчёте {dateText(item.report.data.work_date)}</strong><span>{item.incident.description}</span><span>{item.site.name}. Это запись отчёта, не признак продолжающейся аварии.</span></p>)}
-            </aside></section>}
+          {page==='overview' && <SituationBoard
+            sites={sites.filter(s=>siteId==='all'||s.id===siteId)}
+            ready={dataCurrent}
+            error={error}
+            latestReport={latestReport}
+            attentionReports={attentionReports}
+            statedProblems={statedProblems}
+            siteName={siteName}
+            authorName={displayAuthor}
+            onOpenSite={id=>{setSiteId(id);setPage('objects');}}
+            onOpenReport={openReport}
+          />}
           {(page==='overview' || page==='reports') && <div className={page==='overview'?'overview-workspace':'journal-workspace'}>
-          {(page==='overview' || page==='reports') && <section className="report-panel"><div className="section-heading"><h2>{page==='reports'?'Журнал отчётов':'Отчёты'}</h2>{page==='overview'&&<button className="link-button" onClick={()=>setPage('reports')}>Все отчёты →</button>}</div><p className="muted report-intro">{ownerArchive?'Исторические записи из MAX. Их статус доставки не является текущей очередью проверки.':page==='overview'?'Сначала показаны отчёты, ожидающие проверки':'Все отчёты по выбранным условиям'}</p>
-            {visible.length ? <div className="table-wrap"><table><thead><tr><th>Дата</th><th>Объект</th><th>Автор</th><th>Тип</th><th>Статус</th><th>Версия</th></tr></thead><tbody>{(page==='overview'?overviewReports.slice(0,6):visible).map(r=><tr key={r.id} onClick={()=>setSelected(r)}><td data-label="Дата"><button className="report-open" onClick={()=>setSelected(r)} aria-label={`Открыть отчёт за ${dateText(r.data.work_date)} · ${siteName(r.site_id)}`}>{dateText(r.data.work_date)}</button></td><td data-label="Объект">{siteName(r.site_id)}</td><td data-label="Автор">{displayAuthor(r.author_login)}</td><td data-label="Тип">{r.data.kind==='no_work'?'Без работ':'Работы'}</td><td data-label="Статус"><span className={`badge ${r.status}`}>{ownerArchive?'Архив MAX':reportStatusLabels[r.status]}</span></td><td data-label="Версия">№{r.revision}</td></tr>)}</tbody></table></div> : <p className="empty">{dataCurrent?'Отчёты по выбранным условиям отсутствуют.':error?'Данные не загружены.':'Загрузка отчётов…'}</p>}</section>}
+          {(page==='overview' || page==='reports') && (dataCurrent || visible.length ? <ReportsJournal
+              reports={page==='overview'?overviewReports:visible}
+              token={token}
+              siteName={siteName}
+              authorName={displayAuthor}
+              title={page==='reports'?'Журнал отчётов':'Отчёты'}
+              intro={ownerArchive?'Исторические записи из MAX. Их статус доставки не является текущей очередью проверки.':page==='overview'?'Сначала показаны отчёты, ожидающие проверки':'Все отчёты по выбранным условиям. Содержание смены видно без открытия.'}
+              archive={!!ownerArchive}
+              compact={page==='overview'}
+              onOpen={openReport}
+              onShowAll={()=>setPage('reports')}
+            /> : <section className="report-panel"><h2>{page==='reports'?'Журнал отчётов':'Отчёты'}</h2><p className="empty">{error?'Данные не загружены.':'Загрузка отчётов…'}</p></section>)}
           {page==='overview' &&
             <div className="chart-panel"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
               <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
@@ -229,7 +246,7 @@ export default function App() {
           </section>}
           {(page==='overview' || page==='analytics') && drill && <section className="card" aria-label="Исходные записи"><div className="section-heading"><h2>{drill.title}</h2><button type="button" className="link-button" onClick={()=>setDrill(null)}>Закрыть</button></div>{drill.ids.length?drill.ids.map(id=>{const report=reports.find(item=>item.id===id);return <button type="button" className="volume-row" key={id} onClick={()=>openById(id)}><span>{report?`${dateText(report.data.work_date)} · ${siteName(report.site_id)}`:'Открыть отчёт'}</span><b>К записи</b></button>;}):<p className="empty">Записей нет. Это не подтверждённый ноль.</p>}</section>}
           {page==='analytics' && <section className="card"><h2>Что не рассчитывается</h2><p>План и факт, процент готовности и просрочка не показаны: нет утверждённого плана и графика смен. Остаток денег не показан: нет начального остатка. Живые цифры берутся из доставленных отчётов с поля, а не из текста архива.</p></section>}
-          {page==='objects' && (siteId==='all' ? <section className="card"><h2>Объекты</h2><div className="site-grid">{sites.map(s=><button className="site-tile" key={s.id} onClick={()=>setSiteId(s.id)}><div className="site-avatar" aria-hidden="true"><NavIcon page="objects"/></div><strong>{s.name}</strong><span>Открыть карточку</span></button>)}{!sites.length && <p className="empty">Нет назначенных объектов.</p>}</div></section> : <SiteCard site={sites.find(s=>s.id===siteId) || {id:siteId,name:siteName(siteId)}} reports={visible} ready={dataCurrent} token={token} authorName={displayAuthor} onOpen={openReport} onBack={()=>setSiteId('all')}/>)}
+          {page==='objects' && (siteId==='all' ? <SiteList sites={sites} latestReport={latestReport} authorName={displayAuthor} onOpen={id=>setSiteId(id)}/> : <SiteCard site={sites.find(s=>s.id===siteId) || {id:siteId,name:siteName(siteId)}} reports={visible} ready={dataCurrent} token={token} authorName={displayAuthor} onOpen={openReport} onBack={()=>setSiteId('all')}/>)}
           {page==='money' && <MoneyPage token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} sites={sites} siteName={siteName} onOpen={openReport}/>}
 
         </>}

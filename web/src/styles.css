@@ -5,7 +5,7 @@
 .report-dialog section{margin:22px 0}.report-dialog h3{font-size:15px;margin-bottom:10px}.report-work{display:flex;flex-wrap:wrap;gap:6px 16px;padding:12px 0;border-bottom:1px solid #e9eef5}.report-work strong{flex:1;min-width:160px}.report-work span{color:#236adb}.report-work p{flex-basis:100%;margin:0;color:#64748b;white-space:pre-wrap}.report-comment{white-space:pre-wrap;overflow-wrap:anywhere}
 .chart-period{display:flex;align-items:center;gap:10px;color:#64748a;font-size:12px}.chart-period select{padding:8px;border:1px solid #dce5ef;border-radius:7px;background:#fff;color:#263955}
 /* CRS industrial design system: dense surfaces and restrained amber actions. */
-:root{color-scheme:dark;--bg:#10171b;--surface:#192329;--raised:#202d33;--line:#35434a;--text:#edf1f1;--muted:#a9b7bc;--accent:#ffbd45;color:var(--text);background:var(--bg);font-family:'Segoe UI',Arial,sans-serif}
+:root{color-scheme:dark;--bg:var(--crs-bg,#10171b);--surface:var(--crs-surface,#192329);--raised:var(--crs-surface-raised,#202d33);--line:var(--crs-line,#35434a);--text:var(--crs-text,#edf1f1);--muted:var(--crs-muted,#a9b7bc);--accent:var(--crs-accent,#ffbd45);color:var(--text);background:var(--bg);font-family:var(--crs-font-sans,'Segoe UI',Arial,sans-serif)}
 body{background:var(--bg);color:var(--text)}
 h1{font-size:28px;letter-spacing:-.5px}h2{font-size:16px;letter-spacing:.1px}p{line-height:1.5}
 .sidebar{background:#111b20;border-right:1px solid #344148;flex-basis:208px;padding:25px 12px;gap:42px}

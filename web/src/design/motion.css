@@ -1,0 +1,20 @@
+@media (prefers-reduced-motion: no-preference) {
+  .crs-fade-in {
+    animation: crs-fade-in var(--crs-duration) var(--crs-ease) both;
+  }
+  .report-row,
+  .report-card {
+    transition: border-color var(--crs-duration) var(--crs-ease), background-color var(--crs-duration) var(--crs-ease);
+  }
+}
+
+@keyframes crs-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crs-fade-in { animation: none; }
+  .report-row,
+  .report-card { transition: none; }
+}

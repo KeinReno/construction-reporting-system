@@ -1,0 +1,86 @@
+.journal-workspace {
+  display: grid;
+  gap: var(--crs-space-4);
+  margin-bottom: var(--crs-space-4);
+}
+
+.journal-workspace .report-panel {
+  min-width: 0;
+}
+
+.report-page-dialog {
+  width: min(1280px, calc(100vw - 32px));
+  max-width: 1280px;
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  border: 1px solid var(--crs-line-strong);
+  border-radius: var(--crs-radius);
+  background: var(--crs-surface);
+  color: var(--crs-text);
+}
+
+.report-page-dialog::backdrop {
+  background: rgba(5, 10, 13, 0.88);
+}
+
+.report-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: calc(100vh - 32px);
+}
+
+.report-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--crs-space-4);
+  padding: var(--crs-space-5) var(--crs-space-6);
+  border-bottom: 1px solid var(--crs-line);
+}
+
+.report-page-header h2 {
+  margin: 0;
+  font-size: var(--crs-text-xl);
+}
+
+.report-page-body {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.report-page-main {
+  min-width: 0;
+  overflow: auto;
+  padding: var(--crs-space-5) var(--crs-space-6);
+}
+
+.report-page-aside {
+  min-width: 0;
+  overflow: auto;
+  padding: var(--crs-space-5);
+  border-left: 1px solid var(--crs-line);
+  background: var(--crs-bg-graphite);
+}
+
+@media (max-width: 900px) {
+  .report-page-body {
+    grid-template-columns: 1fr;
+  }
+  .report-page-aside {
+    border-left: 0;
+    border-top: 1px solid var(--crs-line);
+  }
+  .report-page-dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+  }
+  .report-page {
+    max-height: calc(100vh - 16px);
+  }
+  .report-page-header,
+  .report-page-main {
+    padding: var(--crs-space-4);
+  }
+}
