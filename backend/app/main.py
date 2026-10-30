@@ -288,6 +288,11 @@ def create_app(database_url=None, storage=None, initialize=False):
             attempts.setdefault(key,[]).append(now)
         u=db.scalar(select(User).where(User.login==data.login))
         if not u or not u.active or not password_ok(data.password,u.password_hash): raise HTTPException(401,'Invalid credentials')
+        with attempts_lock:
+            bucket=attempts.get(key)
+            if bucket and now in bucket:
+                bucket.remove(now)
+                if not bucket: del attempts[key]
         secret=secrets.token_urlsafe(48)
         db.add(Token(digest=hashlib.sha256(secret.encode()).hexdigest(),user_id=u.id,expires=utcnow()+timedelta(hours=8),auth_version=u.auth_version))
         db.commit()
