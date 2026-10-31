@@ -1,0 +1,210 @@
+/* CRS / Shark UI-inspired component ports.
+ * Dependency-free P0 integration: preserves the existing Vite / CSS stack and API behavior.
+ * Scopes rules to CRS components so old global styles do not leak into the new shell.
+ */
+.crs-sidebar {
+  --crs-sidebar-width: 224px;
+  flex: 0 0 var(--crs-sidebar-width);
+  width: var(--crs-sidebar-width);
+  background: linear-gradient(180deg, #121d21, #0f191d 70%);
+  border-right: 1px solid var(--crs-line);
+  padding: 16px 10px 18px;
+  gap: 18px;
+  transition: flex-basis 210ms var(--crs-ease), width 210ms var(--crs-ease);
+  overflow-x: hidden;
+  z-index: 25;
+}
+.crs-sidebar.is-collapsed {
+  --crs-sidebar-width: 66px;
+}
+.crs-sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 52px;
+  padding: 0 3px 14px;
+  border-bottom: 1px solid var(--crs-line);
+}
+.crs-sidebar .crs-brand {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 0 2px;
+  gap: 10px;
+}
+.crs-sidebar .brand-mark {
+  flex: 0 0 32px;
+  height: 32px;
+  width: 32px;
+  border-radius: 5px;
+  background: var(--crs-accent);
+  color: var(--crs-accent-ink);
+  font-weight: 800;
+}
+.crs-brand-copy { display: grid; min-width: 0; line-height: 1.15; }
+.crs-sidebar .brand-caption {
+  display: block;
+  font-size: 9px;
+  line-height: 1.6;
+  letter-spacing: .11em;
+  font-weight: 500;
+  color: var(--crs-muted);
+}
+.crs-sidebar-trigger {
+  flex: 0 0 28px;
+  height: 30px;
+  padding: 5px;
+  background: transparent;
+  color: var(--crs-muted);
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+.crs-sidebar-trigger:hover {
+  background: var(--crs-surface-raised);
+  color: var(--crs-text);
+  border-color: var(--crs-line);
+}
+.crs-sidebar-trigger svg { display: block; width: 18px; height: 18px; }
+.crs-sidebar-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 5px 0 14px;
+}
+.crs-sidebar-group-label {
+  color: var(--crs-muted);
+  font-family: var(--crs-font-mono);
+  font-size: 9px;
+  letter-spacing: .13em;
+  padding: 0 10px 10px;
+  white-space: nowrap;
+}
+.crs-sidebar .crs-nav-item {
+  flex-shrink: 0;
+  position: relative;
+  min-height: 40px;
+  padding: 9px 11px;
+  color: var(--crs-text-secondary);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 140ms, color 140ms, border-color 140ms;
+}
+.crs-sidebar .crs-nav-item:hover { background: #253137; color: var(--crs-text); }
+.crs-sidebar .crs-nav-item.active {
+  background: linear-gradient(90deg, #3c3730, #282e30);
+  color: #ffdd9d;
+  border-color: #665438;
+}
+.crs-sidebar .crs-nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--crs-accent);
+}
+.crs-sidebar .nav-icon { flex: 0 0 18px; width: 18px; height: 18px; }
+.crs-nav-label { overflow: hidden; text-overflow: ellipsis; }
+.crs-nav-archive-icon { width: 18px; flex: 0 0 18px; text-align: center; }
+.crs-sidebar .crs-sidebar-foot {
+  white-space: nowrap;
+  margin-top: auto;
+  padding: 16px 10px 0;
+  border-top: 1px solid var(--crs-line);
+}
+.crs-sidebar.is-collapsed .crs-sidebar-head {
+  flex-direction: column;
+  gap: 9px;
+  align-items: center;
+  padding-bottom: 12px;
+}
+.crs-sidebar.is-collapsed .crs-brand { padding: 0; justify-content: center; flex: none; }
+.crs-sidebar.is-collapsed .crs-brand-copy,
+.crs-sidebar.is-collapsed .crs-nav-label,
+.crs-sidebar.is-collapsed .crs-sidebar-group-label { display: none; }
+.crs-sidebar.is-collapsed .crs-sidebar-trigger { flex: 0 0 30px; }
+.crs-sidebar.is-collapsed .crs-nav-item { justify-content: center; padding: 10px 8px; }
+.crs-sidebar.is-collapsed .crs-sidebar-foot { justify-content: center; padding: 16px 0 0; }
+
+.crs-progress-block { display: grid; gap: 7px; margin-top: 8px; width: 100%; }
+.crs-progress-caption {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+  color: var(--crs-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+.crs-progress-caption strong {
+  font-family: var(--crs-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--crs-accent);
+}
+.crs-progress-track {
+  height: 5px;
+  background: #394348;
+  border-radius: 100px;
+  overflow: hidden;
+}
+.crs-progress-indicator {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #d99d38, #ffcb6a);
+  border-radius: inherit;
+  transition: width 210ms var(--crs-ease);
+}
+.crs-status { white-space: nowrap; border: 1px solid transparent; }
+.crs-status.submitted { border-color: #496776; }
+.crs-status.reviewed { border-color: #397351; }
+.crs-status.needs_revision { border-color: #826037; }
+.crs-status.draft { border-color: #48575c; }
+.crs-status.archive { border-color: #55656b; }
+.crs-data-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.crs-data-table th { font-size: 11px; letter-spacing: .04em; }
+.crs-data-table tbody tr:hover { background: #202e34; }
+.crs-bottom-nav .crs-more-toggle[aria-expanded="true"] { color: var(--crs-accent); }
+.crs-more-menu {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 8px);
+  display: grid;
+  gap: 4px;
+  min-width: 200px;
+  padding: 9px;
+  background: var(--crs-surface-raised);
+  border: 1px solid var(--crs-line-strong);
+  box-shadow: 0 16px 42px #0009;
+  border-radius: 6px;
+}
+.crs-bottom-nav .crs-more-menu button {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px;
+  font-size: 13px;
+  text-align: left;
+  color: var(--crs-text);
+  border-radius: 4px;
+}
+.crs-bottom-nav .crs-more-menu button:hover,
+.crs-bottom-nav .crs-more-menu button[aria-current="page"] { background: #3d3529; color: var(--crs-accent); }
+.crs-bottom-nav .crs-more-menu .nav-icon { flex: 0 0 18px; }
+@media (max-width: 780px) {
+  .app-shell .crs-sidebar { display: none; }
+  .crs-bottom-nav { position: fixed; }
+  .crs-bottom-nav > button { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crs-sidebar, .crs-progress-indicator, .crs-sidebar .crs-nav-item { transition: none; }
+}
