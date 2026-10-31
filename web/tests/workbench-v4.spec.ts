@@ -41,6 +41,11 @@ test('new mobile command center stacks correctly and keeps navigation usable',as
   expect(grid.split(' ').length).toBe(1);
   const overviewOverflow=await page.locator('.wb-command-brief').evaluate(el=>el.scrollWidth > el.clientWidth + 2);
   expect(overviewOverflow).toBe(false);
+  // The KPI number, name and index must occupy the same horizontal row.
+  const item=page.locator('.wb-brief-item').last();
+  const titleBox=await item.locator('.wb-brief-label').boundingBox();
+  const valueBox=await item.locator('strong').boundingBox();
+  expect(Math.abs((titleBox?.y ?? 0) - (valueBox?.y ?? 0))).toBeLessThan(26);
   await page.screenshot({path:'test-results/workbench-v4-mobile.png',fullPage:true});
   await page.getByRole('button',{name:'Дополнительные разделы'}).click();
   await expect(page.getByRole('menu',{name:'Дополнительные разделы'})).toBeVisible();
