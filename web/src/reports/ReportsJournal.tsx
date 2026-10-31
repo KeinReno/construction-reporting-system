@@ -3,6 +3,7 @@ import type { Report } from '../api';
 import { ReportCard } from './ReportCard';
 import { ReportRow } from './ReportRow';
 import { ReportStatus } from './ReportStatus';
+import { CrSegmentGroup } from '../ui/CrSegmentGroup';
 import { buildReportView, searchableReportText } from './reportView';
 
 type Density = 'list' | 'cards';
@@ -69,14 +70,12 @@ export function ReportsJournal({
               />
             </label>
           )}
-          <div className="density-toggle" role="group" aria-label="Плотность журнала">
-            <button type="button" aria-pressed={density === 'list'} onClick={() => setDensity('list')}>
-              Список
-            </button>
-            <button type="button" aria-pressed={density === 'cards'} onClick={() => setDensity('cards')}>
-              Карточки
-            </button>
-          </div>
+          <CrSegmentGroup<Density>
+            value={density}
+            options={[{value: 'list', label: 'Список'}, {value: 'cards', label: 'Карточки'}]}
+            onChange={setDensity}
+            ariaLabel="Плотность журнала"
+          />
           {compact && onShowAll && (
             <button type="button" className="link-button" onClick={onShowAll}>
               Все отчёты →
