@@ -17,7 +17,7 @@ export function WorkbenchTopbar({
         <span className="wb-topbar-divider" aria-hidden="true" />
         <span className="wb-topbar-module">OPERATIONS <span aria-hidden="true">/</span> {pageTitle}</span>
       </div>
-      <div className="wb-topbar-account">
+      <div className="wb-topbar-account topbar-right">
         <span className="wb-topbar-environment"><span aria-hidden="true" className="wb-live-dot" />WEB CONSOLE</span>
         <span className="wb-topbar-user">{user}</span>
         <button type="button" className="quiet wb-logout" onClick={onLogout}>Выйти <span aria-hidden="true">↗</span></button>
@@ -48,7 +48,7 @@ export function WorkbenchMasthead({
       </div>
       <div className="wb-masthead-actions">
         <button type="button" className="secondary wb-refresh" onClick={onRefresh} disabled={refreshing}>
-          <span aria-hidden="true">↻</span><span>{refreshing ? 'Обновление…' : '↻ Обновить'}</span>
+          <span aria-hidden="true">↻</span><span>{refreshing ? 'Обновление…' : 'Обновить'}</span>
         </button>
       </div>
     </div>
