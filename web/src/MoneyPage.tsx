@@ -98,7 +98,7 @@ export function MoneyPage({
       )}
       {!reports && !error && <CrSkeleton rows={5} label="Загрузка денежных операций" />}
       {reports && (
-        <div className="metric-grid">
+        <div className="metric-grid crs-money-kpis">
           {kinds.map(item => (
             <div className="metric" key={item}>
               <span>{kindLabel[item]}</span>
@@ -119,11 +119,15 @@ export function MoneyPage({
         </p>
       )}
       {reports && !list.length && (
-        <p className="empty">
-          {invalid
-            ? 'Исправьте даты фильтра.'
-            : 'Нет операций по выбранным условиям. Это не подтверждённый ноль.'}
-        </p>
+        <div className="crs-money-empty" role="status">
+          <span className="crs-money-empty-icon" aria-hidden="true">∅</span>
+          <div>
+            <strong>{invalid ? 'Проверьте период' : 'Нет зарегистрированных операций'}</strong>
+            <p className="empty">{invalid
+              ? 'Исправьте даты фильтра.'
+              : 'Нет операций по выбранным условиям. Это не подтверждённый ноль.'}</p>
+          </div>
+        </div>
       )}
       {!!list.length && (
         <div className="money-entries">

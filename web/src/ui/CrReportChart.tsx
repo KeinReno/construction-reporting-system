@@ -25,7 +25,7 @@ export function CrReportChart({
               aria-label={`${period.label}: ${period.count} отчётов. Открыть источники`}>
               <span className="crs-report-chart-label">{period.label}</span>
               <span className="crs-report-chart-track">
-                <span className="crs-report-chart-fill" style={{width: `${period.count/max*100}%`}} />
+                <span className="crs-report-chart-fill" style={{height: `${period.count ? Math.max(6, period.count/max*100) : 0}%`}} />
               </span>
               <b>{period.count}</b>
             </button>
