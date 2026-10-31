@@ -18,6 +18,12 @@ test('new desktop command center has a distinct light hero and editorial content
   await expect(page.locator('.wb-situation-main')).toBeVisible();
   await expect(page.locator('.wb-review')).toBeVisible();
   await expect(page.locator('.wb-section-rule').first()).toBeVisible();
+  // Guard against the original visual bugs: oversized site row and vertical status badge.
+  const siteBox=await page.locator('.wb-situation-row').first().boundingBox();
+  expect(siteBox?.height).toBeLessThan(170);
+  const statusBox=await page.locator('.wb-review-item .report-status').first().boundingBox();
+  expect(statusBox?.width).toBeGreaterThan(65);
+  expect(statusBox?.height).toBeLessThan(45);
   const rgb=await hero.evaluate(el=>getComputedStyle(el).backgroundColor);
   expect(rgb).toBe('rgb(240, 234, 221)');
   const layout=await page.locator('.wb-command').evaluate(el=>getComputedStyle(el).gridTemplateColumns);
@@ -33,6 +39,8 @@ test('new mobile command center stacks correctly and keeps navigation usable',as
   await expect(page.locator('.wb-command-brief')).toBeVisible();
   const grid=await page.locator('.wb-command').evaluate(el=>getComputedStyle(el).gridTemplateColumns);
   expect(grid.split(' ').length).toBe(1);
+  const overviewOverflow=await page.locator('.wb-command-brief').evaluate(el=>el.scrollWidth > el.clientWidth + 2);
+  expect(overviewOverflow).toBe(false);
   await page.screenshot({path:'test-results/workbench-v4-mobile.png',fullPage:true});
   await page.getByRole('button',{name:'Дополнительные разделы'}).click();
   await expect(page.getByRole('menu',{name:'Дополнительные разделы'})).toBeVisible();
