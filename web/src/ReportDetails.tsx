@@ -1,6 +1,7 @@
 import { formatDate, formatTimestamp } from './date';
 import { useEffect, useRef, useState } from 'react';
 import { http, reportStatusLabels, type Report } from './api';
+import { CrDataList } from './ui/CrDataList';
 import { ArchivePhoto, type OwnerPhoto } from './OwnerDemo';
 import { ReportGallery } from './reports/ReportGallery';
 import { ReportStatus } from './reports/ReportStatus';
@@ -144,17 +145,11 @@ export function ReportDetails({
 
         <div className="report-page-body">
           <div className="report-page-main">
-            <div className="report-meta report-page-meta">
-              <p>
-                <b>Объект:</b> {siteName}
-              </p>
-              <p>
-                <b>{ownerPhotos ? 'Источник' : 'Автор в системе'}:</b> {authorName}
-              </p>
-              <p>
-                Статус: {statusLabel} · ревизия {r.revision}
-              </p>
-            </div>
+            <CrDataList className="report-meta report-page-meta" items={[
+              {label: 'Объект', value: siteName},
+              {label: ownerPhotos ? 'Источник' : 'Автор в системе', value: authorName},
+              {label: 'Статус / версия', value: `${statusLabel} · ревизия ${r.revision}`},
+            ]} />
 
             <section>
               <h3>Описанные работы</h3>
