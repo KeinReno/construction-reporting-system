@@ -16,7 +16,7 @@ export function CrReportChart({
     <div className="crs-report-chart" aria-label="Количество отчётов по периодам">
       <div className="crs-report-chart-head">
         <span className="crs-eyebrow">Отчётность</span>
-        <div className="crs-report-chart-total"><strong>{total ?? '—'}</strong><span>в графике</span></div>
+        <div className="crs-report-chart-total big-number"><strong>{total ?? '—'}</strong><span>в графике</span></div>
       </div>
       {periods.length ? <ul className="crs-report-chart-bars">
         {periods.map(period => (

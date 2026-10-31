@@ -43,7 +43,7 @@ export function CrCombobox({
           {options.length ? options.map(option => <option value={option.value} key={option.value}>{option.label}</option>) : <option value="">{placeholder}</option>}
         </select>
         <button type="button" className="crs-combobox-arrow"
-          aria-label={`Поиск: ${label}`} aria-expanded={open}
+          aria-label="Поиск по списку" aria-expanded={open}
           aria-controls={`${id}-search`} title={`Поиск: ${label}`}
           onClick={() => {setOpen(!open);setSearch('');setActive(0);if(!open) requestAnimationFrame(()=>searchInput.current?.focus());}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>

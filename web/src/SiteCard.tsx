@@ -252,7 +252,7 @@ export function SiteCard({
                   {ordered.some(report => reportViewData(report).equipment?.length) ? (
                     ordered.flatMap(report => reportViewData(report).equipment ?? []).map((item, index) => (
                       <p key={index}>
-                        {item.type} · {item.hours} ч · {equipmentOwnership(item.hired)}
+                        {item.type} · {item.hours} ч · {equipmentOwnership(item.hired).toLocaleLowerCase("ru-RU")}
                       </p>
                     ))
                   ) : (

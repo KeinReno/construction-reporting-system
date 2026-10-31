@@ -385,3 +385,6 @@
   color: var(--crs-text); background: var(--crs-surface-sunken); padding: 6px 32px 6px 10px; cursor: pointer; }
 .report-page-meta .crs-data-list-item dt { display: none; }
 .report-page-meta .crs-data-list-item dd { font-size: 13px; }
+
+/* Keep historical KPI locator and its business-facing visual treatment aligned */
+.crs-report-chart-head .big-number { margin: 0; padding: 0; border-top: 0; display: flex; align-items: baseline; gap: 7px; }
