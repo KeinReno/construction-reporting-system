@@ -1,4 +1,4 @@
-import { type Report, reportStatusLabels } from '../api';
+import { type Report, reportStatusLabels,reportViewData,reportWorkState } from '../api';
 import { formatDate } from '../date';
 
 export type ReportView = {
@@ -7,6 +7,9 @@ export type ReportView = {
   workDateLabel: string;
   siteName: string;
   authorLabel: string;
+  authorId: string | null;
+  workCount: number;
+  incidentCount: number;
   status: Report['status'];
   statusLabel: string;
   revision: number;
@@ -19,13 +22,14 @@ export type ReportView = {
   incidentHint: string | null;
   isNoWork: boolean;
   crew: string | null;
+  searchDetails?: string;
 };
 
 const isShiftContext = (text: string) => /^(допуск на площад|дождь$)/i.test(text.trim());
 
 export function primaryWorks(report: Report) {
-  if (report.data.kind === 'no_work') return [];
-  return report.data.work_entries.filter(work => !isShiftContext(work.type));
+  if (reportWorkState(report) !== 'work') return [];
+  return reportViewData(report).work_entries.filter(work => !isShiftContext(work.type));
 }
 
 export function buildReportView(
@@ -36,7 +40,7 @@ export function buildReportView(
 ): ReportView {
   const works = primaryWorks(report);
   const first = works[0];
-  const isNoWork = report.data.kind === 'no_work';
+  const isNoWork = reportWorkState(report) === 'no_work';
   const headline = isNoWork
     ? 'Работ не было'
     : first?.type || 'Работы не указаны';
@@ -50,16 +54,20 @@ export function buildReportView(
     : works.length > 1
       ? `ещё ${works.length - 1}`
       : null;
-  const incident = report.data.incidents?.[0] || null;
-  const photoIds = report.data.required_photo_ids || [];
+  const data=reportViewData(report);
+  const incident = data.incidents?.[0] || null;
+  const photoIds = [...new Set([...(report.data.required_photo_ids || []), ...(report.evidence?.photos || []).filter(p=>p.relation==='same_message').map(p=>p.id)])];
   return {
     id: report.id,
     workDate: report.data.work_date,
     workDateLabel: formatDate(report.data.work_date),
     siteName,
     authorLabel,
+    authorId: report.author_id || null,
+    workCount: works.length,
+    incidentCount: data.incidents?.length || 0,
     status: report.status,
-    statusLabel: options?.archiveLabel || reportStatusLabels[report.status] || 'Неизвестный статус',
+    statusLabel: options?.archiveLabel || (report.origin==='imported'?'Сохранён':reportStatusLabels[report.status]) || 'Неизвестный статус',
     revision: report.revision,
     headline,
     workSummary: works.length > 1 && !isNoWork
@@ -72,9 +80,10 @@ export function buildReportView(
     incidentHint: incident?.description || null,
     isNoWork,
     crew: report.data.crew || null,
+    searchDetails:works.map(w=>w.description||'').join(' '),
   };
 }
 
 export function searchableReportText(view: ReportView, comment?: string | null) {
-  return `${view.workDateLabel} ${view.siteName} ${view.authorLabel} ${view.headline} ${view.workSummary} ${comment || ''}`.toLocaleLowerCase('ru-RU');
+  return `${view.workDateLabel} ${view.siteName} ${view.authorLabel} ${view.headline} ${view.workSummary} ${view.searchDetails||''} ${comment || ''}`.toLocaleLowerCase('ru-RU');
 }

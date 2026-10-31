@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 from app.contracts import Input, Work, ReportData, HistoricalSource, report_payload
+from app.normalize_import import current_normalization, analysis_payload
 from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer, UniqueConstraint, delete, text, update
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session, relationship, selectinload
 from sqlalchemy.orm.exc import StaleDataError
@@ -50,6 +51,7 @@ class Report(Base):
     site_id:Mapped[str]=mapped_column(ForeignKey('sites.id'))
     author_id:Mapped[str]=mapped_column(ForeignKey('users.id'))
     author:Mapped[User|None]=relationship(lazy='select')
+    source_record:Mapped[ReportSource|None]=relationship(lazy='select',uselist=False)
     work_date:Mapped[str]=mapped_column(String(10))
     payload:Mapped[dict]=mapped_column(JSON)
     status:Mapped[str]=mapped_column(String(24),default='draft')
@@ -69,6 +71,10 @@ class Photo(Base):
 class ReportSource(Base):
     __tablename__='report_sources'
     report_id:Mapped[str]=mapped_column(ForeignKey('reports.id'),primary_key=True)
+    payload:Mapped[dict]=mapped_column(JSON,nullable=False)
+class ImportedCorpus(Base):
+    __tablename__='imported_corpora'
+    id:Mapped[str]=mapped_column(String(36),primary_key=True)
     payload:Mapped[dict]=mapped_column(JSON,nullable=False)
 class Change(Base):
     __tablename__='changes'
@@ -150,8 +156,14 @@ def stamp(value):
     if value is None:return None
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
 
+def imported_origin(payload):
+    return bool(payload and (payload.get('_trusted_import') is True or '_evidence' in payload))
+
 def present(r):
-    return dict(id=r.id,client_report_id=r.client_report_id,site_id=r.site_id,author_id=r.author_id,author_login=r.author.login if r.author else None,revision=r.revision,status=r.status,receipt_id=r.receipt_id,created_at=stamp(r.created_at),submitted_at=stamp(r.submitted_at),data=r.payload)
+    source=r.source_record
+    return dict(id=r.id,client_report_id=r.client_report_id,site_id=r.site_id,author_id=r.author_id,author_login=r.author.login if r.author else None,revision=r.revision,status=r.status,receipt_id=r.receipt_id,created_at=stamp(r.created_at),submitted_at=stamp(r.submitted_at),data=r.payload,
+                origin='imported' if source and imported_origin(source.payload) else 'direct',evidence=source.payload.get('_evidence',{'photos':[]}) if source else None,
+                normalization=current_normalization(r.payload,source.payload) if source else None)
 
 def require_report_capabilities(payload,header):
     if any(item.get('direction','mentioned')!='mentioned' for item in payload.get('materials') or []) and header!='report-extras-v2':
@@ -169,6 +181,7 @@ def create_app(database_url=None, storage=None, initialize=False):
     if initialize or os.environ.get('AUTO_CREATE_SCHEMA')=='1': Base.metadata.create_all(engine)
     api=FastAPI(title='Construction Reporting API',version='0.1.0')
     api.state.db=SessionLocal
+    api.state.import_user_ids={value.strip() for value in os.environ.get('CRS_IMPORT_USER_IDS','').split(',') if value.strip()}
     from fastapi.exceptions import RequestValidationError
     @api.exception_handler(RequestValidationError)
     async def validation_handler(request,exc):
@@ -310,21 +323,27 @@ def create_app(database_url=None, storage=None, initialize=False):
         if u.role!='admin': q=q.join(Assignment,Assignment.site_id==Site.id).where(Assignment.user_id==u.id)
         return [{'id':s.id,'name':s.name} for s in db.scalars(q).unique().all()]
     @api.post('/api/v1/reports',status_code=201)
-    def draft(data:ReportData,response:Response,db:Session=Depends(dbdep),u:User=Depends(current)):
+    def draft(data:ReportData,response:Response,db:Session=Depends(dbdep),u:User=Depends(current),x_import_reference:str|None=Header(default=None,max_length=500)):
+        if x_import_reference is not None and u.role!='admin' and u.id not in api.state.import_user_ids:raise HTTPException(403,'Import permission required')
         sid=str(data.site_id); allowed(db,u,sid)
         saved=db.scalar(select(Report).where(Report.client_report_id==str(data.client_report_id)))
         payload=report_payload(data)
         if saved:
             if saved.author_id!=u.id or saved.payload!=payload: raise HTTPException(409,'UUID collision')
+            if x_import_reference and (not saved.source_record or saved.source_record.payload.get('source_ref')!=x_import_reference):raise HTTPException(409,'Import origin differs')
             response.status_code=200
             return present(saved)
         r=Report(client_report_id=str(data.client_report_id),site_id=sid,author_id=u.id,work_date=str(data.work_date),payload=payload)
         try:
-            db.add(r);db.flush();log(db,r,u,'created');db.commit()
+            db.add(r);db.flush()
+            if x_import_reference:
+                if not x_import_reference.strip():raise HTTPException(422,'Import reference required')
+                db.add(ReportSource(report_id=r.id,payload={'source_ref':x_import_reference,'_provenance_only':True,'_trusted_import':True}))
+            log(db,r,u,'created');db.commit()
         except IntegrityError:
             db.rollback()
             saved=db.scalar(select(Report).where(Report.client_report_id==str(data.client_report_id)))
-            if saved and saved.author_id==u.id and saved.payload==payload:
+            if saved and saved.author_id==u.id and saved.payload==payload and (not x_import_reference or (saved.source_record and saved.source_record.payload.get('source_ref')==x_import_reference)):
                 response.status_code=200
                 return present(saved)
             raise HTTPException(409,'UUID collision')
@@ -338,10 +357,14 @@ def create_app(database_url=None, storage=None, initialize=False):
         return present(r)
     @api.get('/api/v1/reports/authors')
     def report_authors(db:Session=Depends(dbdep),u:User=Depends(current)):
-        q=select(User.id,User.login).join(Report,Report.author_id==User.id)
+        q=select(User.id,User.login,ReportSource.payload).join(Report,Report.author_id==User.id).outerjoin(ReportSource,ReportSource.report_id==Report.id)
         if u.role!='admin':q=q.join(Assignment,Assignment.site_id==Report.site_id).where(Assignment.user_id==u.id)
         if u.role=='foreman':q=q.where(Report.author_id==u.id)
-        return [{'id':row.id,'login':row.login} for row in db.execute(q.distinct().order_by(User.login,User.id)).all()]
+        authors={}
+        for row in db.execute(q.distinct().order_by(User.login,User.id)).all():
+            item=authors.setdefault(row.id,{'id':row.id,'login':row.login,'imported_only':True})
+            if not imported_origin(row.payload):item['imported_only']=False
+        return list(authors.values())
     @api.get('/api/v1/reports')
     def reports(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,author_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None,page:int=Query(1,ge=1),page_size:int=Query(100,ge=1,le=200)):
         q=select(Report).options(selectinload(Report.author))
@@ -361,7 +384,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         fetch(db,u,str(rid))
         response.headers['Cache-Control']='private, no-store'
         source=db.get(ReportSource,str(rid))
-        return source.payload if source else None
+        return {key:value for key,value in source.payload.items() if not key.startswith('_')} if source and not source.payload.get('_provenance_only') else None
     @api.put('/api/v1/reports/{rid}/source')
     def put_source(rid:uuid.UUID,data:HistoricalSource,db:Session=Depends(dbdep),u:User=Depends(current)):
         r=fetch(db,u,str(rid))
@@ -369,8 +392,12 @@ def create_app(database_url=None, storage=None, initialize=False):
         payload=data.model_dump(mode='json')
         existing=db.get(ReportSource,r.id)
         if existing:
-            if existing.payload!=payload:raise HTTPException(409,'Source differs; original is immutable')
-            return existing.payload
+            if existing.payload.get('_provenance_only'):
+                if r.status!='draft' or existing.payload.get('source_ref')!=payload['source_ref']:raise HTTPException(409,'Source differs; original is immutable')
+                r.lock_version+=1
+                existing.payload={**payload,'_trusted_import':True};db.commit();return payload
+            if {key:value for key,value in existing.payload.items() if not key.startswith('_')}!=payload:raise HTTPException(409,'Source differs; original is immutable')
+            return payload
         if r.status!='draft':raise HTTPException(409,'Source must be attached before submission')
         r.lock_version+=1
         db.add(ReportSource(report_id=r.id,payload=payload));db.commit()
@@ -457,7 +484,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         if start and end and start>end:raise HTTPException(422,'Invalid date range')
     def analytic_rows(db,u,site_id=None,from_date=None,to_date=None,author_id=None,by_work_date=True):
         validate_period(from_date,to_date)
-        q=select(Report).where(Report.status.in_(['submitted','reviewed']))
+        q=select(Report).options(selectinload(Report.source_record)).where(Report.status.in_(['submitted','reviewed']))
         if site_id:
             allowed(db,u,str(site_id));q=q.where(Report.site_id==str(site_id))
         if u.role!='admin':q=q.join(Assignment,Assignment.site_id==Report.site_id).where(Assignment.user_id==u.id)
@@ -469,14 +496,16 @@ def create_app(database_url=None, storage=None, initialize=False):
     def metrics(rows,from_date,to_date,money_rows=None):
         volumes={}; qualitative={}; daily={}; reasons={};incidents=[];materials=[];movements={};financial=[];financial_totals={};equipment=[];equipment_hours={}
         for r in rows:
+            payload=analysis_payload(r.payload,r.source_record.payload if r.source_record else None)
             day=daily.setdefault(r.work_date,{'count':0,'ids':[]})
             day['count']+=1
             if r.id not in day['ids']:day['ids'].append(r.id)
-            if r.payload['kind']=='no_work':
+            normalization=current_normalization(r.payload,r.source_record.payload) if r.source_record else None
+            if r.payload['kind']=='no_work' and (not normalization or normalization['work_state']=='no_work'):
                 reason=r.payload['no_work_reason'].strip()
                 item=reasons.setdefault(reason,{'reason':reason,'report_count':0,'source_report_ids':[]})
                 item['report_count']+=1;item['source_report_ids'].append(r.id)
-            for w in r.payload.get('work_entries',[]):
+            for w in payload.get('work_entries',[]):
                 if w['quantity'] is not None:
                     key=(r.site_id,w['type'],w['unit'])
                     bucket=volumes.setdefault(key,{'qty':Decimal(0),'ids':[]})
@@ -488,26 +517,29 @@ def create_app(database_url=None, storage=None, initialize=False):
                     if r.id not in item['source_report_ids']:
                         item['report_count']+=1
                         item['source_report_ids'].append(r.id)
-            for event in r.payload.get('incidents') or []:
+            for event in payload.get('incidents') or []:
                 incidents.append({'report_id':r.id,'date':r.work_date,'description':event['description']})
-            for material in r.payload.get('materials') or []:
+            for material in payload.get('materials') or []:
                 direction=material.get('direction','mentioned')
                 materials.append({'report_id':r.id,'date':r.work_date,'name':material['name'],'quantity':material.get('quantity'),'unit':material.get('unit'),'direction':direction})
                 if direction!='mentioned':
                     key=(r.site_id,material['name'],material['unit'],direction)
                     movements[key]=movements.get(key,Decimal(0))+Decimal(material['quantity'])
-            for entry in r.payload.get('equipment') or []:
+            for entry in payload.get('equipment') or []:
                 equipment.append({'report_id':r.id,'date':r.work_date,**entry})
                 key=(entry['type'],entry['hired'])
                 equipment_hours[key]=equipment_hours.get(key,Decimal(0))+Decimal(entry['hours'])
         for r in (rows if money_rows is None else money_rows):
-            for entry in r.payload.get('financial_entries') or []:
+            payload=analysis_payload(r.payload,r.source_record.payload if r.source_record else None)
+            for entry in payload.get('financial_entries') or []:
                 op=str(entry['operation_date'])
                 if from_date and op<str(from_date):continue
                 if to_date and op>str(to_date):continue
                 financial.append({'report_id':r.id,**entry})
                 financial_totals[entry['kind']]=financial_totals.get(entry['kind'],0)+entry['amount_kopecks']
-        return {'report_count':len(rows),'no_work_count':sum(r.payload['kind']=='no_work' for r in rows),
+        normalized={r.id:current_normalization(r.payload,r.source_record.payload) for r in rows if r.source_record}
+        return {'report_count':len(rows),'no_work_count':sum(r.payload['kind']=='no_work' and (not normalized.get(r.id) or normalized[r.id]['work_state']=='no_work') for r in rows),
+                'work_not_stated_count':sum(n is not None and n['work_state']=='not_stated' for n in normalized.values()),
                 'period':{'from_date':str(from_date) if from_date else None,'to_date':str(to_date) if to_date else None},
                 'source_report_ids':[r.id for r in rows],
                 'volumes':[{'site_id':s,'work_type':t,'unit':unit,'quantity':str(item['qty']),'source_report_ids':item['ids'],'confirmed_zero':item['qty']==0} for (s,t,unit),item in sorted(volumes.items())],
@@ -523,8 +555,8 @@ def create_app(database_url=None, storage=None, initialize=False):
                 'financial_entries':financial,
                 'financial_totals_kopecks':financial_totals,
                 'equipment':equipment,
-                'equipment_hours':[{'type':name,'hired':hired,'hours':str(hours)} for (name,hired),hours in sorted(equipment_hours.items())],
-                'timeline':[{'report_id':r.id,'date':r.work_date,'kind':r.payload['kind'],'status':r.status} for r in rows[-200:]],
+                'equipment_hours':[{'type':name,'hired':hired,'hours':str(hours)} for (name,hired),hours in sorted(equipment_hours.items(),key=lambda item:(item[0][0],str(item[0][1])))],
+                'timeline':[{'report_id':r.id,'date':r.work_date,'kind':r.payload['kind'],'work_state':normalized[r.id]['work_state'] if normalized.get(r.id) else r.payload['kind'],'status':r.status} for r in rows[-200:]],
                 'timeline_truncated':len(rows)>200,
                 'limitations':['Только отправленные и проверенные отчёты. Нет отчётов — не означает отсутствие работ.',
                                'События считаются только по явно заполненным записям; отсутствие записи не подтверждает отсутствие события.',
@@ -532,12 +564,61 @@ def create_app(database_url=None, storage=None, initialize=False):
                                'Деньги — только зарегистрированные операции по дате операции. Упоминания в переписке не входят. Поступления, расходы и авансы не смешиваются. Баланс не рассчитывается: нет начального остатка.',
                                'Часы техники заявлены отправителем и не превращаются в стоимость без тарифа.',
                                'Нет утверждённых планов и расписаний: план-факт, процент готовности и просрочки не рассчитаны.',
-                               'Живая сводка строится из доставленных структурированных отчётов, не из текста архива.']}
+                               'Разобранные исторические сведения связаны с первичными строками. Неразобранные суммы и объёмы не входят в итоги. Дата исторического расхода может быть датой отчёта, если дата оплаты не указана отдельно.']}
     @api.get('/api/v1/analytics/summary')
     def summary(db:Session=Depends(dbdep),u:User=Depends(current),site_id:uuid.UUID|None=None,author_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None):
         work=analytic_rows(db,u,site_id,from_date,to_date,author_id)
         money=analytic_rows(db,u,site_id,from_date,to_date,author_id,by_work_date=False)
         return metrics(work,from_date,to_date,money)
+
+    def accessible_corpora(db,u):
+        if u.role not in ('manager','admin'):raise HTTPException(403,'Manager role required')
+        sites=set(db.scalars(select(Assignment.site_id).where(Assignment.user_id==u.id)))
+        return [c for c in db.scalars(select(ImportedCorpus).order_by(ImportedCorpus.id))
+                if c.payload.get('site_ids') and (u.role=='admin' or set(c.payload['site_ids']).issubset(sites))]
+    def corpus_for(db,u,cid):
+        corpus=next((c for c in accessible_corpora(db,u) if c.id==str(cid)),None)
+        if not corpus:raise HTTPException(404,'Unknown import')
+        return corpus.payload
+    @api.get('/api/v1/imports/coverage')
+    def import_coverage(db:Session=Depends(dbdep),u:User=Depends(current)):
+        results=[]
+        for c in accessible_corpora(db,u):
+            data=c.payload
+            results.append({'id':c.id,'messages':len(data['messages']),'reports':len(data['report_links']),
+                'duplicates':sum(bool(m.get('duplicate')) for m in data['messages']),
+                'photos':sum(bool(m.get('storage_file')) for m in data['media']),
+                'unavailable_media':sum(not m.get('storage_file') for m in data['media']),
+                'documents':data['documents']})
+        return results
+    @api.get('/api/v1/imports/{cid}/records')
+    def import_records(cid:uuid.UUID,q:str=Query('',max_length=200),kind:Literal['all','report','context','duplicate','document']='all',
+                       page:int=Query(1,ge=1),page_size:int=Query(30,ge=1,le=100),db:Session=Depends(dbdep),u:User=Depends(current)):
+        data=corpus_for(db,u,cid);docs={};media={m['id']:m for m in data['media']}
+        for document in data['documents']:docs.setdefault(document['message_id'],[]).append(document)
+        rows=[]
+        for m in data['messages']:
+            doc=docs.get(m['id'],[])
+            if q.casefold() not in (m['text']+' '+' '.join(d['name'] for d in doc)).casefold():continue
+            if kind=='report' and m['id'] not in data['report_links']:continue
+            if kind=='context' and (m.get('report') or not m['text']):continue
+            if kind=='duplicate' and not m.get('duplicate'):continue
+            if kind=='document' and not doc:continue
+            rows.append({'id':m['id'],'date':m['message_date'],'text':m['text'],'duplicate':bool(m.get('duplicate')),
+                'report_id':data['report_links'].get(m['id']),'documents':doc,
+                'media':[{'id':mid,'kind':media[mid]['kind'],'available':bool(media[mid].get('storage_file'))} for mid in m.get('media',[]) if mid in media]})
+        return {'total':len(rows),'page':page,'items':rows[(page-1)*page_size:page*page_size]}
+    @api.get('/api/v1/imports/{cid}/media/{mid}')
+    def import_media(cid:uuid.UUID,mid:str,db:Session=Depends(dbdep),u:User=Depends(current)):
+        data=corpus_for(db,u,cid)
+        item=next((m for m in data['media'] if m['id']==mid),None)
+        if not item or not item.get('storage_file'):raise HTTPException(404,'Unavailable media')
+        filename='corpus-'+item['sha256']+'.jpg'
+        if filename!=item['storage_file'] or not all(c in '0123456789abcdef' for c in item['sha256']) or len(item['sha256'])!=64:
+            raise HTTPException(503,'Invalid media reference')
+        target=folder/filename
+        if target.is_symlink() or not target.is_file():raise HTTPException(503,'Photo missing from storage')
+        return FileResponse(target,media_type='image/jpeg',headers={'Cache-Control':'private, no-store'})
     @api.post('/api/v1/analytics/ask')
     def ask(data:Ask,db:Session=Depends(dbdep),u:User=Depends(current)):
         f=data.filters

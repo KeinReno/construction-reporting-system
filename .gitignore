@@ -45,3 +45,11 @@ demo/generated/
 android/app/src/demo/assets/
 *.spec
 construction-windows-demo.zip
+
+android/.kotlin/
+
+# Local agent settings, scratch exports and private QA artifacts
+/.autopilot.json
+/.cursor/
+/tmp/
+/web/tmp/

@@ -1,6 +1,6 @@
 import { formatDate } from './date';
 import { useState } from 'react';
-import { http, type Summary } from './api';
+import { http, equipmentOwnership, type Summary } from './api';
 type Answer={answer:string;mode:string;intent:string;supported:boolean;period:Summary["period"];metrics:Summary|null;source_report_ids:string[];limitations:string[]};
 export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource}:{token:string;siteId:string;authorId:string;fromDate:string;toDate:string;onSource:(id:string)=>void}) {
   const [intent,setIntent]=useState('auto');
@@ -29,8 +29,8 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource}:{
       {result.intent==='incidents'&&<ul>{result.metrics.incidents.map((event,i)=><li key={`${event.report_id}-${i}`}><button className="quiet" onClick={()=>onSource(event.report_id)}>{formatDate(event.date)} · {event.description}</button></li>)}</ul>}
       {result.intent==='materials'&&<><h3>Заявленное движение</h3><ul>{result.metrics.material_movements.map((m,i)=><li key={i}>{m.direction==='received'?'Поступило':'Израсходовано'}: {m.name} · {m.quantity} {m.unit}</li>)}</ul><h3>Исходные записи</h3><ul>{result.metrics.materials.map((material,i)=><li key={`${material.report_id}-${i}`}><button className="quiet" onClick={()=>onSource(material.report_id)}>{formatDate(material.date)} · {material.name} · {material.direction==='received'?'поступило':material.direction==='consumed'?'израсходовано':'упомянуто'}{material.quantity!==null?` · ${material.quantity} ${material.unit||''}`:material.unit?` · ${material.unit}`:''}</button></li>)}</ul></>}
       {result.intent==='finance'&&<><h3>Итого по видам операций</h3><ul>{Object.entries(result.metrics.financial_totals_kopecks).map(([kind,amount])=><li key={kind}>{({expense:'Расход',funding_received:'Поступление',advance_issued:'Выдача аванса'} as Record<string,string>)[kind]||kind}: {new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format((amount||0)/100)}</li>)}</ul><ul>{result.metrics.financial_entries.map(entry=><li key={entry.id}><button className="quiet" onClick={()=>onSource(entry.report_id)}>{formatDate(entry.operation_date)} · {entry.category}</button></li>)}</ul></>}
-      {result.intent==='equipment'&&<ul>{result.metrics.equipment_hours.map((entry,i)=><li key={i}>{entry.type} · {entry.hired?'наёмная':'своя'} · {entry.hours} ч</li>)}</ul>}
-      {result.intent==='site_timeline'&&<ul>{result.metrics.timeline.map(r=><li key={r.report_id}><button className="quiet" onClick={()=>onSource(r.report_id)}>{formatDate(r.date)} · {r.kind==='no_work'?'Без работ':'Работы'}</button></li>)}</ul>}
+      {result.intent==='equipment'&&<ul>{result.metrics.equipment_hours.map((entry,i)=><li key={i}>{entry.type} · {equipmentOwnership(entry.hired)} · {entry.hours} ч</li>)}</ul>}
+      {result.intent==='site_timeline'&&<ul>{result.metrics.timeline.map(r=><li key={r.report_id}><button className="quiet" onClick={()=>onSource(r.report_id)}>{formatDate(r.date)} · {(r.work_state??r.kind)==='not_stated'?'Работы не описаны':(r.work_state??r.kind)==='no_work'?'Без работ':'Работы'}</button></li>)}</ul>}
       </>}
       {result.limitations.map(x=><p className="muted" key={x}>{x.replace('LLM-диалог','диалог с языковой моделью').replace('LLM отключена','языковая модель отключена')}</p>)}
     </div>}

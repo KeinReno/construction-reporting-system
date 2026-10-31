@@ -1,6 +1,7 @@
 package com.kaiden.construction
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -14,6 +15,7 @@ import javax.crypto.spec.GCMParameterSpec
 data class SessionIdentity(val token:String,val userId:String,val endpoint:String)
 /** Token and owner share one encrypted record, so account switching cannot mix identities. */
 class SecureSession(context: Context) {
+    companion object { private val lock=Any() }
     private val prefs = context.getSharedPreferences("session",Context.MODE_PRIVATE)
     private val alias = "construction-report-token"
     private fun secret(): SecretKey {
@@ -24,7 +26,7 @@ class SecureSession(context: Context) {
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
         return generator.generateKey()
     }
-    fun save(token:String, userId:String, endpoint:String=BuildConfig.API_BASE_URL) {
+    fun save(token:String, userId:String, endpoint:String=BuildConfig.API_BASE_URL) = synchronized(lock) {
         val cipher=Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE,secret())
         val payload=JSONObject().put("token",token).put("user_id",userId).put("endpoint",HttpsEndpoint.normalize(endpoint)).toString()
@@ -41,5 +43,15 @@ class SecureSession(context: Context) {
     }catch(_:Exception) {null} }
     fun get():String? = snapshot()?.token
     fun userId():String? = snapshot()?.userId
-    fun clear() {prefs.edit().remove("encrypted").remove("user_id").commit()}
+    fun clear() = synchronized(lock) {check(prefs.edit().remove("encrypted").remove("user_id").commit())}
+    /** A delayed 401 must never invalidate a newer login. */
+    fun invalidate(expected:SessionIdentity):Boolean = synchronized(lock) {
+        if(snapshot()!=expected) return@synchronized false
+        clear();true
+    }
+    fun listen(onChanged:()->Unit):()->Unit {
+        val listener=SharedPreferences.OnSharedPreferenceChangeListener { _,key -> if(key=="encrypted")onChanged() }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        return {prefs.unregisterOnSharedPreferenceChangeListener(listener)}
+    }
 }

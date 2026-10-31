@@ -78,6 +78,13 @@ fun ReportApp() {
     var token by remember { mutableStateOf(if(session.userId()!=null) session.get() else null) }
     val scope= rememberCoroutineScope()
     var error by remember { mutableStateOf("") }
+    DisposableEffect(session) {
+        val stop=session.listen { scope.launch {
+            if(token!=null && session.get()==null)error="Сессия завершилась. Войдите снова — сохранённые отчёты отправятся автоматически."
+            token=session.get()
+        } }
+        onDispose {stop()}
+    }
     var login by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -100,7 +107,8 @@ fun ReportApp() {
     val siteCache=remember { context.getSharedPreferences("site-cache",Context.MODE_PRIVATE) }
     var sites by remember(ownerId) { mutableStateOf<List<Pair<String,String>>>(emptyList()) }
     LaunchedEffect(token) {
-        if(token != null) {
+        val identity=session.snapshot()
+        if(token != null && identity!=null) {
             error=""
             try {
                 val cached=siteCache.getString(ownerId,null)
@@ -108,11 +116,13 @@ fun ReportApp() {
                     val array=JSONArray(cached)
                     sites=(0 until array.length()).map { val s=array.getJSONObject(it); s.getString("id") to s.getString("name") }
                 }
-                sites=withContext(Dispatchers.IO) { api.sites(token!!) }
+                sites=withContext(Dispatchers.IO) { api.sites(identity.token) }
+                if(session.snapshot()!=identity)return@LaunchedEffect
                 siteCache.edit().putString(ownerId,JSONArray(sites.map { JSONObject().put("id",it.first).put("name",it.second) }).toString()).apply()
+                withContext(Dispatchers.IO){dao.resumeExpiredSession(identity.userId)}
                 SyncWorker.schedule(context)
             } catch(e:CancellationException){throw e}
-            catch (e:Exception) {error=connectionMessage(e,"Не удалось загрузить объекты");if(e is ApiException && e.status==401){session.clear();token=null}}
+            catch (e:Exception) {error=connectionMessage(e,"Не удалось загрузить объекты");if(e is ApiException && e.status==401)session.invalidate(identity)}
         }
     }
     if(token==null && BuildConfig.DEMO_MODE) {
@@ -144,6 +154,9 @@ fun ReportApp() {
                         val result=withContext(Dispatchers.IO){api.login(login,password)}
                         val userId=withContext(Dispatchers.IO){api.me(result)}
                         endpointSettings.bindAfterLogin(serverUrl);session.save(result,userId,serverUrl);token=result;password=""
+                        // Delivery must resume even if the separate sites refresh is temporarily unavailable.
+                        withContext(Dispatchers.IO){dao.resumeExpiredSession(userId)}
+                        SyncWorker.schedule(context)
                     }catch(e:Exception){error=connectionMessage(e,"Не удалось войти. Проверьте данные и подключение")}
                     finally{busy=false}
                 }
@@ -339,6 +352,7 @@ fun ReportApp() {
         Text(autosaveStatus,style=MaterialTheme.typography.bodySmall)
         if(editing!=null) {
             Text("Исправление возвращённого отчёта · версия ${editing!!.serverRevision}")
+            editing!!.reviewReason?.let {Text("Причина возврата: $it",color=MaterialTheme.colorScheme.error)}
             OutlinedTextField(editReason,{editReason=it},label={Text("Причина исправления *")},modifier=Modifier.fillMaxWidth())
         }
         HorizontalDivider(Modifier.padding(top=8.dp))
@@ -541,11 +555,22 @@ fun ReportApp() {
                         formError="Отчёт загружен в форму. Исправьте ошибку и сохраните."
                     }}){Text("Исправить локальный отчёт")}
                     if(draft.businessStatus!=null)Text("${if(BuildConfig.DEMO_MODE)"Демо-статус" else "На сервере"}: ${businessStatusLabel(draft.businessStatus)} · версия ${draft.serverRevision}")
+                    if(draft.businessStatus=="needs_revision")Text("Причина возврата: ${draft.reviewReason ?: "Не удалось получить замечание. Обновите статус при наличии связи."}",color=MaterialTheme.colorScheme.error)
                     if(draft.serverId!=null && editing==null)TextButton(enabled=!busy,onClick={
                         busy=true;scope.launch {
+                            val identity=session.snapshot()
                             try {
-                                val remote=withContext(Dispatchers.IO){api.existingByClient(token!!,draft.id)}
-                                val updated=draft.copy(serverRevision=remote.getInt("revision"),businessStatus=remote.getString("status"))
+                                check(identity!=null){"Войдите снова"}
+                                val remote=withContext(Dispatchers.IO){api.existingByClient(identity.token,draft.id)}
+                                var historyError=false
+                                val returnReason=if(remote.getString("status")=="needs_revision") {
+                                    try {withContext(Dispatchers.IO){reviewReason(api.history(identity.token,remote.getString("id")),remote.getInt("revision"))}}
+                                    catch(e:CancellationException){throw e}
+                                    catch(e:ApiException){if(e.status==401)throw e;historyError=true;null}
+                                    catch(_:Exception){historyError=true;null}
+                                } else null
+                                if(session.snapshot()!=identity)return@launch
+                                val updated=draft.copy(serverRevision=remote.getInt("revision"),businessStatus=remote.getString("status"),reviewReason=returnReason ?: draft.reviewReason.takeIf{remote.getString("status")=="needs_revision" && draft.serverRevision==remote.getInt("revision")})
                                 withContext(Dispatchers.IO){dao.save(updated)}
                                 if(remote.getString("status")!="needs_revision") {formError="Статус обновлён: ${businessStatusLabel(remote.getString("status"))}"}
                                 else {
@@ -562,10 +587,11 @@ fun ReportApp() {
                                     workEntries.clear();val entries=data.getJSONArray("work_entries")
                                     for(i in 0 until entries.length())workEntries.add(entries.getJSONObject(i))
                                     photos.clear();for(i in 0 until localPhotos.length())photos.add(localPhotos.getJSONObject(i))
-                                    formError="Возвращённый отчёт загружен в форму выше"
+                                    formError="Причина возврата: ${updated.reviewReason ?: if(historyError)"не удалось загрузить; обновите статус при наличии связи" else "замечание недоступно"}"
                                     }
                                 }
-                            }catch(e:Exception){formError=connectionMessage(e,"Не удалось обновить статус")}
+                            }catch(e:CancellationException){throw e}
+                            catch(e:Exception){formError=connectionMessage(e,"Не удалось обновить статус");if(e is ApiException && e.status==401 && identity!=null)session.invalidate(identity)}
                             finally{busy=false}
                         }
                     }){Text("Проверить статус / исправить")}

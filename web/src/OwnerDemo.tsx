@@ -1,3 +1,4 @@
+import {SignalIcon} from './reports/ReportSignals';
 import {useEffect, useMemo, useState} from 'react';
 import {BASE, type Report, type Site} from './api';
 import {formatDate} from './date';
@@ -49,7 +50,7 @@ function groupWork(text:string):string|null{
 }
 function recordNoun(count:number){return count%10===1&&count%100!==11?'запись':count%10>=2&&count%10<=4&&(count%100<12||count%100>14)?'записи':'записей';}
 
-export function OwnerDemo({mode,reports,sites,selectedSiteId,context,token,onOpen,onJournal,onReconciliation}:{mode:'overview'|'objects'|'analytics';reports:Report[];sites:Site[];selectedSiteId:string;context:OwnerContext|null;token:string;onOpen:(report:Report)=>void;onJournal:()=>void;onReconciliation:()=>void}){
+export function OwnerDemo({mode,reports,sites,selectedSiteId,context,token,onOpen,onJournal,onReconciliation,onSelectSite}:{mode:'overview'|'objects'|'analytics';reports:Report[];sites:Site[];selectedSiteId:string;context:OwnerContext|null;token:string;onOpen:(report:Report)=>void;onJournal:()=>void;onReconciliation:()=>void;onSelectSite:(id:string)=>void}){
   const reviews=useArchiveReviews(token);
   const [showFullTimeline,setShowFullTimeline]=useState(false);
   useEffect(()=>setShowFullTimeline(false),[selectedSiteId,reports]);
@@ -79,7 +80,7 @@ export function OwnerDemo({mode,reports,sites,selectedSiteId,context,token,onOpe
   const noWork=focus.filter(report=>report.data.kind==='no_work');
   const dates=focus.map(report=>report.data.work_date).sort();
   const period=dates.length?`${formatDate(dates[0])} — ${formatDate(dates[dates.length-1])}`:'Нет записей в выбранном периоде';
-  const mainName=showingUncertain?'Объект не уточнён':sites.find(site=>site.name.startsWith('ПС Факел'))?.name||'ПС Факел';
+  const mainName=showingUncertain?'Объект не уточнён':selectedSite?.name || (new Set(main.map(report=>report.site_id)).size>1 ? 'Объекты архива' : sites.find(site=>site.id===main[0]?.site_id)?.name || 'Архив объекта');
   const months=useMemo(()=>{
     const grouped=new Map<string,Report[]>();
     for(const report of focus){const key=report.data.work_date.slice(0,7);if(!grouped.has(key))grouped.set(key,[]);grouped.get(key)!.push(report);}
@@ -94,7 +95,7 @@ export function OwnerDemo({mode,reports,sites,selectedSiteId,context,token,onOpe
     <div className="owner-context-line"><strong>История из MAX</strong><span>{period}</span><span>Это архивные записи, не текущая очередь отчётности</span></div>
     {mode==='objects'&&<>
       <section className={`owner-object-intro${showingUncertain?' owner-object-intro-uncertain':''}`} aria-label="История объекта">
-        <div><p className="owner-hero-label">{showingUncertain?'Записи для сверки':'Объект · архив MAX'}</p><h2>{mainName.replace(' · по истории чата','')}</h2><p>{showingUncertain?'В сообщениях упомянут ПС Пущино; принадлежность работ не подтверждена.':'Последняя рабочая дата в архиве — '+(latest?formatDate(latest.data.work_date):'нет записей')+'. Это история сообщений, не оценка текущей готовности.'}</p>{showingUncertain&&<a className="owner-review-jump" href="#owner-reconciliation">Перейти к сверке записей ↓</a>}</div>
+        <div><p className="owner-hero-label">{showingUncertain?'Записи для сверки':'Объект · архив MAX'}</p><h2>{mainName.replace(' · по истории чата','')}</h2><p>{showingUncertain?'В сообщениях упомянут ПС Пущино; принадлежность работ не подтверждена.':'Последняя рабочая дата в выбранном периоде — '+(latest?formatDate(latest.data.work_date):'нет записей')+'. Это история сообщений, не оценка текущей готовности.'}</p>{showingUncertain&&<a className="owner-review-jump" href="#owner-reconciliation">Перейти к сверке записей ↓</a>}</div>
         <div className="owner-object-facts"><span><strong>{focus.length}</strong> {recordNoun(focus.length)}</span><span><strong>{new Set(dates).size}</strong> рабочих дат</span><span><strong>{directPhotoReports}</strong> с фото в сообщении</span></div>
       </section>
       {!showingUncertain&&<section className="owner-object-priorities" aria-label="Главное по объекту">
@@ -122,13 +123,36 @@ export function OwnerDemo({mode,reports,sites,selectedSiteId,context,token,onOpe
       </div>
     </>}
     {mode==='overview'&&<section className="owner-hero" aria-label="Состояние объекта">
-      <div><p className="owner-hero-label">{showingUncertain?'Записи на сверку принадлежности':'Объект по истории чата'}</p><h2>{mainName.replace(' · по истории чата','')}</h2><p className="owner-hero-copy">{showingUncertain?'В сообщениях упомянут ПС Пущино. Принадлежность работ нужно подтвердить по первичным данным. ':''}{latest?<>Последняя рабочая дата — <b>{formatDate(latest.data.work_date)}</b>. {latest.data.work_entries.filter(work=>groupWork(work.type)).slice(0,3).map(work=>work.type).join('; ')||'Работы не перечислены'}.</>:'По выбранным условиям отчётов нет.'}</p>
+      <div><p className="owner-hero-label">{showingUncertain?'Записи на сверку принадлежности':'Объект по истории чата'}</p><h2>{mainName.replace(' · по истории чата','')}</h2><p className="owner-hero-copy">{showingUncertain?'В сообщениях упомянут ПС Пущино. Принадлежность работ нужно подтвердить по первичным данным. ':''}{latest?<>Последняя рабочая дата в выбранном периоде — <b>{formatDate(latest.data.work_date)}</b>. {latest.data.work_entries.filter(work=>groupWork(work.type)).slice(0,3).map(work=>work.type).join('; ')||'Работы не перечислены'}.</>:'По выбранным условиям отчётов нет.'}</p>
         <div className="owner-hero-actions">{latest&&<button className="primary" onClick={()=>onOpen(latest)}>Открыть последний отчёт</button>}{latestWithPhotos&&<button className="secondary" onClick={()=>onOpen(latestWithPhotos)}>День с фото · {formatDate(latestWithPhotos.data.work_date)}</button>}</div></div>
-      <div className="owner-hero-facts"><div><strong>{focus.length}</strong><span>{showingUncertain?'с неуточнённым объектом':'записей в архиве объекта'}</span></div><div><strong>{noWork.length}</strong><span>без работ</span></div>{!showingUncertain&&<div><strong>{reviews.state==='ready'?pendingTotal:'—'}</strong><span>на сверку во всём архиве</span></div>}</div>
+      <div className="owner-hero-facts"><div><strong>{focus.length}</strong><span>{showingUncertain?'с неуточнённым объектом':'записей в выбранном периоде'}</span></div><div><strong>{noWork.length}</strong><span>без работ</span></div>{!showingUncertain&&<div><strong>{reviews.state==='ready'?pendingTotal:'—'}</strong><span>на сверку во всём архиве</span></div>}</div>
+    </section>}
+    {mode==='overview'&&<section className="owner-sites-overview" aria-label="Объекты в выбранном периоде">
+      <div className="owner-section-heading"><div><h2>Объекты в выбранном периоде</h2><p className="owner-explain">Последняя запись по каждому объекту в текущей выборке</p></div></div>
+      <div className="owner-sites-grid">{sites.filter(site=>selectedSiteId==='all'||site.id===selectedSiteId).map(site=>{
+        const siteReports=reports.filter(report=>report.site_id===site.id).sort((a,b)=>b.data.work_date.localeCompare(a.data.work_date)||a.id.localeCompare(b.id));
+        const last=siteReports[0];
+        const source=last ? context?.reports[last.client_report_id] : undefined;
+        const direct=source?.photos.filter(photo=>photo.relation==='same_message').length || 0;
+        const byDate=source?.photos.filter(photo=>photo.relation==='same_work_date').length || 0;
+        const isUncertain=site.name.startsWith('Объект требует сверки');
+        const title=isUncertain?'Объект не уточнён':site.name.replace(' · по истории чата','');
+        const work=last ? (last.data.kind==='no_work'?`Без работ: ${last.data.no_work_reason || 'причина не указана'}`:last.data.work_entries.filter(item=>groupWork(item.type)).slice(0,2).map(item=>item.type).join('; ')||'Работы не описаны') : '';
+        const incident=last?.data.incidents?.[0]?.description;
+        return <article className="owner-site-overview-card" key={site.id}>
+          <div className="owner-site-overview-head"><h3>{title}</h3><span>{siteReports.length} {recordNoun(siteReports.length)}</span></div>
+          {last?<><p className="owner-site-date">Последняя запись в периоде · <time dateTime={last.data.work_date}>{formatDate(last.data.work_date)}</time></p><p className="owner-site-work">{work}</p>
+            <div className="owner-site-signals"><span><SignalIcon kind="photo"/>{source ? `${direct} в сообщении` : 'Данные о фото недоступны'}</span>{byDate>0&&<span>{byDate} по дате · связь не подтверждена</span>}{incident&&<span><SignalIcon kind="event"/>Указано событие</span>}</div>
+            {incident&&<p className="owner-site-incident">{incident}</p>}
+            <div className="owner-site-actions"><button className="link-button" onClick={()=>onSelectSite(site.id)}>Объект →</button><button className="link-button" onClick={()=>onOpen(last)}>Последняя запись →</button></div>
+          </>:<><p className="owner-site-empty">В выбранном периоде записей нет.</p><div className="owner-site-actions"><button className="link-button" onClick={()=>onSelectSite(site.id)}>Объект →</button></div></>}
+        </article>;
+      })}</div>
+      {!sites.some(site=>selectedSiteId==='all'||site.id===selectedSiteId)&&<p className="empty">Нет доступных объектов.</p>}
     </section>}
     {mode==='overview'&&<section className="owner-panel owner-report-previews"><div className="owner-section-heading"><div><h2>Отчёты из переписки</h2><p className="owner-explain">{reportsWithDirectPhotos.length?'Последняя запись и архивные отчёты с фото из того же сообщения MAX.':'Последние архивные записи по рабочей дате.'}</p></div><button className="link-button" onClick={onJournal}>Весь журнал →</button></div>
-      {previewReports.length?<div className="owner-report-preview-grid">{previewReports.map(report=>{const directPhotos=(context?.reports[report.client_report_id]?.photos||[]).filter(photo=>photo.relation==='same_message');const summary=report.data.kind==='no_work'?`Без работ: ${report.data.no_work_reason||'причина не указана'}`:report.data.work_entries.filter(work=>groupWork(work.type)).slice(0,2).map(work=>work.type).join('; ')||'Описание работы требует разбора';return <button className="owner-report-preview" key={report.id} onClick={()=>onOpen(report)} aria-label={`Открыть отчёт за ${formatDate(report.data.work_date)}. ${summary}`}>
-        <ReportPreviewPhoto photo={directPhotos[0]} token={token} count={directPhotos.length}/><span className="owner-report-preview-content"><span className="owner-report-preview-meta"><time>{formatDate(report.data.work_date)}</time><span>Архив MAX</span></span><strong>{mainName.replace(' · по истории чата','')}</strong><span className="owner-report-preview-summary">{summary}</span><span className="owner-report-preview-footer">{directPhotos.length?`${directPhotos.length} фото в том же сообщении`:'Фото в сообщении нет'} <span aria-hidden="true">↗</span></span></span>
+      {previewReports.length?<div className="owner-report-preview-grid">{previewReports.map(report=>{const directPhotos=(context?.reports[report.client_report_id]?.photos||[]).filter(photo=>photo.relation==='same_message');const reportSite=context?.reports[report.client_report_id]?.other_site_mentioned?'Объект не уточнён':sites.find(site=>site.id===report.site_id)?.name.replace(' · по истории чата','')||'Объект не указан';const summary=report.data.kind==='no_work'?`Без работ: ${report.data.no_work_reason||'причина не указана'}`:report.data.work_entries.filter(work=>groupWork(work.type)).slice(0,2).map(work=>work.type).join('; ')||'Описание работы требует разбора';return <button className={`owner-report-preview${directPhotos.length?'':' owner-report-preview-no-photo'}`} key={report.id} onClick={()=>onOpen(report)} aria-label={`Открыть отчёт за ${formatDate(report.data.work_date)}. ${summary}`}>
+        {directPhotos.length>0&&<ReportPreviewPhoto photo={directPhotos[0]} token={token} count={directPhotos.length}/>}<span className="owner-report-preview-content"><span className="owner-report-preview-meta"><time>{formatDate(report.data.work_date)}</time><span>Архив MAX</span></span><strong>{reportSite}</strong><span className="owner-report-preview-summary">{summary}</span><span className="owner-report-preview-footer">{directPhotos.length?`${directPhotos.length} фото в том же сообщении`:'Фото в сообщении нет'} <span aria-hidden="true">↗</span></span></span>
       </button>})}</div>:<p className="empty">Записей по выбранным условиям нет.</p>}
     </section>}
     {mode==='overview'&&!showingUncertain&&<section className="owner-panel owner-attention-panel"><div className="owner-section-heading"><h2>Что требует внимания</h2><button className="link-button" onClick={onReconciliation}>К сверке записей →</button></div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { allReports, filterQuery, type FinancialEntry, type Report, type Site } from './api';
+import { allReports, filterQuery, reportViewData, type FinancialEntry, type Report, type Site } from './api';
 import { formatDate } from './date';
 
 const kinds = ['expense', 'funding_received', 'advance_issued'] as const;
@@ -56,7 +56,7 @@ export function MoneyPage({
     report => !!report.receipt_id && ['submitted', 'reviewed', 'needs_revision'].includes(report.status)
   );
   const operations = delivered
-    .flatMap(report => (report.data.financial_entries ?? []).map(entry => ({ ...entry, report })))
+    .flatMap(report => (reportViewData(report).financial_entries ?? []).map(entry => ({ ...entry, report })))
     .filter(
       entry =>
         !invalid &&
@@ -80,7 +80,8 @@ export function MoneyPage({
       <div>
         <span className="crs-eyebrow">Финансовый журнал</span>
         <p className="muted">
-          Фильтр дат на этом экране относится к дате операции. Работы в остальных разделах считаются по дате смены.
+          Фильтр дат относится к указанной дате операции. Для разобранных исторических расходов без даты оплаты
+          используется дата отчёта с отдельной пометкой. Работы считаются по дате смены.
           Суммы трёх видов не складываются и не образуют остаток.
         </p>
       </div>
@@ -120,7 +121,7 @@ export function MoneyPage({
               <strong>{counts[item] ? money(totals[item]) : 'Нет'}</strong>
               <small>
                 {counts[item]
-                  ? 'Сумма операций по дате операции'
+                  ? 'По указанным датам; у исторических записей возможна дата отчёта'
                   : 'Нет операций этого вида. Это не ноль и не остаток.'}
               </small>
             </div>
@@ -129,8 +130,8 @@ export function MoneyPage({
       )}
       {reports && (
         <p className="footnote">
-          Начальный остаток не задан, поэтому баланс не показывается. Текстовые упоминания сумм из переписки сюда не
-          попадают.
+          Начальный остаток не задан, поэтому баланс не показывается. Включены структурированные операции и
+          однозначно разобранные заявленные расходы. Непроверенные суммы, цены и планы не включены.
         </p>
       )}
       {reports && !list.length && (
@@ -156,6 +157,7 @@ export function MoneyPage({
               <span>
                 <i>Дата операции</i>
                 {formatDate(entry.operation_date)}
+                {entry.date_basis==='report_date'&&<small>Дата отчёта; дата оплаты не указана</small>}
               </span>
               <span>
                 <i>Объект</i>

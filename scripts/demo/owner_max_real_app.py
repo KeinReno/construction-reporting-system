@@ -164,9 +164,11 @@ def create_owner_app(root: Path, archive_source: Path, web_source: Path):
     root = private_root(root)
     archive_source = archive_source.resolve()
     root.mkdir(parents=True, exist_ok=True)
-    if not (archive_source / "data.js").is_file():
+    # Once copied, startup never needs the original export again.
+    archive = root / "archive"
+    if not (archive / "data.js").is_file() and not (archive_source / "data.js").is_file():
         raise ValueError("Build the private MAX archive first")
-    source_hash = hashlib.sha256((archive_source / "data.js").read_bytes()).hexdigest()
+    source_hash = hashlib.sha256(((archive if (archive / "data.js").is_file() else archive_source) / "data.js").read_bytes()).hexdigest()
     fingerprint_file = root / "import-source.sha256"
     if fingerprint_file.exists() and fingerprint_file.read_text(encoding="ascii").strip() != source_hash:
         raise ValueError("MAX archive changed; use a new private demo directory for a fresh import")
@@ -312,13 +314,17 @@ def create_owner_app(root: Path, archive_source: Path, web_source: Path):
             db.commit()
         site_ids = {"fakel": db.scalar(select(Site.id).where(Site.name == "ПС Факел · по истории чата")),
                     "mixed": db.scalar(select(Site.id).where(Site.name == "Объект требует сверки · упомянуто ПС Пущино"))}
-        count_before = db.scalar(select(func.count()).select_from(Report))
     if any(not value for value in site_ids.values()):
         raise ValueError("Unexpected site state in private database")
     bundle_path = root / "import-bundle.json"
     expected = prepare_bundle(archive, bundle_path, site_ids)
-    if count_before < expected:
-        bundle, bundle_root = read_bundle(bundle_path)
+    bundle, bundle_root = read_bundle(bundle_path)
+    with api.state.db() as db:
+        api.state.import_user_ids={db.scalar(select(User.id).where(User.login==credentials['importer_login']))}
+    expected_ids={str(item.data.client_report_id) for item in bundle.reports}
+    with api.state.db() as db:
+        existing_ids=set(db.scalars(select(Report.client_report_id).where(Report.client_report_id.in_(expected_ids))).all())
+    if existing_ids != expected_ids:
         with TestClient(api) as client:
             login = client.post("/api/v1/auth/login", json={"login": credentials["importer_login"], "password": credentials["importer_password"]})
             login.raise_for_status()
@@ -330,9 +336,12 @@ def create_owner_app(root: Path, archive_source: Path, web_source: Path):
             finally:
                 client.post("/api/v1/auth/logout", headers={"Authorization": "Bearer " + token})
     with api.state.db() as db:
-        count_after = db.scalar(select(func.count()).select_from(Report))
-    if count_after != expected:
-        raise ValueError(f"Report count mismatch: {count_after} != {expected}")
+        imported_ids=set(db.scalars(select(Report.client_report_id).where(Report.client_report_id.in_(expected_ids))).all())
+        if imported_ids != expected_ids:raise ValueError('Imported report UUID set mismatch')
+        from app.import_evidence import materialize_evidence
+        materialize_evidence(db,photos,archive,archive_context,archive_photos)
+        db.commit()
+    count_after=len(imported_ids)
     fingerprint_file.write_text(source_hash + "\n", encoding="ascii")
 
     return api, credentials, count_after
