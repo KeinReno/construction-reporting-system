@@ -2,6 +2,7 @@ import type { Report, Site } from '../api';
 import { reportStatusLabels } from '../api';
 import { formatDate } from '../date';
 import { ReportStatus } from '../reports/ReportStatus';
+import { CrSkeleton } from '../ui/CrSkeleton';
 import { buildReportView } from '../reports/reportView';
 
 export function SituationBoard({
@@ -82,7 +83,7 @@ export function SituationBoard({
               );
             })
           ) : (
-            <p className="empty">{error ? 'Данные не загружены.' : 'Загрузка…'}</p>
+            error ? <p className="empty">Данные не загружены.</p> : <CrSkeleton rows={4} label="Загрузка сведений об объектах" />
           )}
           {ready && !sites.length && <p className="empty">Нет назначенных объектов.</p>}
         </div>
