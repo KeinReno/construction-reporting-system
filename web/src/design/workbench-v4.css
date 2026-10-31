@@ -286,3 +286,42 @@
 
 /* Decorative decimal is CSS-only, leaving the numeric DOM accessible for filters and automation. */
 .wb-command-number::after{content:".";color:#b37f45}
+
+
+/* Visual QA corrections: prevent ghost-height rows and vertically wrapped status. */
+.wb-situation{align-items:start}
+.wb-situation-main{align-self:start;min-height:0}
+.wb-situation .wb-situation-list{display:block;flex:0 0 auto;min-height:0}
+.wb-situation .wb-situation-row{width:100%;min-height:96px;align-items:center;align-self:start}
+.wb-review .wb-review-item > .report-status{
+  grid-column:2 / -1;
+  justify-self:start;
+  align-self:start;
+  display:inline-flex;
+  align-items:center;
+  max-width:100%;
+  width:auto;
+  padding:5px 9px;
+  white-space:nowrap;
+  word-break:normal;
+  overflow-wrap:normal;
+}
+.wb-brief-list .wb-brief-item.metric{
+  display:flex!important;
+  align-items:center;
+  justify-content:flex-start;
+  min-width:0;
+  gap:12px;
+}
+.wb-brief-list .wb-brief-index{flex:0 0 33px}
+.wb-brief-list .wb-brief-label{flex:1 1 auto;min-width:0}
+.wb-brief-list .wb-brief-item strong{flex:0 0 auto;margin-left:auto}
+@media(max-width:1220px){
+  .wb-brief-list .wb-brief-item.metric{min-height:80px!important}
+}
+@media(max-width:900px){
+  .wb-brief-list .wb-brief-item.metric{min-height:57px!important}
+}
+@media(max-width:465px){
+  .wb-review .wb-review-item > .report-status{grid-column:2 / -1}
+}

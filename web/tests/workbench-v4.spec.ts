@@ -33,7 +33,7 @@ test('new mobile command center stacks correctly and keeps navigation usable',as
   await expect(page.locator('.wb-command-brief')).toBeVisible();
   const grid=await page.locator('.wb-command').evaluate(el=>getComputedStyle(el).gridTemplateColumns);
   expect(grid.split(' ').length).toBe(1);
+  await page.screenshot({path:'test-results/workbench-v4-mobile.png',fullPage:true});
   await page.getByRole('button',{name:'Дополнительные разделы'}).click();
   await expect(page.getByRole('menu',{name:'Дополнительные разделы'})).toBeVisible();
-  await page.screenshot({path:'test-results/workbench-v4-mobile.png',fullPage:true});
 });
