@@ -56,7 +56,7 @@ export function CrSidebar<Page extends string>({
       </div>
       <nav id="crs-sidebar-navigation" className="crs-sidebar-navigation" aria-label="Основная навигация">
         <span className="crs-sidebar-group-label" aria-hidden="true">РАБОЧЕЕ ПРОСТРАНСТВО</span>
-        {entries.map(({ key, label }) => (
+        {entries.map(({ key, label }, index) => (
           <button
             key={key}
             type="button"
@@ -65,7 +65,7 @@ export function CrSidebar<Page extends string>({
             title={collapsed ? label : undefined}
             onClick={() => onSelect(key)}
           >
-            {renderIcon(key)}<span className="crs-nav-label">{label}</span>
+            {renderIcon(key)}<span className="crs-nav-label">{label}</span><span className="wb-nav-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
           </button>
         ))}
         {archiveUrl && (
@@ -83,7 +83,7 @@ export function CrSidebar<Page extends string>({
       </nav>
       <div className="sidebar-foot crs-sidebar-foot" title={collapsed ? 'Серверные данные' : undefined}>
         <span className="online-dot" aria-hidden="true" />
-        <span className="crs-nav-label">Серверные данные</span>
+        <span className="crs-nav-label">Серверные данные</span><span className="wb-sidebar-build" aria-hidden="true">CRS / WORKBENCH V4</span>
       </div>
     </aside>
   );

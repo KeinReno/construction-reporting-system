@@ -5,7 +5,8 @@ import { AdminPanel } from './AdminPanel';
 import { AnalysisPanel } from './AnalysisPanel';
 import { ReportDetails } from './ReportDetails';
 import { ReportsJournal } from './reports/ReportsJournal';
-import { SituationBoard } from './overview/SituationBoard';
+import { SituationBoardV4 } from './workbench/SituationBoardV4';
+import { WorkbenchCommandHero, WorkbenchMasthead, WorkbenchSection, WorkbenchTopbar } from './workbench/WorkbenchChrome';
 import { SiteList } from './sites/SiteList';
 import { http, login, ApiError, filterQuery, allReports, type Profile, type Report, type ReportAuthor, type Site, type Summary } from './api';
 import { SiteCard } from './SiteCard';
@@ -190,7 +191,7 @@ export default function App() {
   },[currentSummary,interval]);
   const pageTitle = labels[page];
   if (!token) return <Login onSuccess={setToken} demo={demo}/>;
-  return <AuthorColorsProvider authors={authors}><div className="app-shell">
+  return <AuthorColorsProvider authors={authors}><div className="app-shell wb-shell">
     <CrSidebar<Page>
       entries={(Object.keys(labels) as Page[]).filter(key=>key!=='admin'||profile?.role==='admin').map(key=>({key,label:labels[key]}))}
       current={page}
@@ -198,39 +199,42 @@ export default function App() {
       renderIcon={key=><NavIcon page={key}/>}
     />
     <div className="workspace">
-      <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login ? displayAuthor(profile.login) : 'Пользователь'} <button className="quiet" onClick={() => {void http('/auth/logout',token,{method:'POST'}).catch(()=>{});endSession();setError('');}}>Выйти</button></span></header>
+      <WorkbenchTopbar pageTitle={pageTitle} user={profile?.login ? displayAuthor(profile.login) : 'Пользователь'} onLogout={() => {void http('/auth/logout',token,{method:'POST'}).catch(()=>{});endSession();setError('');}} />
       <main className={`content`}>
         <div hidden={!!reportId}>
         {demo&&<div className="card"><strong>ДЕМО · локальная база</strong><p>{demo.notice}</p></div>}
         <CrBreadcrumbs items={[{label:"СтройКонтроль",onSelect:()=>{navigate("overview");setSiteId("all");}},{label:pageTitle},...(page==="objects"&&siteId!=="all"?[{label:siteName(siteId)}]:[])]}/>
-        <div className="heading">
-          <div>
-            <h1>{pageTitle}</h1>
-            <p>
-              {page === 'overview' ? 'Сначала показаны отчёты, ожидающие проверки' :
-               page === 'reports' ? 'Все отчёты по выбранным условиям. Содержание смены видно без открытия.' :
-               page === 'money' ? 'Расходы, поступления и авансы по дате операции, без общего итога' :
-               page === 'analytics' ? 'Работы по дате смены, деньги по дате операции. Считаются доставленные отчёты.' :
-               'Данные по выбранным условиям'}
-            </p>
-          </div>
-          <button className="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Обновление…' : '↻ Обновить'}</button>
-        </div>
-        {error && <div className="error" role="alert">Ошибка: {error}</div>}
+        <WorkbenchMasthead title={pageTitle} index={page==='overview'?'01':page==='objects'?'02':page==='reports'?'03':page==='money'?'04':page==='analytics'?'05':page==='ai'?'06':'07'}
+           subtitle={page === 'overview' ? 'Единая рабочая картина по объектам, сменам и отчётности' :
+             page === 'reports' ? 'Все отчёты по выбранным условиям. Содержание смены видно без открытия.' :
+             page === 'money' ? 'Расходы, поступления и авансы по дате операции. Без вымышленного баланса.' :
+             page === 'analytics' ? 'Фактические показатели с прямыми ссылками на источники' :
+             page === 'objects' ? 'Объекты, смены, ресурсы и зафиксированные события' :
+             page === 'ai' ? 'Анализ по данным реальных отчётов' :
+             'Пользователи, объекты и разграничение доступа'}
+           onRefresh={() => void refresh()} refreshing={loading} />
+         {error && <div className="error" role="alert">Ошибка: {error}</div>}
         {(page!=='admin') && <><button className="mobile-filter-toggle secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'} <span>{siteId==='all'?'Все объекты':siteName(siteId)} · {authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}</span></button><div id="report-filters" className={`filters ${filtersOpen?'filters-open':''}`}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
           <CrCombobox label="Автор" value={authorId} onChange={setAuthorId} options={[{value:'all',label:'Все авторы'},...authors.map(a=>({value:a.id,label:displayAuthor(a.login)}))]}/>
           <CrDateField label="С" value={startDate} onChange={setStartDate}/><CrDateField label="По" value={endDate} onChange={setEndDate}/></div></>}
         {page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> :
          page === 'ai' && (startDate.startsWith('!') || endDate.startsWith('!') || (!!startDate && !!endDate && startDate>endDate)) ? <p className="error">Исправьте период перед формированием анализа.</p> :
          page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={openById}/> : <>
-          {page !== 'reports' && page !== 'money' && <section className={`metric-grid crs-summary-grid ${page==='overview' ? 'crs-summary-overview' : 'crs-summary-standard'}`}>
-            <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
-            <div className="metric crs-metric-featured"><span>Полученных отчётов</span><strong>{dataCurrent?received.length:'—'}</strong><small>Текущие версии с квитанцией, включая уточнение</small>{dataCurrent && visible.length > 0 && <CrProgress value={received.length} max={visible.length} label="Доля отчётов с квитанцией" />}</div>
-            <div className="metric crs-metric-attention"><span>Ожидают проверки</span><strong>{dataCurrent?needsReview:'—'}</strong><small>Новые отчёты сотрудников</small></div>
-            {page==='overview' && <div className="metric"><span>Заявленные расходы</span><strong>{!dataCurrent?'—':expenseKopecks==null?'Нет':new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format(expenseKopecks/100)}</strong><small>{!dataCurrent?'По дате операции':expenseKopecks==null?'Нет расходных операций за период. Это не ноль.':'Только расходы, без поступлений и авансов'}</small></div>}
-            <div className="metric"><span>Указано событий</span><strong>{currentSummary?.incident_count ?? '—'}</strong><small>Только явно внесённые записи</small></div>
-          </section>}
-          {page==='overview' && <SituationBoard
+          {page==='overview' && <WorkbenchCommandHero
+             reports={received.length} visibleReports={visible.length}
+             pending={needsReview} siteCount={siteId==='all'?sites.length:1}
+             incidents={currentSummary?.incident_count ?? null}
+             expenseKopecks={expenseKopecks}
+             ready={dataCurrent}
+             onShowReports={()=>navigate('reports')} />}
+           {page !== 'overview' && page !== 'reports' && page !== 'money' && <section className="metric-grid wb-secondary-kpis">
+             <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
+             <div className="metric crs-metric-featured"><span>Полученных отчётов</span><strong>{dataCurrent?received.length:'—'}</strong><small>Текущие версии с квитанцией, включая уточнение</small>{dataCurrent && visible.length > 0 && <CrProgress value={received.length} max={visible.length} label="Доля отчётов с квитанцией" />}</div>
+             <div className="metric crs-metric-attention"><span>Ожидают проверки</span><strong>{dataCurrent?needsReview:'—'}</strong><small>Новые отчёты сотрудников</small></div>
+             <div className="metric"><span>Указано событий</span><strong>{currentSummary?.incident_count ?? '—'}</strong><small>Только явно внесённые записи</small></div>
+           </section>}
+           {page==='overview' && <WorkbenchSection number="01" title="Объекты и контроль" detail="Текущая ситуация по площадкам" />}
+           {page==='overview' && <SituationBoardV4
             sites={sites.filter(s=>siteId==='all'||s.id===siteId)}
             ready={dataCurrent}
             error={error}
@@ -242,7 +246,9 @@ export default function App() {
             onOpenSite={id=>{setSiteId(id);setPage('objects');}}
             onOpenReport={openReport}
           />}
-          {(page==='overview' || page==='reports') && <div className={page==='overview'?'overview-workspace':'journal-workspace'}>
+          {page==='overview' && <WorkbenchSection number="02" title="Оперативная отчётность" detail="Записи, даты, первичные источники" />}
+           {page==='reports' && <WorkbenchSection number="01" title="Реестр смен" detail="Первичные отчёты и проверка" />}
+           {(page==='overview' || page==='reports') && <div className={page==='overview'?'overview-workspace wb-overview-data':'journal-workspace wb-journal-workspace'}>
           {(page==='overview' || page==='reports') && (dataCurrent || visible.length ? <ReportsJournal
               reports={page==='overview'?overviewReports:visible}
               token={token}
@@ -262,13 +268,15 @@ export default function App() {
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           }
           </div>}
-          {page==='analytics' && <section className="analytics-lead">
+          {page==='analytics' && <WorkbenchSection number="01" title="Динамика по периодам" detail="По данным сводки" />}
+           {page==='analytics' && <section className="analytics-lead wb-analytics-lead">
             <div className="card"><h2>Аналитика объектов</h2><p className="muted">Сводка по данным периода</p>
               <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
               <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period=>setDrill({title:`Отчёты за ${period.label}`,ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           </section>}
-          {(page==='overview' || page==='analytics') && <section className="work-volume">
+          {(page==='overview' || page==='analytics') && <WorkbenchSection number={page==='overview'?'03':'02'} title="Данные производства" detail="Количественные объёмы и описанные работы" />}
+           {(page==='overview' || page==='analytics') && <section className="work-volume">
             <div className="card"><h2>Выполненные объёмы</h2><p className="muted">По видам работ и отдельным единицам измерения</p>
               {volumes.length ? <div className="volume-list">{volumes.map((v,i) => <button type="button" className="volume-row" key={i} onClick={()=>setDrill({title:`${v.work_type}: ${v.quantity} ${v.unit}`,ids:v.source_report_ids??[]})}><div><strong>{v.work_type}</strong><small>{siteName(v.site_id)} · {v.unit}{v.confirmed_zero?' · подтверждённый ноль':''}</small></div><b>{v.quantity} {v.unit}</b></button>)}</div> : <p className="empty">{dataCurrent?'Нет подтверждённых количественных работ. Это не ноль.':error?'Данные не загружены.':'Загрузка сводки…'}</p>}
               {new Set(volumes.map(v=>v.work_type)).size>0 && [...new Set(volumes.map(v=>v.work_type))].some(type=>new Set(volumes.filter(v=>v.work_type===type).map(v=>v.unit)).size>1) && <p className="footnote">У одного вида работ разные единицы. Они показаны отдельно и не складываются.</p>}
@@ -286,8 +294,10 @@ export default function App() {
           {(page==='overview' || page==='analytics') && drill && <section className="card" aria-label="Исходные записи"><div className="section-heading"><h2>{drill.title}</h2><button type="button" className="link-button" onClick={()=>setDrill(null)}>Закрыть</button></div>{drill.ids.length?drill.ids.map(id=>{const report=reports.find(item=>item.id===id);return <button type="button" className="volume-row" key={id} onClick={()=>openById(id)}><span>{report?`${dateText(report.data.work_date)} · ${siteName(report.site_id)}`:'Открыть отчёт'}</span><b>К записи</b></button>;}):<p className="empty">Записей нет. Это не подтверждённый ноль.</p>}</section>}
           {page==='analytics' && <section className="card"><h2>Что не рассчитывается</h2><p>План и факт, процент готовности и просрочка не показаны: нет утверждённого плана и графика смен. Остаток денег не показан: нет начального остатка. Показатели рассчитываются по зарегистрированным данным отчётов.</p></section>}
           {page==='analytics' && ['manager','admin'].includes(profile?.role||'') && <ImportData token={token} reports={visible} onOpen={openById}/>}
-          {page==='objects' && (siteId==='all' ? <SiteList sites={sites} latestReport={latestReport} authorName={displayAuthor} onOpen={id=>setSiteId(id)}/> : <SiteCard site={sites.find(s=>s.id===siteId) || {id:siteId,name:siteName(siteId)}} reports={visible} ready={dataCurrent} token={token} authorName={displayAuthor} onOpen={openReport} onBack={()=>setSiteId('all')}/>)}
-          {page==='money' && <MoneyPage token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} sites={sites} siteName={siteName} onOpen={openReport}/>}
+          {page==='objects' && <WorkbenchSection number="01" title="Портфель объектов" detail="Ход работ и подтверждённые данные" />}
+           {page==='objects' && (siteId==='all' ? <SiteList sites={sites} latestReport={latestReport} authorName={displayAuthor} onOpen={id=>setSiteId(id)}/> : <SiteCard site={sites.find(s=>s.id===siteId) || {id:siteId,name:siteName(siteId)}} reports={visible} ready={dataCurrent} token={token} authorName={displayAuthor} onOpen={openReport} onBack={()=>setSiteId('all')}/>)}
+          {page==='money' && <WorkbenchSection number="01" title="Финансовый регистр" detail="Отдельные виды операций без фиктивного баланса" />}
+           {page==='money' && <MoneyPage token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} sites={sites} siteName={siteName} onOpen={openReport}/>}
         </>}
         </div>
         {reportId && (selected?.id===reportId ? <ReportDetails key={selected.id} report={selected} token={token} role={profile?.role||''} siteName={siteName(selected.site_id)} authorName={displayAuthor(selected.author_login)} onClose={closeReport} onChange={r=>{setSelected(r);void refresh();}}/> : <section className="report-load" aria-live="polite"><button className="quiet" onClick={closeReport}>← Назад</button>{reportError?<><h1>Не удалось открыть отчёт</h1><p role="alert">{reportError}</p><button className="secondary" onClick={()=>setReportRetry(n=>n+1)}>Попробовать снова</button></>:<p>Загрузка отчёта…</p>}</section>)}
