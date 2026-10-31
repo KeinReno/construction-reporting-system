@@ -143,7 +143,7 @@
   font-size: 10px;
   line-height: 1.35;
 }
-.crs-progress-caption strong {
+.crs-progress-caption .crs-progress-percent {
   font-family: var(--crs-font-mono);
   font-size: 11px;
   font-weight: 600;
@@ -354,3 +354,27 @@
   .owner-journal-head .crs-search-field { min-width: 100%; flex: 1 1 100%; }
   .crs-period-filter { align-items: flex-start; }
 }
+
+/* Search overlay is optional; the underlying native select keeps reliable automation and accessibility */
+.filters .crs-combobox select {
+  min-height: 42px; width: 100%; min-width: 0; padding: 9px 39px 9px 11px;
+  border: 1px solid var(--crs-line-strong); border-radius: var(--crs-radius-sm);
+  background: var(--crs-surface-sunken); color: var(--crs-text); appearance: none;
+  font-size: 13px; text-overflow: ellipsis; cursor: pointer;
+}
+.crs-combobox select:focus-visible { outline: 2px solid var(--crs-focus); outline-offset: 1px; }
+.crs-combobox .crs-combobox-arrow {
+  width: 38px; border-left: 1px solid var(--crs-line);
+  color: var(--crs-accent); display: grid; place-items: center;
+}
+.crs-combobox-popover input[type="search"] {
+  width: 100%; min-height: 36px; margin: 0 0 5px; padding: 8px 10px;
+  border: 1px solid var(--crs-line-strong); border-radius: 4px;
+  background: var(--crs-surface-sunken); color: var(--crs-text);
+}
+.crs-combobox .crs-combobox-option {
+  width: 100%; border: 0; text-align: left; background: transparent;
+  display: flex; justify-content: space-between; gap: 8px; cursor: pointer;
+}
+.crs-combobox .crs-combobox-option.active { background: #3a474c; }
+.crs-combobox .crs-combobox-option[aria-selected="true"] { color: var(--crs-accent); }

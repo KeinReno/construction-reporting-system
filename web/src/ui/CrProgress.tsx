@@ -17,7 +17,7 @@ export function CrProgress({
     <div className="crs-progress-block">
       <div className="crs-progress-caption">
         <span>{label}</span>
-        <strong>{percent}%</strong>
+        <span className="crs-progress-percent">{percent}%</span>
       </div>
       <div
         className="crs-progress-track"
