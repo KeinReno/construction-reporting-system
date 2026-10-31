@@ -1,5 +1,6 @@
 import { formatDate } from './date';
 import { useState } from 'react';
+import { CrSkeleton } from './ui/CrSkeleton';
 import { http, type Summary } from './api';
 type Answer={answer:string;mode:string;intent:string;supported:boolean;period:Summary["period"];metrics:Summary|null;source_report_ids:string[];limitations:string[]};
 export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource}:{token:string;siteId:string;authorId:string;fromDate:string;toDate:string;onSource:(id:string)=>void}) {
@@ -21,7 +22,7 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource}:{
       <label>Вопрос (сохраняется только на экране)<input maxLength={1000} value={question} onChange={e=>setQuestion(e.target.value)}/></label>
       <p className="muted">Примеры: «Сколько отчётов?», «Какие объёмы работ?», «Какие простои повторяются?». Объект, автор и период задаются только фильтрами. Другие формулировки могут потребовать выбора сценария.</p>
       <button className="primary" disabled={busy}>{busy?'Расчёт…':'Сформировать анализ'}</button>
-    </form>{error&&<p className="error" role="alert">{error}</p>}
+    </form>{busy && <CrSkeleton rows={3} label="Расчёт аналитики" />}{error&&<p className="error" role="alert">{error}</p>}
     {result&&<div aria-live="polite"><h3>{result.answer}</h3><p>Период: {result.period.from_date?formatDate(result.period.from_date):'начало истории'} — {result.period.to_date?formatDate(result.period.to_date):'конец истории'}</p>
       {result.metrics&&<><ul>{result.metrics.volumes.map((v,i)=><li key={i}>{v.work_type}: {v.quantity} {v.unit} · объект {v.site_id}</li>)}</ul>
       <h3>Исходные отчёты ({result.source_report_ids.length})</h3><div className="source-links">{result.source_report_ids.map((id,i)=><button className="quiet" key={id} onClick={()=>onSource(id)}>Отчёт {i+1}</button>)}</div>
