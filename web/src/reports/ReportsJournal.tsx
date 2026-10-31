@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Report } from '../api';
 import { ReportCard } from './ReportCard';
 import { ReportRow } from './ReportRow';
 import { ReportStatus } from './ReportStatus';
 import { CrSegmentGroup } from '../ui/CrSegmentGroup';
+import { CrPagination } from '../ui/CrPagination';
 import { buildReportView, searchableReportText } from './reportView';
 
 type Density = 'list' | 'cards';
@@ -33,6 +34,7 @@ export function ReportsJournal({
 }) {
   const [density, setDensity] = useState<Density>('list');
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
   const views = useMemo(
     () =>
       reports.map(report =>
@@ -49,7 +51,10 @@ export function ReportsJournal({
       .map((view, index) => ({ view, report: reports[index] }))
       .filter(({ view, report }) => searchableReportText(view, report.data.comment).includes(needle));
   }, [views, reports, query]);
-  const shown = compact ? filtered.slice(0, 6) : filtered;
+  const perPage = 24;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
+  useEffect(() => { setPage(1); }, [query, reports.length, compact, archive]);
+  const shown = compact ? filtered.slice(0, 6) : filtered.slice((Math.min(page,pageCount)-1)*perPage,Math.min(page,pageCount)*perPage);
 
   return (
     <section className="report-panel reports-journal" aria-label={title}>
@@ -153,6 +158,7 @@ export function ReportsJournal({
           ))}
         </div>
       )}
+      {!compact && <CrPagination page={Math.min(page,pageCount)} pageCount={pageCount} onPageChange={setPage} />}
     </section>
   );
 }
