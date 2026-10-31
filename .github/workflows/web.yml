@@ -28,3 +28,13 @@ jobs:
           name: web-e2e-failure
           path: web/test-results/
           retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        if: success() && github.ref_name == 'feat/crs-web-workbench-v4'
+        with:
+          name: crs-workbench-v4-screenshots
+          path: |
+            web/test-results/workbench-v4-desktop.png
+            web/test-results/workbench-v4-mobile.png
+          if-no-files-found: error
+          retention-days: 14
