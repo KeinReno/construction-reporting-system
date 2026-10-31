@@ -1,6 +1,6 @@
 import { AuthorColorsProvider } from './reports/ReportSignals';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
-import { formatDate, parseDisplayDate } from './date';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { formatDate } from './date';
 import { AdminPanel } from './AdminPanel';
 import { AnalysisPanel } from './AnalysisPanel';
 import { ReportDetails } from './ReportDetails';
@@ -12,6 +12,12 @@ import { SiteCard } from './SiteCard';
 import { MoneyPage } from './MoneyPage';
 import { ImportData } from './ImportData';
 import { equipmentOwnership } from './api';
+import { CrSidebar } from './ui/CrSidebar';
+import { CrProgress } from './ui/CrProgress';
+import { CrCombobox } from './ui/CrCombobox';
+import { CrDateField } from './ui/CrDateField';
+import { CrReportChart } from './ui/CrReportChart';
+import { CrBreadcrumbs } from './ui/CrBreadcrumbs';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
 type Page = 'overview' | 'objects' | 'reports' | 'money' | 'analytics' | 'ai' | 'admin';
@@ -22,15 +28,6 @@ const labels: Record<Page, string> = {
 };
 const dateText = formatDate;
 const moneyLabels = {funding_received:'Поступление',expense:'Расход',advance_issued:'Выдача аванса'} as const;
-function DateFilter({label,value,onChange}:{label:string;value:string;onChange:(value:string)=>void}) {
-  const errorId=useId();
-  const invalid=value.startsWith('!');
-  const display=invalid?value.slice(1):formatDate(value);
-  return <label>{label}<input type="text" inputMode="numeric" placeholder="дд/мм/гггг" aria-label={label} aria-describedby={invalid?errorId:undefined} aria-invalid={invalid} value={display}
-    onChange={e=>{const text=e.target.value;onChange(!text?'':parseDisplayDate(text) ?? '!'+text);}}/>
-    {invalid&&<small id={errorId} className="date-error">Введите дату дд/мм/гггг</small>}</label>;
-}
-
 function NavIcon({page}:{page:Page}) {
   const paths:Record<Page,React.ReactNode> = {
     overview:<><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></>,
@@ -76,6 +73,7 @@ export default function App() {
   const [reports, setReports] = useState<Report[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [page, setPage] = useState<Page>('overview');
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [siteId, setSiteId] = useState('all');
   const [authorId, setAuthorId] = useState('all');
@@ -193,17 +191,18 @@ export default function App() {
   const pageTitle = labels[page];
   if (!token) return <Login onSuccess={setToken} demo={demo}/>;
   return <AuthorColorsProvider authors={authors}><div className="app-shell">
-    <aside className="sidebar"><div className="brand"><span className="brand-mark">C</span><span>CRS<small className="brand-caption">СТРОЙКОНТРОЛЬ</small></span></div>
-      <nav aria-label="Основная навигация">{(Object.keys(labels) as Page[]).filter(key=>key!=='admin'||profile?.role==='admin').map(key =>
-        <button key={key} className={page === key ? 'nav-item active' : 'nav-item'} onClick={() => navigate(key)}>
-          <NavIcon page={key}/>{labels[key]}</button>)}</nav>
-      <div className="sidebar-foot"><span className="online-dot"/> Серверные данные</div>
-    </aside>
+    <CrSidebar<Page>
+      entries={(Object.keys(labels) as Page[]).filter(key=>key!=='admin'||profile?.role==='admin').map(key=>({key,label:labels[key]}))}
+      current={page}
+      onSelect={navigate}
+      renderIcon={key=><NavIcon page={key}/>}
+    />
     <div className="workspace">
       <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login ? displayAuthor(profile.login) : 'Пользователь'} <button className="quiet" onClick={() => {void http('/auth/logout',token,{method:'POST'}).catch(()=>{});endSession();setError('');}}>Выйти</button></span></header>
       <main className={`content`}>
         <div hidden={!!reportId}>
         {demo&&<div className="card"><strong>ДЕМО · локальная база</strong><p>{demo.notice}</p></div>}
+        <CrBreadcrumbs items={[{label:"СтройКонтроль",onSelect:()=>{navigate("overview");setSiteId("all");}},{label:pageTitle},...(page==="objects"&&siteId!=="all"?[{label:siteName(siteId)}]:[])]}/>
         <div className="heading">
           <div>
             <h1>{pageTitle}</h1>
@@ -218,16 +217,16 @@ export default function App() {
           <button className="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Обновление…' : '↻ Обновить'}</button>
         </div>
         {error && <div className="error" role="alert">Ошибка: {error}</div>}
-        {(page!=='admin') && <><button className="mobile-filter-toggle secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'} <span>{siteId==='all'?'Все объекты':siteName(siteId)} · {authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}</span></button><div id="report-filters" className={`filters ${filtersOpen?'filters-open':''}`}><label>Объект<select value={siteId} onChange={e=>setSiteId(e.target.value)}><option value="all">Все объекты</option>{sites.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}</select></label>
-          <label>Автор<select value={authorId} onChange={e=>setAuthorId(e.target.value)}><option value="all">Все авторы</option>{authors.map(a=><option value={a.id} key={a.id}>{displayAuthor(a.login)}</option>)}</select></label>
-          <DateFilter label="С" value={startDate} onChange={setStartDate}/><DateFilter label="По" value={endDate} onChange={setEndDate}/></div></>}
+        {(page!=='admin') && <><button className="mobile-filter-toggle secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'} <span>{siteId==='all'?'Все объекты':siteName(siteId)} · {authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}</span></button><div id="report-filters" className={`filters ${filtersOpen?'filters-open':''}`}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
+          <CrCombobox label="Автор" value={authorId} onChange={setAuthorId} options={[{value:'all',label:'Все авторы'},...authors.map(a=>({value:a.id,label:displayAuthor(a.login)}))]}/>
+          <CrDateField label="С" value={startDate} onChange={setStartDate}/><CrDateField label="По" value={endDate} onChange={setEndDate}/></div></>}
         {page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> :
          page === 'ai' && (startDate.startsWith('!') || endDate.startsWith('!') || (!!startDate && !!endDate && startDate>endDate)) ? <p className="error">Исправьте период перед формированием анализа.</p> :
          page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={openById}/> : <>
-          {page !== 'reports' && page !== 'money' && <section className="metric-grid">
+          {page !== 'reports' && page !== 'money' && <section className={`metric-grid crs-summary-grid ${page==='overview' ? 'crs-summary-overview' : 'crs-summary-standard'}`}>
             <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
-            <div className="metric"><span>Полученных отчётов</span><strong>{dataCurrent?received.length:'—'}</strong><small>Текущие версии с квитанцией, включая уточнение</small></div>
-            <div className="metric"><span>Ожидают проверки</span><strong>{dataCurrent?needsReview:'—'}</strong><small>Новые отчёты сотрудников</small></div>
+            <div className="metric crs-metric-featured"><span>Полученных отчётов</span><strong>{dataCurrent?received.length:'—'}</strong><small>Текущие версии с квитанцией, включая уточнение</small>{dataCurrent && visible.length > 0 && <CrProgress value={received.length} max={visible.length} label="Доля отчётов с квитанцией" />}</div>
+            <div className="metric crs-metric-attention"><span>Ожидают проверки</span><strong>{dataCurrent?needsReview:'—'}</strong><small>Новые отчёты сотрудников</small></div>
             {page==='overview' && <div className="metric"><span>Заявленные расходы</span><strong>{!dataCurrent?'—':expenseKopecks==null?'Нет':new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format(expenseKopecks/100)}</strong><small>{!dataCurrent?'По дате операции':expenseKopecks==null?'Нет расходных операций за период. Это не ноль.':'Только расходы, без поступлений и авансов'}</small></div>}
             <div className="metric"><span>Указано событий</span><strong>{currentSummary?.incident_count ?? '—'}</strong><small>Только явно внесённые записи</small></div>
           </section>}
@@ -259,16 +258,14 @@ export default function App() {
           {page==='overview' &&
             <div className="chart-panel"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
               <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
-              <ul className="daily-chart" aria-label="Количество отчётов по периодам">{reportPeriods.map(period=><li key={period.key}><button type="button" className="chart-hit" onClick={()=>setDrill({title:`Отчёты за ${period.label}`,ids:period.ids})}><span>{period.label}</span><meter min={0} max={Math.max(...reportPeriods.map(p=>p.count),1)} value={period.count}/><b>{period.count}</b></button></li>)}</ul>{dataCurrent && !reportPeriods.length && <p className="empty">За выбранный период данных для графика нет. Это не подтверждённый ноль работ.</p>}
-              <div className="big-number">{currentSummary?.report_count ?? '—'}<span> в графике</span></div>
+              <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period=>setDrill({title:`Отчёты за ${period.label}`,ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           }
           </div>}
           {page==='analytics' && <section className="analytics-lead">
             <div className="card"><h2>Аналитика объектов</h2><p className="muted">Сводка по данным периода</p>
               <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
-              <ul className="daily-chart" aria-label="Количество отчётов по периодам">{reportPeriods.map(period=><li key={period.key}><button type="button" className="chart-hit" onClick={()=>setDrill({title:`Отчёты за ${period.label}`,ids:period.ids})}><span>{period.label}</span><meter min={0} max={Math.max(...reportPeriods.map(p=>p.count),1)} value={period.count}/><b>{period.count}</b></button></li>)}</ul>{dataCurrent && !reportPeriods.length && <p className="empty">За выбранный период данных для графика нет. Это не подтверждённый ноль работ.</p>}
-              <div className="big-number">{currentSummary?.report_count ?? '—'}<span> всего отчётов</span></div>
+              <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period=>setDrill({title:`Отчёты за ${period.label}`,ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           </section>}
           {(page==='overview' || page==='analytics') && <section className="work-volume">
@@ -277,7 +274,7 @@ export default function App() {
               {new Set(volumes.map(v=>v.work_type)).size>0 && [...new Set(volumes.map(v=>v.work_type))].some(type=>new Set(volumes.filter(v=>v.work_type===type).map(v=>v.unit)).size>1) && <p className="footnote">У одного вида работ разные единицы. Они показаны отдельно и не складываются.</p>}
               <p className="footnote">Объёмы считаются по дате смены. Каждая строка открывает исходные отчёты.</p></div>
           </section>}
-          {(page==='overview' || page==='analytics') && !!currentSummary?.qualitative_works?.length && <section className="card"><h2>Описанные работы</h2><p className="muted">Сколько отчётов содержит каждую формулировку. Это не объём выполненных работ.</p><div className="volume-list" style={{maxHeight:420,overflowY:'auto'}}>{currentSummary.qualitative_works.map((item,i)=><details className="volume-row" key={`${item.site_id}-${item.work_type}-${i}`}><summary><strong>{item.work_type}</strong> · {item.report_count} отч.</summary><div className="source-links">{item.source_report_ids.map((id,j)=><button className="quiet" key={id} onClick={()=>openById(id)}>Отчёт {j+1}</button>)}</div></details>)}</div><p className="footnote">Каждый счётчик раскрывает исходные отчёты; фильтры объекта, автора и периода применяются ко всем строкам.</p></section>}
+          {(page==='overview' || page==='analytics') && !!currentSummary?.qualitative_works?.length && <section className="card"><h2>Описанные работы</h2><p className="muted">Сколько отчётов содержит каждую формулировку. Это не объём выполненных работ.</p><div className="crs-qualitative-list">{currentSummary.qualitative_works.map((item,i)=><details className="crs-work-disclosure" key={`${item.site_id}-${item.work_type}-${i}`}><summary><strong>{item.work_type}</strong><span>{item.report_count} отч.</span></summary><div className="source-links">{item.source_report_ids.map((id,j)=><button className="quiet" key={id} onClick={()=>openById(id)}>Отчёт {j+1}</button>)}</div></details>)}</div><p className="footnote">Каждый счётчик раскрывает исходные отчёты; фильтры объекта, автора и периода применяются ко всем строкам.</p></section>}
           {(page==='overview' || page==='analytics') && <section className="dashboard-grid" aria-label="Деньги и спецтехника">
             <div className="card"><h2>Денежные операции</h2><p className="muted">Только зарегистрированные операции по дате операции.</p>
               {currentSummary&&Object.keys(currentSummary.financial_totals_kopecks).length?<div className="volume-list">{(['funding_received','expense','advance_issued'] as const).filter(kind=>currentSummary.financial_totals_kopecks[kind]!=null).map(kind=>{const ids=[...new Set(currentSummary.financial_entries.filter(entry=>entry.kind===kind).map(entry=>entry.report_id))];return <button type="button" className="volume-row" key={kind} onClick={()=>setDrill({title:moneyLabels[kind],ids})}><strong>{moneyLabels[kind]}</strong><b>{new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format((currentSummary.financial_totals_kopecks[kind]||0)/100)}</b></button>;})}</div>:<p className="empty">{dataCurrent?'Подтверждённых структурированных операций нет. Упоминания расходов в исходниках требуют сверки и не становятся суммой.':'Загрузка сводки…'}</p>}
@@ -296,7 +293,28 @@ export default function App() {
         {reportId && (selected?.id===reportId ? <ReportDetails key={selected.id} report={selected} token={token} role={profile?.role||''} siteName={siteName(selected.site_id)} authorName={displayAuthor(selected.author_login)} onClose={closeReport} onChange={r=>{setSelected(r);void refresh();}}/> : <section className="report-load" aria-live="polite"><button className="quiet" onClick={closeReport}>← Назад</button>{reportError?<><h1>Не удалось открыть отчёт</h1><p role="alert">{reportError}</p><button className="secondary" onClick={()=>setReportRetry(n=>n+1)}>Попробовать снова</button></>:<p>Загрузка отчёта…</p>}</section>)}
       </main>
       <footer>СтройКонтроль · данные сервера заказчика</footer>
-      <nav className="bottom-nav" aria-label="Мобильная навигация">{(['overview','objects','reports','money','analytics','ai',...(profile?.role==='admin'?['admin']:[])] as Page[]).map(key=><button key={key} className={page===key?'active':''} aria-current={page===key?'page':undefined} aria-label={key==='ai'?labels[key]:undefined} onClick={()=>navigate(key)}><NavIcon page={key}/><span>{key==='ai'?'ИИ':labels[key]}</span></button>)}</nav>
+      <nav className="bottom-nav crs-bottom-nav" aria-label="Мобильная навигация">
+        {(['overview','objects','reports','money'] as Page[]).map(key=>(
+          <button key={key} type="button" className={page===key?'active':''}
+            aria-current={page===key?'page':undefined}
+            onClick={()=>{navigate(key);setMobileMoreOpen(false);}}>
+            <NavIcon page={key}/><span>{labels[key]}</span>
+          </button>
+        ))}
+        <button type="button" className={`crs-more-toggle${(['analytics','ai','admin'] as Page[]).includes(page)?' active':''}`}
+          aria-label="Дополнительные разделы" aria-expanded={mobileMoreOpen}
+          aria-controls="crs-more-menu" onClick={()=>setMobileMoreOpen(open=>!open)}>
+          <span aria-hidden="true" style={{fontSize:22,lineHeight:1}}>⋯</span><span>Ещё</span>
+        </button>
+        {mobileMoreOpen && <div id="crs-more-menu" className="crs-more-menu" role="menu" aria-label="Дополнительные разделы">
+          {(['analytics','ai',...(profile?.role==='admin'?['admin']:[])] as Page[]).map(key=>(
+            <button type="button" key={key} role="menuitem" aria-current={page===key?'page':undefined}
+              onClick={()=>{navigate(key);setMobileMoreOpen(false);}}>
+              <NavIcon page={key}/><span>{labels[key]}</span>
+            </button>
+          ))}
+        </div>}
+      </nav>
     </div>
 
   </div></AuthorColorsProvider>;

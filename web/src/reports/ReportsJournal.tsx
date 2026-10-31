@@ -4,6 +4,10 @@ import type { Report } from '../api';
 import { ReportCard } from './ReportCard';
 import { ReportRow } from './ReportRow';
 import { buildReportView, searchableReportText } from './reportView';
+import { ReportStatus } from './ReportStatus';
+import { CrSegmentGroup } from '../ui/CrSegmentGroup';
+import { CrPagination } from '../ui/CrPagination';
+import { CrSearchField } from '../ui/CrSearchField';
 
 type Density = 'list' | 'cards';
 
@@ -32,6 +36,7 @@ export function ReportsJournal({
 }) {
   const [density, setDensity] = useState<Density>('list');
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
   const [authorFilter, setAuthorFilter] = useState<string | null>(null);
   const views = useMemo(
     () =>
@@ -61,7 +66,11 @@ export function ReportsJournal({
       .map((view, index) => ({ view, report: reports[index] }))
       .filter(({ view, report }) => (!activeAuthor || (view.authorId || '__unknown__')===activeAuthor) && (!needle || searchableReportText(view, report.data.comment).includes(needle)));
   }, [views, reports, query, activeAuthor]);
-  const shown = compact ? filtered.slice(0, 6) : filtered;
+  const perPage=24;
+  const pageCount=Math.max(1,Math.ceil(filtered.length/perPage));
+  useEffect(()=>setPage(1),[query,reports.length,compact,archive,activeAuthor]);
+  const boundedPage=Math.min(page,pageCount);
+  const shown=compact?filtered.slice(0,6):filtered.slice((boundedPage-1)*perPage,boundedPage*perPage);
 
   return (
     <section className="report-panel reports-journal" aria-label={title}>
@@ -72,24 +81,9 @@ export function ReportsJournal({
         </div>
         <div className="reports-journal-actions">
           {!compact && (
-            <label className="reports-journal-search">
-              Поиск
-              <input
-                type="search"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Объект, работа, автор"
-              />
-            </label>
+            <CrSearchField label="Поиск" value={query} onChange={setQuery} placeholder="Объект, работа, автор" className="reports-journal-search" />
           )}
-          <div className="density-toggle" role="group" aria-label="Плотность журнала">
-            <button type="button" aria-pressed={density === 'list'} onClick={() => setDensity('list')}>
-              Список
-            </button>
-            <button type="button" aria-pressed={density === 'cards'} onClick={() => setDensity('cards')}>
-              Карточки
-            </button>
-          </div>
+          <CrSegmentGroup<Density> value={density} onChange={setDensity} ariaLabel="Плотность журнала" options={[{value:'list',label:'Список'},{value:'cards',label:'Карточки'}]} />
           {compact && onShowAll && (
             <button type="button" className="link-button" onClick={onShowAll}>
               Все отчёты →
@@ -114,7 +108,7 @@ export function ReportsJournal({
           {/* Keep a semantic table for overview E2E selectors that look for tbody rows. */}
           {compact ? (
             <div className="table-wrap">
-              <table>
+              <table className="crs-data-table">
                 <thead>
                   <tr>
                     <th>Дата</th>
@@ -141,7 +135,7 @@ export function ReportsJournal({
                       <td data-label="Содержание">{view.workSummary}{view.quantityHint ? ` · ${view.quantityHint}` : ''}</td>
                       <td data-label="Автор"><AuthorBadge id={view.authorId} label={view.authorLabel} /></td>
                       <td data-label="Статус">
-                        <span className={`badge ${archive ? '' : view.status}`}>{view.statusLabel}</span>
+                        <ReportStatus status={report.status} label={view.statusLabel} archive={archive} />
                       </td>
                       <td data-label="Версия">№{view.revision}</td>
                     </tr>
@@ -174,6 +168,7 @@ export function ReportsJournal({
           ))}
         </div>
       )}
+      {!compact && <CrPagination page={boundedPage} pageCount={pageCount} onPageChange={setPage}/>}
     </section>
   );
 }

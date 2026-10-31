@@ -21,5 +21,8 @@ import "./design/reports.css";
 import "./design/sites.css";
 import "./design/money.css";
 import "./styles.css";
+import "./design/shark-ports.css";
+import "./design/shark-finish.css";
+import "./design/visual-v3.css";
 
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);

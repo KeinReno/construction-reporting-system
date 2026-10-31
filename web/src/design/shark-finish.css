@@ -1,0 +1,163 @@
+/* CRS Web — Industrial Premium final integration layer
+   Uses native UI and accessible Shark-inspired patterns; no Tailwind runtime.
+   Preserve dense business data and respect existing component contracts. */
+:root {
+  --crs-panel: #182429;
+  --crs-panel-hover: #202f35;
+  --crs-panel-seam: #36454b;
+  --crs-glow: rgba(255,189,69,.09);
+}
+body {
+  background: #0e1518;
+  scrollbar-color: #3e5057 transparent;
+  scrollbar-width: thin;
+}
+.app-shell {
+  background:
+    radial-gradient(ellipse 74% 60% at 88% -25%,rgba(85,108,113,.13),transparent 80%),
+    radial-gradient(ellipse 45% 42% at 8% 105%,rgba(36,61,68,.20),transparent 80%),
+    #10181c;
+}
+.workspace { min-width: 0; }
+.topbar {
+  position: sticky; top: 0; z-index: 16;
+  min-height: 60px; background: rgba(17,28,33,.94);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid #37464c;
+}
+.topbar-right { font-size: 12px; letter-spacing: .01em; }
+.topbar .quiet { padding: 6px 11px; color: var(--crs-text-secondary);
+  border: 1px solid var(--crs-line); border-radius: 4px; background: #202e34; }
+.topbar .quiet:hover { color: var(--crs-accent); border-color: #7a633e; }
+.content { max-width: 1660px; padding-top: 26px; }
+.heading { align-items: end; margin-bottom: 20px; padding-bottom: 16px;
+  border-bottom: 1px solid var(--crs-line); }
+.heading h1 { font-size: clamp(24px,2vw,34px); letter-spacing: -.035em; margin-bottom: 6px;
+  font-weight: 680; line-height: 1.15; }
+.heading p { font-size: 12px; color: #a7b7bb; line-height: 1.45; }
+.heading .secondary { flex-shrink: 0; min-height: 36px; font-size: 12px; }
+.primary { background: var(--crs-accent); border-color: #daa042; color: #221b0c;
+  font-weight: 680; box-shadow: inset 0 1px 0 #ffe4a0; }
+.primary:hover:not(:disabled) { background: var(--crs-accent-hover); border-color: #ffd078; }
+.secondary { background: #1d2a30; border: 1px solid #43535a; color: #e7eff0; }
+.secondary:hover:not(:disabled) { background: #27363d; border-color: #73848c; }
+.quiet, .link-button { color: #f1c67b; }
+.quiet:hover, .link-button:hover { color: #ffe1a6; }
+.filters {
+  gap: 12px; padding: 13px 14px; margin: 0 0 21px;
+  align-items: start;
+  border: 1px solid #36454b;
+  background: linear-gradient(125deg,#151f24,#18262b 74%);
+  border-radius: 5px;
+}
+.filters label { font-size: 11px; }
+.filters select, .filters input { font-size: 13px; }
+.metric-grid { border-color: #3b4a4f; }
+.metric { background: linear-gradient(180deg,#1b292e,#182328);
+  min-height: 132px; padding: 17px 19px; }
+.metric > span { color: #bdcace; text-transform: uppercase; font-size: 10px;
+  letter-spacing: .08em; font-weight: 650; }
+.metric > strong { color: #f4f0e4; font-size: clamp(24px,2vw,32px); font-weight: 650;
+  font-family: var(--crs-font-mono); letter-spacing: -.05em; }
+.metric small { font-size: 10px; color: #a3b2b6; line-height: 1.35; }
+.card, .report-panel, .chart-panel {
+  background: linear-gradient(155deg,#18252a,#152126 98%);
+  border: 1px solid #35464c; border-radius: 5px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.07);
+}
+.card h2, .report-panel h2, .chart-panel h2 { letter-spacing: -.025em; }
+.report-panel { padding: 18px 20px; }
+.chart-panel { padding: 18px 20px; min-width: 0; }
+.report-row { border-bottom-color: #33434a; }
+.report-row:hover, .situation-site:hover { background: linear-gradient(90deg,#27383e,#1a2a30); }
+.report-row-thumb, .report-card-media { background: #121c20; }
+.report-row-main strong { color: #f0eeee; }
+.report-card { background: #1b282e; border-color: #415056; }
+.report-card:hover { border-color: #92703e; background: #25343a; }
+.site-list-card { min-height: 152px; position: relative; padding: 18px;
+  background: linear-gradient(148deg,#1b292e,#151f23); border-color: #394a50; }
+.site-list-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0;
+  height: 2px; background: linear-gradient(90deg,#ab8745,transparent 65%); opacity: .65; }
+.site-list-card:hover { transform: translateY(-1px); box-shadow: 0 13px 32px #0005;
+  border-color: #9d7c47; background: #213137; }
+.attention-panel { background: #1d282c; border-color: #455157;
+  box-shadow: inset 2px 0 0 rgba(247,182,75,.5); }
+.attention-panel h2 em { font-variant-numeric: tabular-nums; }
+.report-page-header {
+  background: linear-gradient(90deg,#18262c,#111c20);
+  border-bottom: 1px solid #405159;
+}
+.report-page-main { background: #172126; }
+.report-page-aside { background: #121e23; border-left-color: #415159; }
+.report-page-aside .review-panel h3 { color: #f2f3ee; }
+.report-page-meta { margin-bottom: 22px; }
+.crs-data-table th { color: #bac7c9; background: #202f35;
+  font-family: var(--crs-font-mono); text-transform: uppercase; font-size: 10px; }
+.crs-data-table td { border-bottom-color: #334248; }
+.crs-data-table tbody tr { transition: background 120ms; }
+.crs-data-table tbody tr:hover { background: #293940; }
+.table-wrap { max-width: 100%; }
+.money-entry:hover { background: #26373e; }
+.money-entries-head { background: #1b2b30; }
+.money-entry .num { color: #f6ce81; }
+.owner-hero, .owner-object-intro {
+  background-image: repeating-linear-gradient(115deg,transparent 0,transparent 19px,rgba(255,255,255,.012) 20px,transparent 21px),
+    linear-gradient(120deg,#1a292e,#162329);
+  border-color: #4b5d62;
+}
+.owner-panel { border-color: #394c51; background: #19262b; }
+.owner-panel h2 { color: #f2efe7; }
+.owner-report-preview { border-color: #3b4e52; }
+.owner-report-preview:hover { border-color: #977648; }
+.owner-journal-row:hover { background: #26373d; }
+.report-page-dialog::backdrop { background: rgba(3,8,11,.85); backdrop-filter: blur(3px); }
+.error { background: #3b2224; color: #ffd9d6; border: 1px solid #864849; }
+.empty { color: #aebbc0; }
+:where(.app-shell) button, :where(.app-shell) a { -webkit-tap-highlight-color: transparent; }
+:where(.app-shell) :focus-visible { outline: 2px solid var(--crs-focus); outline-offset: 2px; }
+@media(min-width:781px) {
+  .report-page-aside { position: sticky; top: 0; align-self: start; max-height: calc(100vh - 140px); }
+}
+@media(max-width:780px) {
+  .topbar { min-height: 54px; }
+  .heading { align-items: flex-start; gap: 8px; }
+  .heading h1 { font-size: 26px; }
+  .filters { display: none; padding: 14px; }
+  .filters.filters-open { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .filters .crs-combobox-field { min-width: 0; }
+  .metric { min-height: 118px; }
+  .content { padding-top: 17px; }
+  .report-panel, .chart-panel { padding: 14px; }
+  .report-page-aside { position: relative; max-height: none; }
+  .crs-bottom-nav {
+    background: rgba(24,36,42,.96); backdrop-filter: blur(16px);
+    border-top: 1px solid #4a5b60;
+  }
+}
+@media(max-width:420px) {
+  .filters.filters-open .crs-combobox-field:first-child { grid-column: 1 / -1; }
+  .crs-report-chart-bars { max-height: 330px; }
+  .metric { padding: 14px; }
+  .metric > strong { font-size: 25px; }
+  .crs-data-list { grid-template-columns: 1fr; }
+  .site-list-card:hover { transform: none; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .site-list-card, .crs-data-table tbody tr { transition: none; }
+  .site-list-card:hover { transform: none; }
+}
+
+/* Imported message registry — align new data screens with Web tokens. */
+.import-data { border-left: 2px solid #876c45; }
+.import-data > h2 { font-size: 18px; }
+.import-data details { border: 1px solid var(--crs-line); border-radius: 4px; background: #152228; margin: 10px 0; padding: 12px 14px; }
+.import-data details[open] { background: #1b2b31; border-color: #506067; }
+.import-data summary { cursor: pointer; font-weight: 600; color: #e2e9e9; }
+.import-data summary:hover { color: var(--crs-accent); }
+.import-data .crs-import-search { display: flex; align-items: end; flex-wrap: wrap; gap: 9px; margin: 16px 0; }
+.import-data .crs-import-search .crs-search-field { flex: 1 1 250px; }
+.import-data .crs-import-search .secondary { min-height: 40px; }
+.import-data label { display: inline-grid; gap: 6px; color: var(--crs-muted); font-size: 12px; }
+.import-data label select { padding: 10px; background: var(--crs-surface-sunken); color: var(--crs-text); border: 1px solid var(--crs-line-strong); border-radius: 4px; }
+.import-data p { overflow-wrap: anywhere; }
+.import-data img { border: 1px solid var(--crs-line-strong); border-radius: 3px; }

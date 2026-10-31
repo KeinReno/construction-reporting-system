@@ -204,7 +204,7 @@ export function SiteCard({
             <aside className="object-aside">
               <section className="object-zone" aria-label="Деньги объекта">
                 <h3>Деньги</h3>
-                <div className="metric-grid">
+                <div className="metric-grid crs-object-money-kpis">
                   {(['expense', 'funding_received', 'advance_issued'] as const).map(kind => (
                     <div className="metric" key={kind}>
                       <span>{moneyKind[kind]}</span>
@@ -252,7 +252,7 @@ export function SiteCard({
                   {ordered.some(report => reportViewData(report).equipment?.length) ? (
                     ordered.flatMap(report => reportViewData(report).equipment ?? []).map((item, index) => (
                       <p key={index}>
-                        {item.type} · {item.hours} ч · {equipmentOwnership(item.hired)}
+                        {item.type} · {item.hours} ч · {equipmentOwnership(item.hired).toLocaleLowerCase("ru-RU")}
                       </p>
                     ))
                   ) : (

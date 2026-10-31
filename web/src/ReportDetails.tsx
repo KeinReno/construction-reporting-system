@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { http, reportStatusLabels, reportViewData, reportWorkState, equipmentOwnership, type Report } from './api';
 import { ReportGallery } from './reports/ReportGallery';
 import { ReportStatus } from './reports/ReportStatus';
+import { CrDataList } from './ui/CrDataList';
 import { primaryWorks } from './reports/reportView';
 
 type Event = { id: string; revision: number; event: string; reason: string | null; occurred_at: string | null };
@@ -119,17 +120,11 @@ export function ReportDetails({
 
         <div className="report-page-body">
           <div className="report-page-main">
-            <div className="report-meta report-page-meta">
-              <p>
-                <b>Объект:</b> {siteName}
-              </p>
-              <p>
-                <b>{imported ? 'Добавил в систему' : 'Автор в системе'}:</b> {authorName}
-              </p>
-              <p>
-                Статус: {statusLabel} · ревизия {r.revision}
-              </p>
-            </div>
+            <CrDataList className="report-meta report-page-meta" items={[
+              {label:'Объект',value:siteName},
+              {label:imported?'Добавил в систему':'Автор в системе',value:authorName},
+              {label:'Статус',value:`${statusLabel} · ревизия ${r.revision}`},
+            ]}/>
 
             <section>
               <h3>Описанные работы</h3>

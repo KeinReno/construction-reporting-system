@@ -1,6 +1,8 @@
 import {useEffect,useState} from 'react';
 import {BASE,http,type Report} from './api';
 import {formatDate} from './date';
+import { CrSkeleton } from './ui/CrSkeleton';
+import { CrSearchField } from './ui/CrSearchField';
 
 type Document={id:string;name:string;available:boolean};
 type Coverage={id:string;messages:number;reports:number;duplicates:number;photos:number;unavailable_media:number;documents:Document[]};
@@ -51,9 +53,9 @@ export function ImportData({token,reports,onOpen}:{token:string;reports:Report[]
     <button className="secondary" onClick={()=>setBrowse(!browse)}>{browse?'Скрыть исходные записи':'Просмотреть все исходные записи'}</button>
     {browse&&<div>
       {coverage.length>1&&<label>Набор данных<select value={corpus} onChange={e=>{setCorpus(e.target.value);setPage(1);}}>{coverage.map((c,i)=><option key={c.id} value={c.id}>Набор {i+1}</option>)}</select></label>}
-      <form onSubmit={e=>{e.preventDefault();setSearch(query);setPage(1);}}><label>Поиск в исходных записях<input value={query} maxLength={200} onChange={e=>setQuery(e.target.value)}/></label><button className="quiet">Найти</button></form>
+      <form className="crs-import-search" onSubmit={e=>{e.preventDefault();setSearch(query);setPage(1);}}><CrSearchField label="Поиск в исходных записях" value={query} onChange={value=>setQuery(value.slice(0,200))} placeholder="Найти сообщения и документы"/><button className="secondary">Найти</button></form>
       <label>Тип записи<select value={kind} onChange={e=>{setKind(e.target.value);setPage(1);}}><option value="all">Все</option><option value="report">Отчёты</option><option value="context">Дополнительные сведения</option><option value="duplicate">Повторы</option><option value="document">Документы</option></select></label>
-      {!records&&!error&&<p>Загрузка исходных записей…</p>}
+      {!records&&!error&&<CrSkeleton rows={4} label="Загрузка исходных записей"/>}
       {records&&<><p>Найдено: {records.total}. Страница {records.page}.</p>{records.items.map(record=><details key={`${corpus}-${record.id}`}><summary>{formatDate(record.date)} · {record.report_id?'Отчёт':record.duplicate?'Повтор':'Исходная запись'}{!record.text?' · медиа':''}</summary>
         <p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{record.text||'Текст отсутствует'}</p>
         {record.report_id&&<button className="quiet" onClick={()=>onOpen(record.report_id!)}>Открыть отчёт</button>}
