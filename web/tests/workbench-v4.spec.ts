@@ -45,3 +45,22 @@ test('new mobile command center stacks correctly and keeps navigation usable',as
   await page.getByRole('button',{name:'Дополнительные разделы'}).click();
   await expect(page.getByRole('menu',{name:'Дополнительные разделы'})).toBeVisible();
 });
+
+test('site, reports, finance and analytics remain usable in the new shell',async({page})=>{
+  await page.setViewportSize({width:1440,height:900});
+  await login(page);
+  const sidebar=page.locator('.crs-sidebar');
+  await sidebar.getByRole('button',{name:'Объекты',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Объекты',exact:true})).toBeVisible();
+  await expect(page.locator('.site-list-card').first()).toBeVisible();
+  await page.screenshot({path:'test-results/workbench-v4-objects.png',fullPage:true});
+  await sidebar.getByRole('button',{name:'Отчёты',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Журнал отчётов'})).toBeVisible();
+  await page.screenshot({path:'test-results/workbench-v4-reports.png',fullPage:true});
+  await sidebar.getByRole('button',{name:'Деньги',exact:true}).click();
+  await expect(page.locator('.crs-money-kpis')).toBeVisible();
+  await page.screenshot({path:'test-results/workbench-v4-money.png',fullPage:true});
+  await sidebar.getByRole('button',{name:'Аналитика',exact:true}).click();
+  await expect(page.locator('.crs-report-chart-bars li').first()).toBeVisible();
+  await page.screenshot({path:'test-results/workbench-v4-analytics.png',fullPage:true});
+});
