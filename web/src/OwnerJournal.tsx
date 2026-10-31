@@ -2,6 +2,7 @@ import {useMemo,useState} from 'react';
 import {type Report,type Site} from './api';
 import {formatDate} from './date';
 import {type OwnerContext} from './OwnerDemo';
+import { CrSearchField } from './ui/CrSearchField';
 
 function reportSummary(report:Report){
   if(report.data.kind==='no_work')return `Без работ: ${report.data.no_work_reason||'причина не указана'}`;
@@ -19,7 +20,7 @@ export function OwnerJournal({reports,sites,context,onOpen}:{reports:Report[];si
   const shown=matches.slice(0,limit);
   return <section className="owner-journal" aria-label="Архивные записи">
     <div className="owner-journal-head"><div><h2>Записи по рабочим датам</h2><p>Найдено: {matches.length} · в выборке: {reports.length}. Откройте запись, чтобы увидеть исходное сообщение и связанные изображения.</p></div>
-      <label>Поиск по содержанию<input type="search" value={query} onChange={event=>{setQuery(event.target.value);setLimit(18);}} placeholder="Дата, объект или работа"/></label></div>
+      <CrSearchField label="Поиск по содержанию" value={query} onChange={value=>{setQuery(value);setLimit(18);}} placeholder="Дата, объект или работа"/></div>
     <div className="owner-journal-list"><div className="owner-journal-labels" aria-hidden="true"><span>Дата</span><span>Что описано</span><span>Изображения</span></div>
       {shown.map(report=>{const source=context.reports[report.client_report_id];const photos=source?.photos||[];const sameMessage=photos.filter(photo=>photo.relation==='same_message').length;const sameDate=photos.length-sameMessage;const uncertain=source?.other_site_mentioned;return <button className="owner-journal-row" key={report.id} onClick={()=>onOpen(report)} aria-label={`Открыть запись за ${formatDate(report.data.work_date)}: ${reportSummary(report)}`}>
         <time>{formatDate(report.data.work_date)}</time><span className="owner-journal-description"><strong>{reportSummary(report)}</strong><small>{uncertain?'Объект требует сверки':siteNames.get(report.site_id)?.replace(' · по истории чата','')||'Объект не указан'}</small></span>

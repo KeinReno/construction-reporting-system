@@ -5,6 +5,7 @@ import { ReportRow } from './ReportRow';
 import { ReportStatus } from './ReportStatus';
 import { CrSegmentGroup } from '../ui/CrSegmentGroup';
 import { CrPagination } from '../ui/CrPagination';
+import { CrSearchField } from '../ui/CrSearchField';
 import { buildReportView, searchableReportText } from './reportView';
 
 type Density = 'list' | 'cards';
@@ -65,15 +66,7 @@ export function ReportsJournal({
         </div>
         <div className="reports-journal-actions">
           {!compact && (
-            <label className="reports-journal-search">
-              Поиск
-              <input
-                type="search"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Объект, работа, автор"
-              />
-            </label>
+            <CrSearchField label="Поиск" value={query} onChange={setQuery} placeholder="Объект, работа, автор" className="reports-journal-search"/>
           )}
           <CrSegmentGroup<Density>
             value={density}

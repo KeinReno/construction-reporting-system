@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { allReports, filterQuery, type FinancialEntry, type Report, type Site } from './api';
 import { formatDate } from './date';
+import { CrCombobox } from './ui/CrCombobox';
+import { CrSkeleton } from './ui/CrSkeleton';
 
 const kinds = ['expense', 'funding_received', 'advance_issued'] as const;
 const kindLabel: Record<(typeof kinds)[number], string> = {
@@ -85,33 +87,15 @@ export function MoneyPage({
         </p>
       </div>
       <div className="filters money-filters">
-        <label>
-          Вид операции
-          <select value={kind} onChange={event => setKind(event.target.value as typeof kind)}>
-            <option value="">Все виды</option>
-            {kinds.map(item => (
-              <option value={item} key={item}>
-                {kindLabel[item]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Категория
-          <select value={category} onChange={event => setCategory(event.target.value)}>
-            <option value="">Все категории</option>
-            {categories.map(item => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-        </label>
+        <CrCombobox label="Вид операции" value={kind} onChange={value=>setKind(value as typeof kind)} options={[{value:"",label:"Все виды"},...kinds.map(item=>({value:item,label:kindLabel[item]}))]}/>
+        <CrCombobox label="Категория" value={category} onChange={setCategory} options={[{value:"",label:"Все категории"},...categories.map(item=>({value:item,label:item}))]}/>
       </div>
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-      {!reports && !error && <p className="empty">Загрузка операций…</p>}
+      {!reports && !error && <CrSkeleton rows={5} label="Загрузка денежных операций"/>}
       {reports && (
         <div className="metric-grid">
           {kinds.map(item => (

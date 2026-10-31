@@ -16,6 +16,8 @@ import { CrProgress } from './ui/CrProgress';
 import { CrDateField } from './ui/CrDateField';
 import { CrCombobox } from './ui/CrCombobox';
 import { CrReportChart } from './ui/CrReportChart';
+import { CrBreadcrumbs } from './ui/CrBreadcrumbs';
+import { CrSegmentGroup } from './ui/CrSegmentGroup';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
 type Page = 'overview' | 'objects' | 'reports' | 'money' | 'analytics' | 'ai' | 'admin';
@@ -174,6 +176,7 @@ export default function App() {
       <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login ? displayAuthor(profile.login) : 'Пользователь'} <button className="quiet" onClick={() => {void http('/auth/logout',token,{method:'POST'}).catch(()=>{});endSession();setError('');}}>Выйти</button></span></header>
       <main className={`content${ownerArchive?' owner-content':''}`}>
         {demo&&<div className="card"><strong>ДЕМО · локальная база</strong><p>{demo.notice}</p></div>}
+        <CrBreadcrumbs items={[{label:"СтройКонтроль",onSelect:()=>{setPage("overview");setSiteId("all");}},{label:pageTitle},...(page==="objects" && siteId!=="all" ? [{label:siteName(siteId)}] : [])]}/>
         <div className="heading"><div><h1>{pageTitle}</h1><p>{ownerArchive?({overview:'Последние записи, вопросы для решения и первичные источники',objects:'Рабочие даты, события и исходные сообщения',reports:'Поиск по содержанию и переход к первичке',money:'Зарегистрированные операции по дате операции',analytics:'Показатели, которые подтверждаются архивом',ai:'Вопросы к доступным данным',admin:'Настройки доступа'} as Record<Page,string>)[page]:page === 'overview' ? 'Что поступило, что требует проверки и где за период нет сведений' : page === 'money' ? 'Расходы, поступления и авансы по дате операции, без общего итога' : page === 'analytics' ? 'Работы по дате смены, деньги по дате операции. Считаются доставленные отчёты.' : 'Данные по выбранным условиям'}</p></div><button className="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Обновление…' : '↻ Обновить'}</button></div>
         {error && <div className="error" role="alert">Ошибка: {error}</div>}
         {page!=='admin' && <><button className="mobile-filter-toggle secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'} <span>{siteId==='all'?'Все объекты':siteName(siteId)} · {authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}</span></button><div id="report-filters" className={`filters ${filtersOpen?'filters-open':''}`}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
@@ -214,14 +217,14 @@ export default function App() {
             /> : <section className="report-panel"><h2>{page==='reports'?'Журнал отчётов':'Отчёты'}</h2><p className="empty">{error?'Данные не загружены.':'Загрузка отчётов…'}</p></section>)}
           {page==='overview' &&
             <div className="chart-panel"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
-              <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
+              <div className="crs-period-filter"><span>Группировка</span><CrSegmentGroup<Interval> value={interval} onChange={setInterval} ariaLabel="Группировка отчётов" options={[{value:"day",label:"Дни"},{value:"month",label:"Месяцы"},{value:"year",label:"Годы"}]}/></div>
               <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period => setDrill({title:`Отчёты за ${period.label}`, ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           }
           </div>}
           {page==='analytics' && <section className="analytics-lead">
             <div className="chart-panel"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
-              <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
+              <div className="crs-period-filter"><span>Группировка</span><CrSegmentGroup<Interval> value={interval} onChange={setInterval} ariaLabel="Группировка отчётов" options={[{value:"day",label:"Дни"},{value:"month",label:"Месяцы"},{value:"year",label:"Годы"}]}/></div>
               <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period => setDrill({title:`Отчёты за ${period.label}`, ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           </section>}
