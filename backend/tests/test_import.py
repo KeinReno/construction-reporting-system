@@ -16,6 +16,8 @@ def test_manual_history_import_is_idempotent_and_preserves_work_date(env,tmp_pat
     assert first==again and first[0]['receipt_id']
     rows=c.get('/api/v1/reports',headers=f).json()
     assert len(rows)==1 and rows[0]['data']['work_date']=='2026-05-15'
+    assert rows[0]['origin']=='imported'
+    assert c.get('/api/v1/reports/'+rows[0]['id']+'/source',headers=f).json() is None
     data['comment']='Changed historic content'
     changed,_=read_bundle(bundle_file(tmp_path,[{'source_ref':'synthetic-message-1','data':data}]))
     with pytest.raises(ValueError,match='never overwrite'):import_bundle(changed,root,request,token)
@@ -105,6 +107,7 @@ def test_import_cannot_claim_another_authors_receipt(env,tmp_path):
     bundle,root=read_bundle(bundle_file(tmp_path,[{'source_ref':'synthetic','data':data}]))
     request=lambda method,path,**kw:c.request(method,'/api/v1/'+path,**kw)
     first=import_bundle(bundle,root,request,f['Authorization'][7:])
+    c.api.state.import_user_ids.add(c.get('/api/v1/me',headers=m).json()['id'])
     with pytest.raises(ValueError,match='another author'):import_bundle(bundle,root,request,m['Authorization'][7:])
     assert import_bundle(bundle,root,request,f['Authorization'][7:])==first
 

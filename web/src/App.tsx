@@ -1,26 +1,28 @@
+import { AuthorColorsProvider } from './reports/ReportSignals';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { formatDate } from './date';
 import { AdminPanel } from './AdminPanel';
 import { AnalysisPanel } from './AnalysisPanel';
 import { ReportDetails } from './ReportDetails';
-import { OwnerDemo, type OwnerContext } from './OwnerDemo';
-import { OwnerJournal } from './OwnerJournal';
 import { ReportsJournal } from './reports/ReportsJournal';
 import { SituationBoard } from './overview/SituationBoard';
 import { SiteList } from './sites/SiteList';
-import { http, login, ApiError, filterQuery, allReports, reportStatusLabels, type Profile, type Report, type ReportAuthor, type Site, type Summary } from './api';
+import { http, login, ApiError, filterQuery, allReports, type Profile, type Report, type ReportAuthor, type Site, type Summary } from './api';
 import { SiteCard } from './SiteCard';
 import { MoneyPage } from './MoneyPage';
+import { ImportData } from './ImportData';
+import { equipmentOwnership } from './api';
 import { CrSidebar } from './ui/CrSidebar';
 import { CrProgress } from './ui/CrProgress';
-import { CrDateField } from './ui/CrDateField';
 import { CrCombobox } from './ui/CrCombobox';
+import { CrDateField } from './ui/CrDateField';
 import { CrReportChart } from './ui/CrReportChart';
 import { CrBreadcrumbs } from './ui/CrBreadcrumbs';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
 type Page = 'overview' | 'objects' | 'reports' | 'money' | 'analytics' | 'ai' | 'admin';
 type Interval = 'day' | 'month' | 'year';
+const reportFromLocation = () => /^#report\/([0-9a-f-]{36})$/i.exec(window.location.hash)?.[1] ?? null;
 const labels: Record<Page, string> = {
   overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', money: 'Деньги', analytics: 'Аналитика', ai: 'ИИ-аналитик', admin:'Управление'
 };
@@ -63,12 +65,8 @@ function Login({ onSuccess,demo }: { onSuccess: (token: string) => void;demo:Dem
 
 export default function App() {
   const [demo,setDemo]=useState<DemoInfo|null>(null);
-  const [ownerArchive,setOwnerArchive]=useState('');
-  const [ownerContext,setOwnerContext]=useState<OwnerContext|null>(null);
-  useEffect(()=>{let active=true;void fetch('/demo-info').then(r=>r.ok?r.json():null).then(d=>{if(active)setDemo(d);}).catch(()=>{});return()=>{active=false;};},[]);
-  useEffect(()=>{let active=true;void fetch('/owner-demo-info').then(r=>r.ok?r.json():null).then(d=>{if(active&&d?.archive_path==='/archive/')setOwnerArchive(d.archive_path);}).catch(()=>{});return()=>{active=false;};},[]);
   const [token, setToken] = useState<string | null>(null); // memory only; logout on page close
-  useEffect(()=>{if(!token||!ownerArchive)return;let active=true;void http<OwnerContext>('/owner-demo/context',token).then(value=>{if(active)setOwnerContext(value);}).catch(()=>{if(active)setOwnerContext(null);});return()=>{active=false;};},[token,ownerArchive]);
+  useEffect(()=>{let active=true;void fetch('/demo-info').then(r=>r.ok?r.json():null).then(d=>{if(active)setDemo(d);}).catch(()=>{});return()=>{active=false;};},[]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [sites, setSites] = useState<Site[]>([]);
   const [authors, setAuthors] = useState<ReportAuthor[]>([]);
@@ -83,16 +81,47 @@ export default function App() {
   const [endDate, setEndDate] = useState('');
   const [interval,setInterval]=useState<Interval>('day');
   const [selected, setSelected] = useState<Report | null>(null);
+  const [reportId, setReportId] = useState<string | null>(reportFromLocation());
+  const [reportError, setReportError] = useState('');
+  const [reportRetry, setReportRetry] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [loadedScope, setLoadedScope] = useState('');
   const [drill, setDrill] = useState<{title:string; ids:string[]} | null>(null);
   const reportOpener=useRef<HTMLElement|null>(null);
-  const openReport=(report:Report)=>{reportOpener.current=document.activeElement instanceof HTMLElement?document.activeElement:null;setSelected(report);};
-  const openById=(id:string)=>{const local=reports.find(r=>r.id===id);if(local||!token){if(local)openReport(local);return;}const epoch=generation.current;void http<Report>('/reports/'+id,token).then(r=>{if(epoch===generation.current)openReport(r);}).catch(e=>{if(epoch===generation.current)setError(e instanceof Error?e.message:'Не удалось открыть отчёт');});};
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [loadedScope,setLoadedScope]=useState('');
+  const openById=(id:string)=>{
+    reportOpener.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    window.history.pushState({crsReport:true},'',`#report/${id}`);
+    setReportId(id);
+  };
+  const openReport=(report:Report)=>openById(report.id);
+  const closeReport=()=>{
+    if(window.history.state?.crsReport) window.history.back();
+    else { window.history.replaceState(null,'',window.location.pathname+window.location.search); setReportId(null); }
+  };
+  const navigate=(next:Page)=>{
+    if(reportId) { window.history.replaceState(null,'',window.location.pathname+window.location.search); setReportId(null); }
+    setPage(next);
+  };
+  useEffect(()=>{
+    const sync=()=>setReportId(reportFromLocation());
+    window.addEventListener('popstate',sync);
+    window.addEventListener('hashchange',sync);
+    return ()=>{window.removeEventListener('popstate',sync);window.removeEventListener('hashchange',sync);};
+  },[]);
+  useEffect(()=>{
+    setSelected(null);setReportError('');
+    if(!token||!reportId)return;
+    let active=true;
+    void http<Report>(`/reports/${reportId}`,token).then(value=>{if(active)setSelected(value);}).catch(e=>{if(active)setReportError(e instanceof Error?e.message:'Не удалось открыть отчёт');});
+    return ()=>{active=false;};
+  },[token,reportId,reportRetry]);
+  useEffect(()=>{
+    if(!reportId && reportOpener.current?.isConnected){reportOpener.current.focus();reportOpener.current=null;}
+  },[reportId]);
   const filterKey=JSON.stringify([siteId,authorId,startDate,endDate]);
   const generation=useRef(0);
-  const endSession=useCallback(()=>{generation.current++;setToken(null);setOwnerContext(null);setProfile(null);setSites([]);setAuthors([]);setReports([]);setSummary(null);setLoadedScope('');setSelected(null);setPage('overview');setSiteId('all');setAuthorId('all');setStartDate('');setEndDate('');setLoading(false);},[]);
+  const endSession=useCallback(()=>{generation.current++;setToken(null);setProfile(null);setSites([]);setAuthors([]);setReports([]);setSummary(null);setLoadedScope('');setSelected(null);setPage('overview');setSiteId('all');setAuthorId('all');setStartDate('');setEndDate('');setLoading(false);},[]);
   const refresh = useCallback(async () => {
     if (!token) return;
     const requestGeneration=++generation.current;
@@ -118,11 +147,10 @@ export default function App() {
     } finally { if(requestGeneration===generation.current)setLoading(false); }
   }, [token,siteId,authorId,startDate,endDate,filterKey,endSession]);
   useEffect(() => { void refresh(); return ()=>{generation.current++;}; }, [refresh]);
-  const siteName = (id: string) => {const name=sites.find(s => s.id === id)?.name;if(ownerArchive&&name?.startsWith('Объект требует сверки'))return 'Объект не уточнён';if(ownerArchive&&name?.startsWith('ПС Факел'))return 'ПС Факел';return name ?? 'Неизвестный объект';};
+  const siteName = (id: string) => {const name=sites.find(s => s.id === id)?.name;return name ?? 'Неизвестный объект';};
   const displayAuthor = (login:string|null|undefined) => {
     if (!login) return 'Не указан';
-    if(ownerArchive&&login==='owner')return 'Владелец';
-    if(ownerArchive&&login==='max-import')return 'История MAX';
+    if(authors.find(a=>a.login===login)?.imported_only)return 'Оператор переноса';
     if (demo) {
       if (login===demo.accounts.manager) return 'Руководитель (демо)';
       if (login===demo.accounts.foreman) return 'Бригадир (демо)';
@@ -138,11 +166,10 @@ export default function App() {
     [reports, siteId, authorId, startDate, endDate,dataCurrent]);
   // A returned report was still received; a draft without a receipt was not.
   const received = visible.filter(r => !!r.receipt_id && ['submitted','reviewed','needs_revision'].includes(r.status));
-  const needsReview = visible.filter(r => r.status === 'submitted').length;
-  const overviewReports = [...visible].sort((a,b) => Number(b.status === 'submitted') - Number(a.status === 'submitted'));
+  const needsReview = visible.filter(r => r.origin!=='imported' && r.status === 'submitted').length;
+  const overviewReports = [...visible].sort((a,b) => Number(b.origin!=='imported' && b.status === 'submitted') - Number(a.origin!=='imported' && a.status === 'submitted'));
   const latestReport = (id:string) => visible.filter(r => r.site_id === id).sort((a,b) => b.data.work_date.localeCompare(a.data.work_date) || b.revision - a.revision)[0];
-  const briefResult = (report:Report) => report.data.kind === 'no_work' ? (report.data.no_work_reason || 'Работ не было') : (report.data.work_entries[0] ? `${report.data.work_entries[0].type}${report.data.work_entries.length > 1 ? ` и ещё ${report.data.work_entries.length - 1}` : ''}` : 'Работы не указаны');
-  const attentionReports = visible.filter(r => r.status === 'submitted' || r.status === 'needs_revision').sort((a,b) => b.data.work_date.localeCompare(a.data.work_date));
+  const attentionReports = visible.filter(r => r.origin!=='imported' && (r.status === 'submitted' || r.status === 'needs_revision')).sort((a,b) => b.data.work_date.localeCompare(a.data.work_date));
   const statedProblems = sites.filter(s => siteId === 'all' || s.id === siteId).flatMap(site => {
     const report = latestReport(site.id);
     const incident = report?.data.incidents?.[0];
@@ -161,31 +188,45 @@ export default function App() {
     }
     return Array.from(buckets,([key,item])=>({key,count:item.count,ids:item.ids,label:interval==='day'?dateText(key):interval==='month'?new Date(key+'-01T12:00:00').toLocaleDateString('ru-RU',{month:'long',year:'numeric'}):key}));
   },[currentSummary,interval]);
-  const pageTitle = ownerArchive ? ({overview:'Сводка архива',objects:'Объект',reports:'Журнал записей',money:'Деньги',analytics:'Анализ архива',ai:'ИИ-аналитик',admin:'Управление'} as Record<Page,string>)[page] : labels[page];
+  const pageTitle = labels[page];
   if (!token) return <Login onSuccess={setToken} demo={demo}/>;
-  return <div className="app-shell">
+  return <AuthorColorsProvider authors={authors}><div className="app-shell">
     <CrSidebar<Page>
-      entries={(Object.keys(labels) as Page[]).filter(key => key !== 'admin' || profile?.role === 'admin').map(key => ({key, label: labels[key]}))}
+      entries={(Object.keys(labels) as Page[]).filter(key=>key!=='admin'||profile?.role==='admin').map(key=>({key,label:labels[key]}))}
       current={page}
-      onSelect={setPage}
-      renderIcon={key => <NavIcon page={key}/>}
-      archiveUrl={ownerArchive}
+      onSelect={navigate}
+      renderIcon={key=><NavIcon page={key}/>}
     />
     <div className="workspace">
       <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login ? displayAuthor(profile.login) : 'Пользователь'} <button className="quiet" onClick={() => {void http('/auth/logout',token,{method:'POST'}).catch(()=>{});endSession();setError('');}}>Выйти</button></span></header>
-      <main className={`content${ownerArchive?' owner-content':''}`}>
+      <main className={`content`}>
+        <div hidden={!!reportId}>
         {demo&&<div className="card"><strong>ДЕМО · локальная база</strong><p>{demo.notice}</p></div>}
-        <CrBreadcrumbs items={[{label:"СтройКонтроль",onSelect:()=>{setPage("overview");setSiteId("all");}},{label:pageTitle},...(page==="objects" && siteId!=="all" ? [{label:siteName(siteId)}] : [])]}/>
-        <div className="heading"><div><h1>{pageTitle}</h1><p>{ownerArchive?({overview:'Последние записи, вопросы для решения и первичные источники',objects:'Рабочие даты, события и исходные сообщения',reports:'Поиск по содержанию и переход к первичке',money:'Зарегистрированные операции по дате операции',analytics:'Показатели, которые подтверждаются архивом',ai:'Вопросы к доступным данным',admin:'Настройки доступа'} as Record<Page,string>)[page]:page === 'overview' ? 'Что поступило, что требует проверки и где за период нет сведений' : page === 'money' ? 'Расходы, поступления и авансы по дате операции, без общего итога' : page === 'analytics' ? 'Работы по дате смены, деньги по дате операции. Считаются доставленные отчёты.' : 'Данные по выбранным условиям'}</p></div><button className="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Обновление…' : '↻ Обновить'}</button></div>
+        <CrBreadcrumbs items={[{label:"СтройКонтроль",onSelect:()=>{navigate("overview");setSiteId("all");}},{label:pageTitle},...(page==="objects"&&siteId!=="all"?[{label:siteName(siteId)}]:[])]}/>
+        <div className="heading">
+          <div>
+            <h1>{pageTitle}</h1>
+            <p>
+              {page === 'overview' ? 'Сначала показаны отчёты, ожидающие проверки' :
+               page === 'reports' ? 'Все отчёты по выбранным условиям. Содержание смены видно без открытия.' :
+               page === 'money' ? 'Расходы, поступления и авансы по дате операции, без общего итога' :
+               page === 'analytics' ? 'Работы по дате смены, деньги по дате операции. Считаются доставленные отчёты.' :
+               'Данные по выбранным условиям'}
+            </p>
+          </div>
+          <button className="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Обновление…' : '↻ Обновить'}</button>
+        </div>
         {error && <div className="error" role="alert">Ошибка: {error}</div>}
-        {page!=='admin' && <><button className="mobile-filter-toggle secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'} <span>{siteId==='all'?'Все объекты':siteName(siteId)} · {authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}</span></button><div id="report-filters" className={`filters ${filtersOpen?'filters-open':''}`}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
+        {(page!=='admin') && <><button className="mobile-filter-toggle secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'} <span>{siteId==='all'?'Все объекты':siteName(siteId)} · {authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}</span></button><div id="report-filters" className={`filters ${filtersOpen?'filters-open':''}`}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
           <CrCombobox label="Автор" value={authorId} onChange={setAuthorId} options={[{value:'all',label:'Все авторы'},...authors.map(a=>({value:a.id,label:displayAuthor(a.login)}))]}/>
           <CrDateField label="С" value={startDate} onChange={setStartDate}/><CrDateField label="По" value={endDate} onChange={setEndDate}/></div></>}
-        {page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> : ownerArchive&&page==='reports' ? (dataCurrent&&ownerContext?<OwnerJournal reports={visible} sites={sites} context={ownerContext} onOpen={openReport}/>:<p className="empty">{error?'Не удалось загрузить журнал. Обновите страницу.':'Загрузка журнала…'}</p>) : ownerArchive&&(['overview','objects','analytics'] as Page[]).includes(page) ? (dataCurrent&&ownerContext?<OwnerDemo mode={page as 'overview'|'objects'|'analytics'} reports={visible} sites={sites} selectedSiteId={siteId} context={ownerContext} token={token} onOpen={openReport} onJournal={()=>setPage('reports')} onReconciliation={()=>{setSiteId(sites.find(site=>site.name.startsWith('Объект требует сверки'))?.id||'all');setPage('objects');}}/>:<p className="empty">{error?'Не удалось загрузить историю. Обновите страницу.':'Загрузка истории объекта…'}</p>) : page === 'ai' && (startDate.startsWith('!') || endDate.startsWith('!') || (!!startDate && !!endDate && startDate>endDate)) ? <p className="error">Исправьте период перед формированием анализа.</p> : page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={id=>{const epoch=generation.current;void http<Report>('/reports/'+id,token).then(r=>{if(epoch===generation.current)setSelected(r);}).catch(e=>{if(epoch===generation.current)setError(e.message);});}}/> : <>
+        {page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> :
+         page === 'ai' && (startDate.startsWith('!') || endDate.startsWith('!') || (!!startDate && !!endDate && startDate>endDate)) ? <p className="error">Исправьте период перед формированием анализа.</p> :
+         page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={openById}/> : <>
           {page !== 'reports' && page !== 'money' && <section className="metric-grid">
             <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
             <div className="metric"><span>Полученных отчётов</span><strong>{dataCurrent?received.length:'—'}</strong><small>Текущие версии с квитанцией, включая уточнение</small>{dataCurrent && visible.length > 0 && <CrProgress value={received.length} max={visible.length} label="Доля отчётов с квитанцией" />}</div>
-            <div className="metric"><span>Ожидают проверки</span><strong>{dataCurrent?needsReview:'—'}</strong><small>Статус «Доставлен»</small></div>
+            <div className="metric"><span>Ожидают проверки</span><strong>{dataCurrent?needsReview:'—'}</strong><small>Новые отчёты сотрудников</small></div>
             {page==='overview' && <div className="metric"><span>Заявленные расходы</span><strong>{!dataCurrent?'—':expenseKopecks==null?'Нет':new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format(expenseKopecks/100)}</strong><small>{!dataCurrent?'По дате операции':expenseKopecks==null?'Нет расходных операций за период. Это не ноль.':'Только расходы, без поступлений и авансов'}</small></div>}
             <div className="metric"><span>Указано событий</span><strong>{currentSummary?.incident_count ?? '—'}</strong><small>Только явно внесённые записи</small></div>
           </section>}
@@ -208,23 +249,23 @@ export default function App() {
               siteName={siteName}
               authorName={displayAuthor}
               title={page==='reports'?'Журнал отчётов':'Отчёты'}
-              intro={ownerArchive?'Исторические записи из MAX. Их статус доставки не является текущей очередью проверки.':page==='overview'?'Сначала показаны отчёты, ожидающие проверки':'Все отчёты по выбранным условиям. Содержание смены видно без открытия.'}
-              archive={!!ownerArchive}
+              intro={page==='overview'?'Сначала показаны отчёты, ожидающие проверки':'Все отчёты по выбранным условиям. Содержание смены видно без открытия.'}
+              archive={false}
               compact={page==='overview'}
               onOpen={openReport}
               onShowAll={()=>setPage('reports')}
             /> : <section className="report-panel"><h2>{page==='reports'?'Журнал отчётов':'Отчёты'}</h2><p className="empty">{error?'Данные не загружены.':'Загрузка отчётов…'}</p></section>)}
           {page==='overview' &&
             <div className="chart-panel"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
-              <label className="chart-period crs-period-native">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
-              <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period => setDrill({title:`Отчёты за ${period.label}`, ids:period.ids})} />
+              <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
+              <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period=>setDrill({title:`Отчёты за ${period.label}`,ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           }
           </div>}
           {page==='analytics' && <section className="analytics-lead">
-            <div className="chart-panel"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
-              <label className="chart-period crs-period-native">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
-              <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period => setDrill({title:`Отчёты за ${period.label}`, ids:period.ids})} />
+            <div className="card"><h2>Аналитика объектов</h2><p className="muted">Сводка по данным периода</p>
+              <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
+              <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period=>setDrill({title:`Отчёты за ${period.label}`,ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           </section>}
           {(page==='overview' || page==='analytics') && <section className="work-volume">
@@ -233,46 +274,48 @@ export default function App() {
               {new Set(volumes.map(v=>v.work_type)).size>0 && [...new Set(volumes.map(v=>v.work_type))].some(type=>new Set(volumes.filter(v=>v.work_type===type).map(v=>v.unit)).size>1) && <p className="footnote">У одного вида работ разные единицы. Они показаны отдельно и не складываются.</p>}
               <p className="footnote">Объёмы считаются по дате смены. Каждая строка открывает исходные отчёты.</p></div>
           </section>}
-          {(page==='overview' || page==='analytics') && !!currentSummary?.qualitative_works?.length && <section className="card"><h2>Описанные работы</h2><p className="muted">Сколько отчётов содержит каждую формулировку. Это не объём выполненных работ.</p><div className="volume-list" style={{maxHeight:420,overflowY:'auto'}}>{currentSummary.qualitative_works.map((item,i)=><details className="volume-row" key={`${item.site_id}-${item.work_type}-${i}`}><summary><strong>{item.work_type}</strong> · {item.report_count} отч.</summary><div className="source-links">{item.source_report_ids.map((id,j)=><button className="quiet" key={id} onClick={()=>setSelected(reports.find(r=>r.id===id) || null)}>Отчёт {j+1}</button>)}</div></details>)}</div><p className="footnote">Каждый счётчик раскрывает исходные отчёты; фильтры объекта, автора и периода применяются ко всем строкам.</p></section>}
+          {(page==='overview' || page==='analytics') && !!currentSummary?.qualitative_works?.length && <section className="card"><h2>Описанные работы</h2><p className="muted">Сколько отчётов содержит каждую формулировку. Это не объём выполненных работ.</p><div className="volume-list" style={{maxHeight:420,overflowY:'auto'}}>{currentSummary.qualitative_works.map((item,i)=><details className="volume-row" key={`${item.site_id}-${item.work_type}-${i}`}><summary><strong>{item.work_type}</strong> · {item.report_count} отч.</summary><div className="source-links">{item.source_report_ids.map((id,j)=><button className="quiet" key={id} onClick={()=>openById(id)}>Отчёт {j+1}</button>)}</div></details>)}</div><p className="footnote">Каждый счётчик раскрывает исходные отчёты; фильтры объекта, автора и периода применяются ко всем строкам.</p></section>}
           {(page==='overview' || page==='analytics') && <section className="dashboard-grid" aria-label="Деньги и спецтехника">
-            <div className="card"><h2>Денежные операции</h2><p className="muted">Только зарегистрированные операции по дате операции. Текст переписки сюда не входит.</p>
+            <div className="card"><h2>Денежные операции</h2><p className="muted">Только зарегистрированные операции по дате операции.</p>
               {currentSummary&&Object.keys(currentSummary.financial_totals_kopecks).length?<div className="volume-list">{(['funding_received','expense','advance_issued'] as const).filter(kind=>currentSummary.financial_totals_kopecks[kind]!=null).map(kind=>{const ids=[...new Set(currentSummary.financial_entries.filter(entry=>entry.kind===kind).map(entry=>entry.report_id))];return <button type="button" className="volume-row" key={kind} onClick={()=>setDrill({title:moneyLabels[kind],ids})}><strong>{moneyLabels[kind]}</strong><b>{new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format((currentSummary.financial_totals_kopecks[kind]||0)/100)}</b></button>;})}</div>:<p className="empty">{dataCurrent?'Подтверждённых структурированных операций нет. Упоминания расходов в исходниках требуют сверки и не становятся суммой.':'Загрузка сводки…'}</p>}
               <p className="footnote">Три вида не складываются и не образуют остаток: начальный остаток не задан.</p></div>
             <div className="card"><h2>Спецтехника</h2><p className="muted">Заявленные часы по виду и принадлежности</p>
-              {currentSummary?.equipment_hours.length?<div className="volume-list">{currentSummary.equipment_hours.map((entry,i)=><div className="volume-row" key={i}><div><strong>{entry.type}</strong><small>{entry.hired?'Наёмная':'Своя'}</small></div><b>{entry.hours} ч</b></div>)}</div>:<p className="empty">{dataCurrent?'Структурированных часов техники нет. Исторические упоминания доступны в исходных сообщениях.':'Загрузка сводки…'}</p>}
+              {currentSummary?.equipment_hours.length?<div className="volume-list">{currentSummary.equipment_hours.map((entry,i)=><div className="volume-row" key={i}><div><strong>{entry.type}</strong><small>{equipmentOwnership(entry.hired)}</small></div><b>{entry.hours} ч</b></div>)}</div>:<p className="empty">{dataCurrent?'Часы работы техники не указаны.':'Загрузка сводки…'}</p>}
               <p className="footnote">Стоимость без тарифа не рассчитывается.</p></div>
           </section>}
           {(page==='overview' || page==='analytics') && drill && <section className="card" aria-label="Исходные записи"><div className="section-heading"><h2>{drill.title}</h2><button type="button" className="link-button" onClick={()=>setDrill(null)}>Закрыть</button></div>{drill.ids.length?drill.ids.map(id=>{const report=reports.find(item=>item.id===id);return <button type="button" className="volume-row" key={id} onClick={()=>openById(id)}><span>{report?`${dateText(report.data.work_date)} · ${siteName(report.site_id)}`:'Открыть отчёт'}</span><b>К записи</b></button>;}):<p className="empty">Записей нет. Это не подтверждённый ноль.</p>}</section>}
-          {page==='analytics' && <section className="card"><h2>Что не рассчитывается</h2><p>План и факт, процент готовности и просрочка не показаны: нет утверждённого плана и графика смен. Остаток денег не показан: нет начального остатка. Живые цифры берутся из доставленных отчётов с поля, а не из текста архива.</p></section>}
+          {page==='analytics' && <section className="card"><h2>Что не рассчитывается</h2><p>План и факт, процент готовности и просрочка не показаны: нет утверждённого плана и графика смен. Остаток денег не показан: нет начального остатка. Показатели рассчитываются по зарегистрированным данным отчётов.</p></section>}
+          {page==='analytics' && ['manager','admin'].includes(profile?.role||'') && <ImportData token={token} reports={visible} onOpen={openById}/>}
           {page==='objects' && (siteId==='all' ? <SiteList sites={sites} latestReport={latestReport} authorName={displayAuthor} onOpen={id=>setSiteId(id)}/> : <SiteCard site={sites.find(s=>s.id===siteId) || {id:siteId,name:siteName(siteId)}} reports={visible} ready={dataCurrent} token={token} authorName={displayAuthor} onOpen={openReport} onBack={()=>setSiteId('all')}/>)}
           {page==='money' && <MoneyPage token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} sites={sites} siteName={siteName} onOpen={openReport}/>}
-
         </>}
+        </div>
+        {reportId && (selected?.id===reportId ? <ReportDetails key={selected.id} report={selected} token={token} role={profile?.role||''} siteName={siteName(selected.site_id)} authorName={displayAuthor(selected.author_login)} onClose={closeReport} onChange={r=>{setSelected(r);void refresh();}}/> : <section className="report-load" aria-live="polite"><button className="quiet" onClick={closeReport}>← Назад</button>{reportError?<><h1>Не удалось открыть отчёт</h1><p role="alert">{reportError}</p><button className="secondary" onClick={()=>setReportRetry(n=>n+1)}>Попробовать снова</button></>:<p>Загрузка отчёта…</p>}</section>)}
       </main>
       <footer>СтройКонтроль · данные сервера заказчика</footer>
       <nav className="bottom-nav crs-bottom-nav" aria-label="Мобильная навигация">
-        {(['overview','objects','reports','money'] as Page[]).map(key => (
+        {(['overview','objects','reports','money'] as Page[]).map(key=>(
           <button key={key} type="button" className={page===key?'active':''}
             aria-current={page===key?'page':undefined}
-            onClick={() => {setPage(key);setMobileMoreOpen(false);}}>
+            onClick={()=>{navigate(key);setMobileMoreOpen(false);}}>
             <NavIcon page={key}/><span>{labels[key]}</span>
           </button>
         ))}
         <button type="button" className={`crs-more-toggle${(['analytics','ai','admin'] as Page[]).includes(page)?' active':''}`}
           aria-label="Дополнительные разделы" aria-expanded={mobileMoreOpen}
-          aria-controls="crs-more-menu" onClick={() => setMobileMoreOpen(value => !value)}>
+          aria-controls="crs-more-menu" onClick={()=>setMobileMoreOpen(open=>!open)}>
           <span aria-hidden="true" style={{fontSize:22,lineHeight:1}}>⋯</span><span>Ещё</span>
         </button>
         {mobileMoreOpen && <div id="crs-more-menu" className="crs-more-menu" role="menu" aria-label="Дополнительные разделы">
-          {(['analytics','ai',...(profile?.role==='admin'?['admin']:[])] as Page[]).map(key => (
+          {(['analytics','ai',...(profile?.role==='admin'?['admin']:[])] as Page[]).map(key=>(
             <button type="button" key={key} role="menuitem" aria-current={page===key?'page':undefined}
-              onClick={() => {setPage(key);setMobileMoreOpen(false);}}>
+              onClick={()=>{navigate(key);setMobileMoreOpen(false);}}>
               <NavIcon page={key}/><span>{labels[key]}</span>
             </button>
           ))}
         </div>}
       </nav>
     </div>
-    {selected && <ReportDetails key={selected.id} report={selected} token={token} role={profile?.role||''} siteName={siteName(selected.site_id)} authorName={displayAuthor(selected.author_login)} ownerPhotos={ownerArchive?(ownerContext?.reports[selected.client_report_id]?.photos||[]):undefined} returnFocusTo={reportOpener.current} onClose={()=>{setSelected(null);reportOpener.current=null;}} onChange={r=>{setSelected(r);void refresh();}}/>}
-  </div>;
+
+  </div></AuthorColorsProvider>;
 }

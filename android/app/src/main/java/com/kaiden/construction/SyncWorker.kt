@@ -16,6 +16,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
+private class SyncSessionChanged:CancellationException("Session changed")
 class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(context,params) {
     override suspend fun doWork():Result = withContext(Dispatchers.IO) {
         val session=SecureSession(applicationContext)
@@ -24,19 +25,22 @@ class SyncWorker(context:Context,params:WorkerParameters): CoroutineWorker(conte
         val token=identity.token
         val owner=identity.userId
         val dao=AppDatabase.get(applicationContext).drafts()
+        fun active() {if(session.snapshot()!=identity)throw SyncSessionChanged()}
         val transport=object: ReportTransport {
-            override fun existing(clientId:String)=api.existingByClient(token,clientId)
-            override fun create(payload:JSONObject)=api.draft(token,payload)
-            override fun edit(id:String,payload:JSONObject,revision:Int,reason:String)=api.edit(token,id,payload,revision,reason)
-            override fun upload(id:String,photo:JSONObject)=api.upload(token,id,photo)
-            override fun submit(id:String,revision:Int)=api.submit(token,id,revision)
+            override fun existing(clientId:String):JSONObject {active();return api.existingByClient(token,clientId)}
+            override fun create(payload:JSONObject):String {active();return api.draft(token,payload)}
+            override fun edit(id:String,payload:JSONObject,revision:Int,reason:String):JSONObject {active();return api.edit(token,id,payload,revision,reason)}
+            override fun upload(id:String,photo:JSONObject) {active();api.upload(token,id,photo)}
+            override fun submit(id:String,revision:Int):JSONObject {active();return api.submit(token,id,revision)}
         }
-        val sync=ReportSync(transport) { dao.save(it) }
+        val sync=ReportSync(transport,onSessionExpired={session.invalidate(identity)}) { dao.save(it) }
         var retry=false
         for(draft in dao.pending(owner)) {
-            if(sync.sync(draft))retry=true
+            if(session.snapshot()!=identity)break
+            try {if(sync.sync(draft))retry=true}
+            catch(_:SyncSessionChanged){break}
         }
-        if(retry) Result.retry() else Result.success()
+        if(retry && session.snapshot()==identity) Result.retry() else Result.success()
     }
     companion object {
         fun schedule(context:Context) {

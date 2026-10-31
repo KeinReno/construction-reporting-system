@@ -11,7 +11,7 @@ interface ReportTransport {
     fun submit(id:String,revision:Int):JSONObject
 }
 /** UI-independent delivery state machine. Return true only for a retryable failure. */
-class ReportSync(private val transport:ReportTransport,private val save:suspend (Draft)->Unit) {
+class ReportSync(private val transport:ReportTransport,private val onSessionExpired:suspend ()->Unit = {},private val save:suspend (Draft)->Unit) {
     suspend fun sync(draft:Draft):Boolean {
             var progress=draft.copy(status="uploading",lastError=null)
             try {
@@ -40,6 +40,7 @@ class ReportSync(private val transport:ReportTransport,private val save:suspend 
                 val serverId=server.getString("id")
                 progress=progress.copy(serverId=serverId)
                 save(progress)
+
                 if(draft.editRequested && server.getString("status") in listOf("draft","needs_revision") && server.getInt("revision")==draft.serverRevision && (server.getString("status")=="needs_revision" || !ReportPayload.equivalent(payload,server.getJSONObject("data")))) {
                     server=transport.edit(serverId,payload,draft.serverRevision,draft.editReason)
                     progress=progress.copy(serverRevision=server.getInt("revision"),editRequested=false,businessStatus=server.getString("status"))
@@ -50,7 +51,7 @@ class ReportSync(private val transport:ReportTransport,private val save:suspend 
                 save(progress)
                 if(server.optString("receipt_id").let { it.isNotEmpty() && it!="null" } &&
                     server.getString("status") in listOf("submitted","reviewed")) {
-                    save(progress.copy(status="delivered",serverId=serverId,receiptId=server.getString("receipt_id"),lastError=null,serverRevision=server.getInt("revision"),businessStatus=server.getString("status"),editRequested=false))
+                    save(progress.copy(status="delivered",serverId=serverId,receiptId=server.getString("receipt_id"),lastError=null,reviewReason=null,serverRevision=server.getInt("revision"),businessStatus=server.getString("status"),editRequested=false))
                     return false
                 }
                 if(server.getString("status")!="draft") throw ApiException(409,"Отчёт возвращён на уточнение; нужна новая ревизия")
@@ -58,11 +59,13 @@ class ReportSync(private val transport:ReportTransport,private val save:suspend 
                 val photos=JSONArray(draft.photosJson)
                 for(i in 0 until photos.length()) transport.upload(serverId,photos.getJSONObject(i))
                 val receipt=transport.submit(serverId,server.getInt("revision")).getString("receipt_id")
-                save(progress.copy(status="delivered",serverId=serverId,receiptId=receipt,lastError=null,serverRevision=server.getInt("revision"),businessStatus="submitted",editRequested=false))
+                save(progress.copy(status="delivered",serverId=serverId,receiptId=receipt,lastError=null,reviewReason=null,serverRevision=server.getInt("revision"),businessStatus="submitted",editRequested=false))
             } catch(e:CancellationException) { throw e
             } catch (e:Exception) {
-                val permanent=(e is ApiException && !SyncPolicy.retryable(e.status)) || e is IllegalArgumentException || e is java.io.FileNotFoundException
+                val isSessionError = SyncPolicy.isSessionExpired((e as? ApiException)?.status ?: 0)
+                val permanent=(e is ApiException && !SyncPolicy.retryable(e.status) && !isSessionError) || e is IllegalArgumentException || e is java.io.FileNotFoundException
                 save(progress.copy(status=if(permanent) "failed" else "queued",lastError=connectionMessage(e,"Не удалось отправить отчёт. Проверьте его состояние").take(200)))
+                if(isSessionError) { onSessionExpired(); return false }
                 return !permanent
             }
         return false

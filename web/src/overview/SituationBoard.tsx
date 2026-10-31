@@ -74,7 +74,7 @@ export function SituationBoard({
                   </span>
                   <span className="situation-site-side">
                     {latest ? (
-                      <ReportStatus status={latest.status} label={reportStatusLabels[latest.status]} />
+                      <ReportStatus status={latest.status} label={view!.statusLabel} />
                     ) : (
                       <span className="badge">Нет данных</span>
                     )}

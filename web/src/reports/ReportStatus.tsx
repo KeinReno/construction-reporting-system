@@ -1,5 +1,4 @@
 import type { Report } from '../api';
-import { CrStatus } from '../ui/CrStatus';
 
 export function ReportStatus({
   status,
@@ -10,5 +9,9 @@ export function ReportStatus({
   label: string;
   archive?: boolean;
 }) {
-  return <CrStatus tone={archive ? 'archive' : status}>{label}</CrStatus>;
+  return (
+    <span className={`report-status ${archive ? 'archive' : status}`}>
+      {label}
+    </span>
+  );
 }

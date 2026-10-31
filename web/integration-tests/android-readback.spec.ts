@@ -6,7 +6,7 @@ test('Android-created report persists through real API into Web and review',asyn
   await page.getByRole('button',{name:'Войти',exact:true}).click();
   await expect(page.getByText('2.25 m',{exact:true})).toBeVisible();
   await page.locator('tbody tr').first().click();
-  const report=page.getByRole('dialog');
+  const report=page.getByRole('region',{name:'Просмотр отчёта'});
   await expect(report.getByText('Corrected synthetic comment',{exact:true})).toBeVisible();
   await expect(report.getByText('Synthetic crew',{exact:true})).toBeVisible();
   await expect(report.getByText('Synthetic material',{exact:true})).toBeVisible();
@@ -20,10 +20,10 @@ test('Android-created report persists through real API into Web and review',asyn
   await expect(report.locator('li').filter({hasText:'Доставлен'})).toHaveCount(2);
   await report.getByRole('button',{name:'Проверен',exact:true}).click();
   await expect(report.getByText('Статус: Проверен · ревизия 2')).toBeVisible();
-  await report.getByRole('button',{name:'Закрыть ✕'}).click();
+  await report.getByRole('button',{name:'← Назад'}).click();
   await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
   await page.getByRole('button',{name:'Сформировать анализ'}).click();
   await expect(page.getByRole('heading',{name:'Получено отчётов: 1. Без работ: 0.'})).toBeVisible();
   await page.getByRole('button',{name:'Отчёт 1',exact:true}).click();
-  await expect(page.getByRole('dialog').getByText('Статус: Проверен · ревизия 2')).toBeVisible();
+  await expect(page.getByRole('region',{name:'Просмотр отчёта'}).getByText('Статус: Проверен · ревизия 2')).toBeVisible();
 });

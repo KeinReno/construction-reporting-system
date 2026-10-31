@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BASE, reportStatusLabels, type Report, type Site } from './api';
+import { BASE, reportWorkState, reportViewData, equipmentOwnership, type Report, type Site } from './api';
 import { formatDate } from './date';
 import { ReportStatus } from './reports/ReportStatus';
 import { buildReportView, primaryWorks } from './reports/reportView';
@@ -63,10 +63,10 @@ export function SiteCard({
   const latestView = latest
     ? buildReportView(latest, site.name, authorName(latest.author_login))
     : null;
-  const photos = ordered.flatMap(report => (report.data.required_photo_ids ?? []).map(id => ({ id, report })));
+  const photos = ordered.flatMap(report => buildReportView(report,site.name,authorName(report.author_login)).photoIds.map(id => ({id,report})));
   const [photoIndex, setPhotoIndex] = useState<number | null>(null);
   const operations = ordered.flatMap(report =>
-    (report.data.financial_entries ?? []).map(entry => ({ ...entry, report }))
+    (reportViewData(report).financial_entries ?? []).map(entry => ({ ...entry, report }))
   );
   const totals = { expense: 0, funding_received: 0, advance_issued: 0 };
   const counts = { expense: 0, funding_received: 0, advance_issued: 0 };
@@ -75,7 +75,7 @@ export function SiteCard({
     counts[entry.kind] += 1;
   }
   const materials = ordered.flatMap(report =>
-    (report.data.materials ?? []).map((row, index) => ({ row, report, index }))
+    (reportViewData(report).materials ?? []).map((row, index) => ({ row, report, index }))
   );
 
   return (
@@ -98,10 +98,10 @@ export function SiteCard({
               <h2>{site.name}</h2>
               <p className="muted">
                 {authorName(latest.author_login)} · последние сведения {formatDate(latest.data.work_date)} ·{' '}
-                {reportStatusLabels[latest.status]}
+                {latestView?.statusLabel}
               </p>
               <p className="object-hero-copy">
-                {latest.data.kind === 'no_work'
+                {reportWorkState(latest) === 'no_work'
                   ? `Работ не было: ${latest.data.no_work_reason || 'причина не указана'}`
                   : latest.data.work_entries[0]?.type || 'Работы не указаны'}
                 {latestView?.quantityHint ? ` · ${latestView.quantityHint}` : ''}.
@@ -130,7 +130,7 @@ export function SiteCard({
                 <span>фото, приложенных к отчётам</span>
               </div>
               <div>
-                <ReportStatus status={latest.status} label={reportStatusLabels[latest.status]} />
+                <ReportStatus status={latest.status} label={latestView?.statusLabel || 'Неизвестный статус'} />
                 <span>статус последней записи в периоде</span>
               </div>
             </div>
@@ -151,7 +151,7 @@ export function SiteCard({
                             {authorName(report.author_login)}
                             {report.data.crew ? ` · ${report.data.crew}` : ''}
                           </span>
-                          {report.data.kind === 'no_work' ? (
+                          {reportWorkState(report) === 'no_work' ? (
                             <p>Работ не было: {report.data.no_work_reason || 'причина не указана'}</p>
                           ) : (
                             report.data.work_entries.map((work, index) => (
@@ -166,7 +166,7 @@ export function SiteCard({
                           {report.data.incidents?.map((item, index) => (
                             <p key={`i-${index}`}>Заявлено: {item.description}</p>
                           ))}
-                          {!works.length && report.data.kind === 'work' && (
+                          {!works.length && reportWorkState(report) !== 'no_work' && (
                             <p className="muted">Описание работ в записи отсутствует.</p>
                           )}
                         </div>
@@ -249,10 +249,10 @@ export function SiteCard({
                   Поступление и расход не складываются. Упоминание без направления не входит ни в одно из них.
                 </p>
                 <div className="object-resource-list">
-                  {ordered.some(report => report.data.equipment?.length) ? (
-                    ordered.flatMap(report => report.data.equipment ?? []).map((item, index) => (
+                  {ordered.some(report => reportViewData(report).equipment?.length) ? (
+                    ordered.flatMap(report => reportViewData(report).equipment ?? []).map((item, index) => (
                       <p key={index}>
-                        {item.type} · {item.hours} ч · {item.hired ? 'наёмная' : 'своя'}
+                        {item.type} · {item.hours} ч · {equipmentOwnership(item.hired)}
                       </p>
                     ))
                   ) : (

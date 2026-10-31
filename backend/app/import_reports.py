@@ -55,8 +55,10 @@ def import_bundle(bundle,root,request,token,checkpoint=lambda results:None):
         payload=report_payload(item.data);cid=payload['client_report_id']
         # POST is also the authoritative author/idempotency check. Manager GET access
         # must never allow reusing another author's receipt during import.
-        created=request('POST','reports',headers=headers,json=payload)
-        if created.status_code==409:raise ValueError('Existing report differs or belongs to another author; never overwrite history during import')
+        created=request('POST','reports',headers={**headers,'X-Import-Reference':item.source_ref},json=payload)
+        if created.status_code==409:
+            if created.json().get('detail')=='Import origin differs':raise ValueError('Source reference differs; never overwrite history during import')
+            raise ValueError('Existing report differs or belongs to another author; never overwrite history during import')
         created.raise_for_status();remote=created.json()
         if remote['data']!=payload:raise ValueError('Existing report differs; never overwrite history during import')
         if item.source is not None:

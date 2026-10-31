@@ -40,8 +40,9 @@ class ApiClient(endpoint:String=BuildConfig.API_BASE_URL,private val demo:DemoBa
         }
     }
     private val root = HttpsEndpoint.normalize(endpoint)
-    private fun request(path:String,method:String="GET",token:String?=null,body:ByteArray?=null,mime:String="application/json",sha:String?=null): JSONObject {
-        if(demo!=null)return demo.request(path,method,token,body)
+    private fun request(path:String,method:String="GET",token:String?=null,body:ByteArray?=null,mime:String="application/json",sha:String?=null): JSONObject = JSONObject(requestText(path,method,token,body,mime,sha))
+    private fun requestText(path:String,method:String="GET",token:String?=null,body:ByteArray?=null,mime:String="application/json",sha:String?=null): String {
+        if(demo!=null)return demo.request(path,method,token,body).toString()
         require(root.startsWith("https://")) { "A HTTPS API endpoint must be configured at build time" }
         val connection=URL(root + path).openConnection() as HttpURLConnection
         try {
@@ -61,7 +62,7 @@ class ApiClient(endpoint:String=BuildConfig.API_BASE_URL,private val demo:DemoBa
             val status=connection.responseCode
             val text=(if(status in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use{it.readText()} ?: ""
             if(status !in 200..299) throw ApiException(status,apiMessage(status,runCatching { JSONObject(text).optString("detail") }.getOrDefault("")))
-            return JSONObject(text)
+            return text
         } finally { connection.disconnect() }
     }
     fun login(login:String,password:String):String {
@@ -98,4 +99,5 @@ class ApiClient(endpoint:String=BuildConfig.API_BASE_URL,private val demo:DemoBa
         val digest=MessageDigest.getInstance("SHA-256").digest(content).joinToString(""){"%02x".format(it)}
         request("/reports/$reportId/attachments/${photo.getString("id")}","PUT",token,content,photo.getString("mime"),digest)
     }
+    fun history(token:String,id:String):JSONArray = if(demo!=null) JSONArray() else JSONArray(requestText("/reports/$id/history",token=token))
 }

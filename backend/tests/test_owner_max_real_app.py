@@ -109,3 +109,7 @@ def test_archive_reconciliation_is_private_append_only_and_does_not_change_repor
             'Authorization':'Bearer '+token}).json()[client_id]
         assert [(item['revision'],item['decision']) for item in persisted] == [
             (1,'fakel'),(2,'insufficient')]
+        ordinary=client.get('/api/v1/reports',headers={'Authorization':'Bearer '+token}).json()[0]
+        assert [item['revision'] for item in ordinary['evidence']['decisions']]==[1,2]
+        assert ordinary['evidence']['decisions'][0]['reason']==payload['reason']
+        assert ordinary['evidence']['requires_site_confirmation'] is True

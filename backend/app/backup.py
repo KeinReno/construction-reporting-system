@@ -51,9 +51,18 @@ def backup(database_url, uploads, output, service_stopped=False):
         else:raise ValueError('Unsupported database')
         engine=create_engine(database_url)
         with engine.connect() as db:
-            photos=db.execute(text('SELECT filename,sha256 FROM photos')).all()
-        (stage/'uploads').mkdir()
+            photos=list(db.execute(text('SELECT filename,sha256 FROM photos')).all())
+            if inspect(engine).has_table('imported_corpora'):
+                for raw, in db.execute(text('SELECT payload FROM imported_corpora')):
+                    corpus=json.loads(raw) if isinstance(raw,str) else raw
+                    for item in corpus.get('media',[]):
+                        if item.get('storage_file'):photos.append((item['storage_file'],item['sha256']))
+        unique={}
         for filename,sha in photos:
+            if filename in unique and unique[filename]!=sha:raise ValueError('Conflicting photo checksum')
+            unique[filename]=sha
+        (stage/'uploads').mkdir()
+        for filename,sha in unique.items():
             if Path(filename).name!=filename:raise ValueError('Invalid photo storage key')
             path=uploads/filename
             if not path.is_file() or path.is_symlink() or digest(path)!=sha:raise ValueError('Missing or corrupt source photo')

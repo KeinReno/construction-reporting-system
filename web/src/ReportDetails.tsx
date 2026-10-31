@@ -1,10 +1,9 @@
 import { formatDate, formatTimestamp } from './date';
 import { useEffect, useRef, useState } from 'react';
-import { http, reportStatusLabels, type Report } from './api';
-import { CrDataList } from './ui/CrDataList';
-import { ArchivePhoto, type OwnerPhoto } from './OwnerDemo';
+import { http, reportStatusLabels, reportViewData, reportWorkState, equipmentOwnership, type Report } from './api';
 import { ReportGallery } from './reports/ReportGallery';
 import { ReportStatus } from './reports/ReportStatus';
+import { CrDataList } from './ui/CrDataList';
 import { primaryWorks } from './reports/reportView';
 
 type Event = { id: string; revision: number; event: string; reason: string | null; occurred_at: string | null };
@@ -24,13 +23,11 @@ function money(kopecks: number) {
 }
 
 export function ReportDetails({
-  report: r,
+  report: original,
   token,
   role,
   siteName,
   authorName,
-  ownerPhotos,
-  returnFocusTo,
   onClose,
   onChange,
 }: {
@@ -39,30 +36,25 @@ export function ReportDetails({
   role: string;
   siteName: string;
   authorName: string;
-  ownerPhotos?: OwnerPhoto[];
-  returnFocusTo?: HTMLElement | null;
   onClose: () => void;
   onChange: (r: Report) => void;
 }) {
+  const r={...original,data:reportViewData(original)};
   const active = useRef(true);
+  const title = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     active.current = true;
+    title.current?.focus();
     return () => {
       active.current = false;
     };
   }, []);
-  const dialog = useRef<HTMLDialogElement>(null);
   const [history, setHistory] = useState<Event[]>([]);
-  const returnFocus = useRef<HTMLElement | null>(null);
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [source, setSource] = useState<HistoricalSource | null>(null);
 
-  useEffect(() => {
-    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    dialog.current?.showModal();
-  }, []);
   useEffect(() => {
     let alive = true;
     void http<Event[]>(`/reports/${r.id}/history`, token)
@@ -106,54 +98,37 @@ export function ReportDetails({
     }
   }
 
-  const directPhotos = ownerPhotos?.filter(photo => photo.relation === 'same_message') || [];
-  const datePhotos = ownerPhotos?.filter(photo => photo.relation === 'same_work_date') || [];
-  const describedWorks = ownerPhotos ? r.data.work_entries.filter(work => !isShiftContext(work.type)) : primaryWorks(r);
-  const shiftContext = ownerPhotos ? r.data.work_entries.filter(work => isShiftContext(work.type)) : [];
-  const statusLabel = ownerPhotos ? 'Историческая запись' : reportStatusLabels[r.status] ?? 'Неизвестный статус';
-
-  function closeDialog() {
-    const target = returnFocusTo?.isConnected ? returnFocusTo : returnFocus.current;
-    dialog.current?.close();
-    if (target?.isConnected) target.focus();
-    onClose();
-  }
+  const imported = r.origin === 'imported';
+  const directPhotos = [...new Set([...(r.data.required_photo_ids || []), ...(r.evidence?.photos || []).filter(p => p.relation === 'same_message').map(p => p.id)])];
+  const datePhotos = (r.evidence?.photos || []).filter(p => p.relation === 'same_work_date');
+  const describedWorks = primaryWorks(r);
+  const shiftContext = r.data.work_entries.filter(work => isShiftContext(work.type));
+  const statusLabel = imported ? 'Сохранён' : reportStatusLabels[r.status] ?? 'Неизвестный статус';
 
   return (
-    <dialog
-      ref={dialog}
-      className="modal report-dialog report-page-dialog"
-      onCancel={e => {
-        e.preventDefault();
-        closeDialog();
-      }}
-      onClick={e => {
-        if (e.target === dialog.current) closeDialog();
-      }}
-      aria-label="Просмотр отчёта"
-    >
+    <section className="report-detail report-dialog" aria-label="Просмотр отчёта">
       <div className="report-page">
         <div className="report-page-header report-dialog-header section-heading">
           <div>
             <span className="crs-eyebrow">Смена · доказательства · проверка</span>
-            <h2>Отчёт за {formatDate(r.data.work_date)}</h2>
+            <h1 ref={title} tabIndex={-1}>Отчёт за {formatDate(r.data.work_date)}</h1>
           </div>
-          <button className="quiet" onClick={closeDialog}>
-            Закрыть ✕
+          <button className="quiet" onClick={onClose}>
+            ← Назад
           </button>
         </div>
 
         <div className="report-page-body">
           <div className="report-page-main">
             <CrDataList className="report-meta report-page-meta" items={[
-              {label: 'Объект', value: siteName},
-              {label: ownerPhotos ? 'Источник' : 'Автор в системе', value: authorName},
-              {label: 'Статус', value: `${statusLabel} · ревизия ${r.revision}`},
-            ]} />
+              {label:'Объект',value:siteName},
+              {label:imported?'Добавил в систему':'Автор в системе',value:authorName},
+              {label:'Статус',value:`${statusLabel} · ревизия ${r.revision}`},
+            ]}/>
 
             <section>
               <h3>Описанные работы</h3>
-              {r.data.kind === 'no_work' ? (
+              {reportWorkState(r) === 'no_work' ? (
                 <p>Работ не было: {r.data.no_work_reason}</p>
               ) : describedWorks.length ? (
                 describedWorks.map((w, i) => (
@@ -171,34 +146,6 @@ export function ReportDetails({
                 <p className="muted">В записи нет описания выполненных работ.</p>
               )}
             </section>
-
-            {ownerPhotos && (
-              <section className="owner-report-media">
-                <h3>Фотографии и связь с отчётом</h3>
-                {directPhotos.length ? (
-                  <>
-                    <p className="muted">Фото в том же сообщении MAX · {directPhotos.length}</p>
-                    <div className="owner-evidence-photos">
-                      {directPhotos.map(photo => (
-                        <ArchivePhoto key={photo.id} photo={photo} token={token} />
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="muted">Фото в том же сообщении не найдено.</p>
-                )}
-                {!!datePhotos.length && (
-                  <details className="owner-date-photos">
-                    <summary>Фото чата за рабочую дату · {datePhotos.length} — связь требует проверки</summary>
-                    <div className="owner-evidence-photos">
-                      {datePhotos.map(photo => (
-                        <ArchivePhoto key={photo.id} photo={photo} token={token} />
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </section>
-            )}
 
             {r.data.crew && (
               <section>
@@ -256,6 +203,7 @@ export function ReportDetails({
                     </strong>
                     <span>
                       {money(entry.amount_kopecks)} · {formatDate(entry.operation_date)}
+                      {entry.date_basis==='report_date'?' · дата отчёта; дата оплаты отдельно не указана':''}
                     </span>
                     {entry.description && <p>{entry.description}</p>}
                   </div>
@@ -269,7 +217,7 @@ export function ReportDetails({
                   <div className="report-work" key={i}>
                     <strong>{entry.type}</strong>
                     <span>
-                      {entry.hours} ч · {entry.hired ? 'наёмная' : 'своя'}
+                      {entry.hours} ч · {equipmentOwnership(entry.hired)}
                     </span>
                   </div>
                 ))}
@@ -285,6 +233,8 @@ export function ReportDetails({
                 </ul>
               </section>
             )}
+            {!!r.normalization?.pending.length && <section><h3>Требует сверки</h3>{r.normalization.pending.map((item,i)=><div key={i} className="report-work"><strong>{item.text}</strong><p>{item.reason}</p></div>)}</section>}
+            {!!r.normalization?.shift_context.length && <section><h3>Время и условия смены</h3>{r.normalization.shift_context.map((item,i)=><p key={i}>{item.text}</p>)}</section>}
             {r.data.comment && (
               <section>
                 <h3>Комментарий</h3>
@@ -292,51 +242,32 @@ export function ReportDetails({
               </section>
             )}
 
-            {ownerPhotos && (
+            {source && (
               <details className="owner-report-source">
-                <summary>Исходное сообщение MAX</summary>
-                {source ? (
-                  <>
-                    <p className="muted">
-                      Дата сообщения: {source.message_date ? formatDate(source.message_date) : 'не указана'} · ID:{' '}
-                      {source.source_ref.split('#').pop()}
-                    </p>
-                    <p className="report-comment owner-source-text">{source.text}</p>
-                  </>
-                ) : (
-                  <p className="muted">Загрузка исходного сообщения…</p>
-                )}
+                <summary>Первичная запись</summary>
+                <p className="muted">
+                  {source.message_date && `Дата записи: ${formatDate(source.message_date)}`}
+                  {source.reported_author && ` · Указанный автор: ${source.reported_author}`}
+                </p>
+                <p className="report-comment owner-source-text">{source.text}</p>
               </details>
             )}
-            {!ownerPhotos && source && (
-              <section>
-                <h3>Исходное сообщение</h3>
-                <p className="muted">
-                  Источник: {source.source_ref}
-                  {source.message_date && ` · дата сообщения: ${formatDate(source.message_date)}`}
-                  {source.reported_author && ` · автор по источнику: ${source.reported_author}`}
-                </p>
-                <p className="report-comment">{source.text}</p>
-                <p className="footnote">
-                  Сведения из источника указаны оператором импорта; автор отчёта в системе — импортёр.
-                </p>
-              </section>
-            )}
-
-            {!ownerPhotos && (
-              <section>
-                <h3>Фотографии ({r.data.required_photo_ids?.length ?? 0})</h3>
-                {r.data.required_photo_ids?.length ? (
-                  <ReportGallery ids={r.data.required_photo_ids} token={token} />
-                ) : (
-                  <p className="muted">
-                    {source?.source_ref.includes('web.max.ru')
-                      ? 'Фотографии к этому отчёту не привязаны. Изображения из переписки доступны в архиве MAX.'
-                      : 'Фотографии не приложены.'}
-                  </p>
-                )}
-              </section>
-            )}
+            {r.evidence?.requires_site_confirmation && <p className="footnote">Принадлежность записи объекту требует подтверждения.</p>}
+            {!!r.evidence?.decisions?.length && <section>
+              <h3>Проверка принадлежности записи</h3>
+              <ol>{r.evidence.decisions.map(decision=><li key={decision.id}>
+                Версия {decision.revision}: {({fakel:'Сохранено положительное решение по принадлежности; назначение объекта требует проверки',not_fakel:'Указан другой объект — требуется исправление',insufficient:'Недостаточно данных'} as Record<string,string>)[decision.decision] || 'Сохранено решение'} — {decision.reason}
+                <small>{formatTimestamp(decision.created_at)}</small>
+              </li>)}</ol>
+            </section>}
+            <section>
+              <h3>Фотографии ({directPhotos.length})</h3>
+              {directPhotos.length ? <ReportGallery ids={directPhotos} token={token} /> : <p className="muted">Фотографии не приложены.</p>}
+              {!!datePhotos.length && <details className="owner-date-photos">
+                <summary>Дополнительные фотографии за дату · {datePhotos.length} — связь с отчётом требует проверки</summary>
+                <ReportGallery ids={datePhotos.map(photo => photo.id)} token={token} />
+              </details>}
+            </section>
 
             {r.receipt_id && <p className="footnote">Квитанция: {r.receipt_id}</p>}
             {error && (
@@ -350,14 +281,14 @@ export function ReportDetails({
             <div className="review-panel">
               <div className="status-block">
                 <h3>Состояние</h3>
-                <ReportStatus status={r.status} label={statusLabel} archive={!!ownerPhotos} />
+                <ReportStatus status={r.status} label={statusLabel} archive={imported} />
                 <p className="muted" style={{ marginTop: 10 }}>
                   Ревизия {r.revision}
                   {r.receipt_id ? ' · доставлено на сервер' : ' · без квитанции доставки'}
                 </p>
               </div>
 
-              {!ownerPhotos && role === 'manager' && r.status === 'submitted' && (
+              {!imported && role === 'manager' && r.status === 'submitted' && (
                 <section>
                   <h3>Проверка</h3>
                   <label>
@@ -395,6 +326,6 @@ export function ReportDetails({
           </aside>
         </div>
       </div>
-    </dialog>
+    </section>
   );
 }

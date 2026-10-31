@@ -17,6 +17,7 @@ def env(tmp_path):
         manager=User(login='manager',password_hash=hash_password('StrongPassword123'),role='manager')
         db.add_all([s,s2,u,manager]);db.flush();db.add_all([Assignment(user_id=u.id,site_id=s.id),Assignment(user_id=manager.id,site_id=s.id)]);db.commit();sid=s.id;forbidden=s2.id
     c=TestClient(api)
+    api.state.import_user_ids={u.id}  # Explicit synthetic importer capability; ordinary foremen do not have it.
     c.api=api
     def token(name):return {'Authorization':'Bearer '+c.post('/api/v1/auth/login',json={'login':name,'password':'StrongPassword123'}).json()['access_token']}
     return c,token('foreman'),token('manager'),sid,forbidden

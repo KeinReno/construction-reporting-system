@@ -38,7 +38,7 @@
   border-bottom: 1px solid var(--crs-line);
 }
 
-.report-page-header h2 {
+.report-page-header h1 {
   margin: 0;
   font-size: var(--crs-text-xl);
 }
@@ -64,20 +64,34 @@
   background: var(--crs-bg-graphite);
 }
 
+/* Full report uses the document scroll; the review panel stays in view on wide screens. */
+.report-detail .report-page { display: block; max-height: none; }
+.report-detail .report-page-body { overflow: visible; align-items: start; }
+.report-detail .report-page-main { overflow: visible; }
+.report-detail .report-page-aside { position: sticky; top: 16px; max-height: calc(100vh - 32px); }
+.content .report-detail { width: 100%; max-height: none; border: 1px solid var(--crs-line-strong); background: var(--crs-surface); }
+
 @media (max-width: 900px) {
   .report-page-body {
     grid-template-columns: 1fr;
+    overflow: visible;
+  }
+  .report-page-main,
+  .report-page-aside {
+    overflow: visible;
   }
   .report-page-aside {
     border-left: 0;
     border-top: 1px solid var(--crs-line);
   }
+  .report-detail .report-page-aside { position: static; max-height: none; }
   .report-page-dialog {
     width: calc(100vw - 16px);
     max-height: calc(100vh - 16px);
   }
   .report-page {
-    max-height: calc(100vh - 16px);
+    display: block;
+    max-height: none;
   }
   .report-page-header,
   .report-page-main {

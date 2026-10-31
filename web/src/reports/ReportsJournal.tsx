@@ -1,12 +1,13 @@
+import { AuthorBadge } from './ReportSignals';
 import { useEffect, useMemo, useState } from 'react';
 import type { Report } from '../api';
 import { ReportCard } from './ReportCard';
 import { ReportRow } from './ReportRow';
+import { buildReportView, searchableReportText } from './reportView';
 import { ReportStatus } from './ReportStatus';
 import { CrSegmentGroup } from '../ui/CrSegmentGroup';
 import { CrPagination } from '../ui/CrPagination';
 import { CrSearchField } from '../ui/CrSearchField';
-import { buildReportView, searchableReportText } from './reportView';
 
 type Density = 'list' | 'cards';
 
@@ -36,6 +37,7 @@ export function ReportsJournal({
   const [density, setDensity] = useState<Density>('list');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [authorFilter, setAuthorFilter] = useState<string | null>(null);
   const views = useMemo(
     () =>
       reports.map(report =>
@@ -45,17 +47,30 @@ export function ReportsJournal({
       ),
     [reports, siteName, authorName, archive]
   );
+  const authorGroups = useMemo(() => {
+    const groups = new Map<string,{id:string|null;label:string;count:number}>();
+    for (const view of views) {
+      const key=view.authorId || '__unknown__';
+      const group=groups.get(key) || {id:view.authorId,label:view.authorLabel,count:0};
+      group.count++; groups.set(key,group);
+    }
+    return [...groups.entries()].sort((a,b)=>b[1].count-a[1].count || a[1].label.localeCompare(b[1].label,'ru'));
+  },[views]);
+  const activeAuthor = authorGroups.some(([key])=>key===authorFilter) ? authorFilter : null;
+  useEffect(()=>{
+    if(authorFilter && !authorGroups.some(([key])=>key===authorFilter)) setAuthorFilter(null);
+  },[authorFilter,authorGroups]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase('ru-RU');
-    if (!needle) return views.map((view, index) => ({ view, report: reports[index] }));
     return views
       .map((view, index) => ({ view, report: reports[index] }))
-      .filter(({ view, report }) => searchableReportText(view, report.data.comment).includes(needle));
-  }, [views, reports, query]);
-  const perPage = 24;
-  const pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
-  useEffect(() => { setPage(1); }, [query, reports.length, compact, archive]);
-  const shown = compact ? filtered.slice(0, 6) : filtered.slice((Math.min(page,pageCount)-1)*perPage,Math.min(page,pageCount)*perPage);
+      .filter(({ view, report }) => (!activeAuthor || (view.authorId || '__unknown__')===activeAuthor) && (!needle || searchableReportText(view, report.data.comment).includes(needle)));
+  }, [views, reports, query, activeAuthor]);
+  const perPage=24;
+  const pageCount=Math.max(1,Math.ceil(filtered.length/perPage));
+  useEffect(()=>setPage(1),[query,reports.length,compact,archive,activeAuthor]);
+  const boundedPage=Math.min(page,pageCount);
+  const shown=compact?filtered.slice(0,6):filtered.slice((boundedPage-1)*perPage,boundedPage*perPage);
 
   return (
     <section className="report-panel reports-journal" aria-label={title}>
@@ -66,14 +81,9 @@ export function ReportsJournal({
         </div>
         <div className="reports-journal-actions">
           {!compact && (
-            <CrSearchField label="Поиск" value={query} onChange={setQuery} placeholder="Объект, работа, автор" className="reports-journal-search"/>
+            <CrSearchField label="Поиск" value={query} onChange={setQuery} placeholder="Объект, работа, автор" className="reports-journal-search" />
           )}
-          <CrSegmentGroup<Density>
-            value={density}
-            options={[{value: 'list', label: 'Список'}, {value: 'cards', label: 'Карточки'}]}
-            onChange={setDensity}
-            ariaLabel="Плотность журнала"
-          />
+          <CrSegmentGroup<Density> value={density} onChange={setDensity} ariaLabel="Плотность журнала" options={[{value:'list',label:'Список'},{value:'cards',label:'Карточки'}]} />
           {compact && onShowAll && (
             <button type="button" className="link-button" onClick={onShowAll}>
               Все отчёты →
@@ -82,9 +92,16 @@ export function ReportsJournal({
         </div>
       </div>
 
+      {!compact && !archive && authorGroups.length > 0 && <section className="journal-authors" aria-label="Отчёты по авторам">
+        <div className="journal-authors-heading"><h3>Отчёты по авторам</h3><span>Все записи по выбранным фильтрам, включая черновики</span></div>
+        <div className="journal-author-chart">{authorGroups.map(([key,group])=><button type="button" className="journal-author-bar" key={key} aria-pressed={activeAuthor===key} onClick={()=>setAuthorFilter(activeAuthor===key?null:key)}>
+          <AuthorBadge id={group.id} label={group.label}/><span className="journal-author-track" aria-hidden="true"><span style={{width:`${group.count / authorGroups[0][1].count * 100}%`}}/></span><strong>{group.count}</strong>
+        </button>)}</div>
+        {activeAuthor && <button type="button" className="link-button journal-author-reset" onClick={()=>setAuthorFilter(null)}>Все авторы</button>}
+      </section>}
       {!shown.length ? (
         <p className="empty">
-          {reports.length ? 'По запросу ничего не найдено.' : 'Отчёты по выбранным условиям отсутствуют.'}
+          {reports.length ? 'По выбранному автору и запросу ничего не найдено.' : 'Отчёты по выбранным условиям отсутствуют.'}
         </p>
       ) : density === 'list' ? (
         <div className="report-rows">
@@ -108,7 +125,7 @@ export function ReportsJournal({
                       <td data-label="Дата">
                         <button
                           className="report-open"
-                          onClick={() => onOpen(report)}
+                          onClick={event => { event.stopPropagation(); onOpen(report); }}
                           aria-label={`Открыть отчёт за ${view.workDateLabel} · ${view.siteName}`}
                         >
                           {view.workDateLabel}
@@ -116,7 +133,7 @@ export function ReportsJournal({
                       </td>
                       <td data-label="Объект">{view.siteName}</td>
                       <td data-label="Содержание">{view.workSummary}{view.quantityHint ? ` · ${view.quantityHint}` : ''}</td>
-                      <td data-label="Автор">{view.authorLabel}</td>
+                      <td data-label="Автор"><AuthorBadge id={view.authorId} label={view.authorLabel} /></td>
                       <td data-label="Статус">
                         <ReportStatus status={report.status} label={view.statusLabel} archive={archive} />
                       </td>
@@ -151,7 +168,7 @@ export function ReportsJournal({
           ))}
         </div>
       )}
-      {!compact && <CrPagination page={Math.min(page,pageCount)} pageCount={pageCount} onPageChange={setPage} />}
+      {!compact && <CrPagination page={boundedPage} pageCount={pageCount} onPageChange={setPage}/>}
     </section>
   );
 }

@@ -1,13 +1,21 @@
 export type Site = { id: string; name: string }
 export type WorkEntry = { type: string; quantity: string | null; unit: string | null; description?: string }
-export type FinancialEntry = { id:string;kind:'expense'|'funding_received'|'advance_issued';operation_date:string;amount_kopecks:number;category:string;description?:string|null;receipt_photo_id?:string|null }
+export type FinancialEntry = { id:string;kind:'expense'|'funding_received'|'advance_issued';operation_date:string;amount_kopecks:number;category:string;description?:string|null;receipt_photo_id?:string|null;date_basis?:'report_date';evidence_basis?:'declared_expense' }
 export type Report = {
+  normalization?: {version:number;work_state:'work'|'no_work'|'not_stated';fields:Partial<Report['data']>;pending:Array<{kind:string;text:string;reason:string}>;shift_context:Array<{text:string}>} | null;
+  origin?: 'direct' | 'imported';
+  evidence?: {photos:Array<{id:string;relation:'same_message'|'same_work_date';date:string}>;requires_site_confirmation?:boolean;decisions?:Array<{id:string;decision:string;reason:string;actor_id:string;revision:number;created_at:string}>} | null;
   id: string; site_id: string; client_report_id: string; revision: number;
   author_id?:string; author_login?:string|null;
   status: "draft" | "submitted" | "reviewed" | "needs_revision";
   receipt_id: string | null; submitted_at: string | null;
-  data: { work_date: string; kind: "work" | "no_work"; work_entries: WorkEntry[]; comment?: string | null; no_work_reason?: string | null; required_photo_ids?: string[]; crew?:string|null; materials?:Array<{name:string;quantity:string|null;unit:string|null;direction?:'mentioned'|'received'|'consumed'}>|null; incidents?:Array<{description:string}>|null; financial_entries?:FinancialEntry[]|null;equipment?:Array<{type:string;hours:string;hired:boolean}>|null;next_shift_plans?:string[]|null }
+  data: { work_date: string; kind: "work" | "no_work"; work_entries: WorkEntry[]; comment?: string | null; no_work_reason?: string | null; required_photo_ids?: string[]; crew?:string|null; materials?:Array<{name:string;quantity:string|null;unit:string|null;direction?:'mentioned'|'received'|'consumed'}>|null; incidents?:Array<{description:string}>|null; financial_entries?:FinancialEntry[]|null;equipment?:Array<{type:string;hours:string;hired:boolean|null}>|null;next_shift_plans?:string[]|null }
 }
+export function reportViewData(report:Report):Report['data'] {
+  return report.normalization ? {...report.data,...report.normalization.fields} : report.data;
+}
+export function equipmentOwnership(hired:boolean|null):string {return hired===null?'Принадлежность не указана':hired?'Наёмная':'Своя';}
+export function reportWorkState(report:Report):'work'|'no_work'|'not_stated' {return report.normalization?.work_state??report.data.kind;}
 export const reportStatusLabels: Record<Report['status'], string> = {
   draft: 'Черновик', submitted: 'Доставлен', reviewed: 'Проверен', needs_revision: 'На уточнении'
 };
@@ -15,16 +23,16 @@ export type Summary = {
   report_count: number; no_work_count: number;
   volumes: Array<{ site_id: string; work_type: string; unit: string; quantity: string; source_report_ids?: string[]; confirmed_zero?: boolean }>;
   qualitative_works:Array<{site_id:string;work_type:string;report_count:number;source_report_ids:string[]}>;qualitative_work_count:number;
-  no_work_reasons: Array<{reason:string;report_count:number;source_report_ids:string[]}>; timeline:Array<{report_id:string;date:string;kind:string;status:string}>; timeline_truncated:boolean;
+  no_work_reasons: Array<{reason:string;report_count:number;source_report_ids:string[]}>; timeline:Array<{report_id:string;date:string;kind:string;work_state?:string;status:string}>; timeline_truncated:boolean;
   incident_count:number; incidents:Array<{report_id:string;date:string;description:string}>;
   material_count:number; materials:Array<{report_id:string;date:string;name:string;quantity:string|null;unit:string|null;direction:'mentioned'|'received'|'consumed'}>;
   material_movements:Array<{site_id:string;name:string;unit:string;direction:'received'|'consumed';quantity:string}>;
   financial_entries:Array<FinancialEntry & {report_id:string}>;financial_totals_kopecks:Partial<Record<FinancialEntry['kind'],number>>;
-  equipment:Array<{report_id:string;date:string;type:string;hours:string;hired:boolean}>;equipment_hours:Array<{type:string;hours:string;hired:boolean}>;
+  equipment:Array<{report_id:string;date:string;type:string;hours:string;hired:boolean|null}>;equipment_hours:Array<{type:string;hours:string;hired:boolean|null}>;
   limitations: string[]; source_report_ids: string[]; daily: Array<{date:string; report_count:number; source_report_ids?: string[]}>; period: {from_date:string|null;to_date:string|null};
 }
 export type Profile = { id: string; login: string; role: string }
-export type ReportAuthor = {id:string;login:string}
+export type ReportAuthor = {id:string;login:string;imported_only?:boolean}
 
 // During development Vite proxies /api to FastAPI; in deployment reverse proxy does the same.
 // External server domains and secrets must not be hardcoded in web assets.

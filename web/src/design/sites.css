@@ -226,6 +226,7 @@
 
 .object-hero-facts div:last-child {
   border-bottom: 0;
+  grid-template-columns: max-content minmax(0, 1fr);
 }
 
 .object-hero-facts strong {

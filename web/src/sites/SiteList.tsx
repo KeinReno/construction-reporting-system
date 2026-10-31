@@ -1,5 +1,4 @@
 import type { Report, Site } from '../api';
-import { reportStatusLabels } from '../api';
 import { ReportStatus } from '../reports/ReportStatus';
 import { buildReportView } from '../reports/reportView';
 
@@ -43,7 +42,7 @@ export function SiteList({
                     {view.workDateLabel} · {view.workSummary}
                     {view.quantityHint ? ` · ${view.quantityHint}` : ''}
                   </p>
-                  <ReportStatus status={view.status} label={reportStatusLabels[view.status]} />
+                  <ReportStatus status={view.status} label={view.statusLabel} />
                 </>
               ) : (
                 <p className="muted">В выбранном периоде сведений нет</p>

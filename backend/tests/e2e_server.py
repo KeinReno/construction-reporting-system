@@ -18,6 +18,7 @@ with api.state.db() as db:
     db.add_all([Assignment(user_id=manager.id,site_id=site.id),Assignment(user_id=foreman.id,site_id=site.id),Assignment(user_id=other.id,site_id=site_b.id)])
     db.commit();sid=site.id
 client=TestClient(api)
+api.state.import_user_ids={foreman.id}
 token=client.post('/api/v1/auth/login',json={'login':'manager','password':'SyntheticPassword123'}).json()['access_token']
 headers={'Authorization':'Bearer '+token}
 foreman_token=client.post('/api/v1/auth/login',json={'login':'foreman','password':'SyntheticPassword123'}).json()['access_token']
@@ -28,9 +29,9 @@ for day,quantity in [('2026-10-24','1.5'),('2026-10-25','2.5')]:
         'equipment':[{'type':'Synthetic crane','hours':'7.5','hired':True}],
         'next_shift_plans':['Synthetic next step']})
     author_headers=headers if day=='2026-10-25' else {'Authorization':'Bearer '+foreman_token}
-    r=client.post('/api/v1/reports',headers=author_headers,json=data).json()
-    if day=='2026-10-25':
-        response=client.put(f"/api/v1/reports/{r['id']}/source",headers=headers,json={'source_ref':'synthetic-message','text':'Synthetic historical source','reported_author':'Synthetic author','message_date':'2026-10-26'})
+    r=client.post('/api/v1/reports',headers={**author_headers,**({'X-Import-Reference':'synthetic-message'} if day=='2026-10-24' else {})},json=data).json()
+    if day=='2026-10-24':
+        response=client.put(f"/api/v1/reports/{r['id']}/source",headers=author_headers,json={'source_ref':'synthetic-message','text':'Synthetic historical source','reported_author':'Synthetic author','message_date':'2026-10-26'})
         assert response.status_code==200,response.text
     response=client.post(f"/api/v1/reports/{r['id']}/submit",headers={**author_headers,'X-Report-Capabilities':'report-extras-v2'},json={'expected_revision':1})
     assert response.status_code==200,response.text

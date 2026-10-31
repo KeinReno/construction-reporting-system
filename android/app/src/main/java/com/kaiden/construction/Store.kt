@@ -37,7 +37,8 @@ data class Draft(
     val editRequested: Boolean = false,
     val editReason: String = "",
     val businessStatus: String? = null,
-    @ColumnInfo(defaultValue="'{}'") val extrasJson:String = "{}"
+    @ColumnInfo(defaultValue="'{}'") val extrasJson:String = "{}",
+    val reviewReason:String? = null
 )
 
 @Dao
@@ -52,6 +53,8 @@ interface DraftDao {
     suspend fun pending(ownerId: String): List<Draft>
     @Query("UPDATE drafts SET status = 'queued', lastError = NULL WHERE ownerId = :ownerId AND status = 'failed'")
     suspend fun retryFailed(ownerId: String)
+    @Query("UPDATE drafts SET status = 'queued', lastError = NULL WHERE ownerId = :ownerId AND status = 'failed' AND lastError = 'Сессия завершилась. Войдите снова'")
+    suspend fun resumeExpiredSession(ownerId:String)
     @Insert(onConflict=OnConflictStrategy.REPLACE)
     suspend fun save(draft: Draft)
 }
@@ -76,7 +79,7 @@ interface FormDao {
     suspend fun consume(ownerId:String,sessionId:String):Int
 }
 
-@Database(entities=[Draft::class,FormRecord::class], version=5, exportSchema=false)
+@Database(entities=[Draft::class,FormRecord::class], version=6, exportSchema=false)
 abstract class AppDatabase: RoomDatabase() {
     abstract fun drafts(): DraftDao
     abstract fun forms(): FormDao
@@ -102,9 +105,12 @@ abstract class AppDatabase: RoomDatabase() {
         val MIGRATION_4_5=object:Migration(4,5) {
             override fun migrate(db:SupportSQLiteDatabase) {db.execSQL("ALTER TABLE drafts ADD COLUMN extrasJson TEXT NOT NULL DEFAULT '{}'")}
         }
+        val MIGRATION_5_6=object:Migration(5,6) {
+            override fun migrate(db:SupportSQLiteDatabase) {db.execSQL("ALTER TABLE drafts ADD COLUMN reviewReason TEXT")}
+        }
         fun build(context:Context,name:String):AppDatabase =
             Room.databaseBuilder(context.applicationContext,AppDatabase::class.java,name)
-                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5).build()
+                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6).build()
         @Volatile private var INSTANCE:AppDatabase?=null
         fun get(context:Context):AppDatabase = INSTANCE ?: synchronized(this) {
             INSTANCE ?: build(context,"construction-local.db").also {INSTANCE=it}

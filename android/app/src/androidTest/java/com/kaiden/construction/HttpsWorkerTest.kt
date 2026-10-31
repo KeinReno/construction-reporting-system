@@ -69,6 +69,7 @@ class HttpsWorkerTest {
             var counters=JSONObject(call("/test/stats",token));assertEquals(1,counters.getInt("photo_put_count"));assertEquals(1,counters.getInt("submit_count"))
             val manager=api.login("manager","SyntheticPassword123")
             call("/reports/${local.serverId}/review",manager,JSONObject().put("expected_revision",1).put("decision","needs_revision").put("reason","Clarify synthetic comment"))
+            assertEquals("Clarify synthetic comment",reviewReason(api.history(token,local.serverId!!),1))
             db.drafts().save(local.copy(status="queued",comment="Corrected synthetic comment",editRequested=true,editReason="Clarify",serverRevision=1))
             worker();local=db.drafts().observeAll(owner).first().single()
             assertEquals("delivered",local.status);assertEquals(2,local.serverRevision);assertNotEquals(firstReceipt,local.receiptId)
@@ -79,6 +80,17 @@ class HttpsWorkerTest {
             val history=JSONArray(call("/reports/${local.serverId}/history",manager))
             val receipts=(0 until history.length()).map{history.getJSONObject(it)}.filter{it.getString("event")=="submitted"}.map{it.getString("receipt_id")}
             assertEquals(listOf(firstReceipt,local.receiptId),receipts)
+            // An actual API 401 pauses the worker, preserves the UUID and prompts re-login.
+            db.drafts().save(local.copy(status="queued"))
+            session.save("expired-synthetic-token",owner,root)
+            worker()
+            assertNull(session.snapshot())
+            assertEquals("queued",db.drafts().observeAll(owner).first().single().status)
+            val renewed=api.login("foreman","SyntheticPassword123")
+            session.save(renewed,owner,root)
+            worker()
+            val resumed=db.drafts().observeAll(owner).first().single()
+            assertEquals("delivered",resumed.status);assertEquals(local.id,resumed.id);assertEquals(local.receiptId,resumed.receiptId)
         }finally{HttpsURLConnection.setDefaultSSLSocketFactory(old);session.clear();db.clearAllTables();photo.delete()}
     }
 }

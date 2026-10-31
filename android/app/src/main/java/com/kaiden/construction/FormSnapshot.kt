@@ -27,7 +27,7 @@ data class FormSnapshot(
             put("workEntriesJson",d.workEntriesJson);put("noWorkReason",d.noWorkReason);put("comment",d.comment);put("photosJson",d.photosJson)
             put("status",d.status);put("serverId",d.serverId);put("receiptId",d.receiptId);put("lastError",d.lastError);put("createdAt",d.createdAt)
             put("serverRevision",d.serverRevision);put("editRequested",d.editRequested);put("editReason",d.editReason);put("businessStatus",d.businessStatus)
-            put("extrasJson",d.extrasJson)
+            put("extrasJson",d.extrasJson);put("reviewReason",d.reviewReason)
         }) }
     }.toString()
     companion object {
@@ -40,7 +40,7 @@ data class FormSnapshot(
                 Draft(id=it.getString("id"),ownerId=ownerId,siteId=it.getString("siteId"),siteName=it.getString("siteName"),workDate=it.getString("workDate"),kind=it.getString("kind"),
                     workEntriesJson=it.getString("workEntriesJson"),noWorkReason=it.getString("noWorkReason"),comment=it.getString("comment"),photosJson=it.getString("photosJson"),
                     status=it.getString("status"),serverId=it.nullable("serverId"),receiptId=it.nullable("receiptId"),lastError=it.nullable("lastError"),createdAt=it.getLong("createdAt"),
-                    serverRevision=it.getInt("serverRevision"),editRequested=it.getBoolean("editRequested"),editReason=it.getString("editReason"),businessStatus=it.nullable("businessStatus"),extrasJson=it.optString("extrasJson","{}"))
+                    serverRevision=it.getInt("serverRevision"),editRequested=it.getBoolean("editRequested"),editReason=it.getString("editReason"),businessStatus=it.nullable("businessStatus"),extrasJson=it.optString("extrasJson","{}"),reviewReason=it.nullable("reviewReason"))
             }
             return FormSnapshot(siteId=o.optString("siteId",""),workDate=o.optString("workDate",java.time.LocalDate.now().toString()),kind=o.optString("kind","work"),
                 workType=o.optString("workType","Сварка металлоконструкций"),quantity=o.optString("quantity",""),unit=o.optString("unit","шт"),description=o.optString("description",""),
