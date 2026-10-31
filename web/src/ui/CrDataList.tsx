@@ -7,7 +7,7 @@ export function CrDataList({items, className=''}: {
   return <dl className={`crs-data-list ${className}`.trim()}>
     {items.map((item,index) => (
       <div className="crs-data-list-item" key={index}>
-        <dt>{item.label}</dt><dd>{item.value}</dd>
+        <dt>{item.label}</dt><dd>{typeof item.value === "string" || typeof item.value === "number" ? `${item.label}: ${item.value}` : item.value}</dd>
       </div>
     ))}
   </dl>;

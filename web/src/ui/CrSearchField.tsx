@@ -8,7 +8,6 @@ export function CrSearchField({
   const id = useId();
   return <div className={`crs-search-field ${className}`.trim()}>
     <label htmlFor={id}>{label}</label>
-    <span>{label}</span>
     <span className="crs-search-control">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>
       <input id={id} type="search" value={value} onChange={event=>onChange(event.target.value)} placeholder={placeholder} />

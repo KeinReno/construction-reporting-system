@@ -378,3 +378,10 @@
 }
 .crs-combobox .crs-combobox-option.active { background: #3a474c; }
 .crs-combobox .crs-combobox-option[aria-selected="true"] { color: var(--crs-accent); }
+
+/* Native grouping select keeps keyboard/browser integration while matching the segmented visual language */
+.crs-period-native { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin: 10px 0; color: var(--crs-muted); font-size: 12px; }
+.crs-period-native select { min-height: 34px; border: 1px solid var(--crs-line); border-radius: 4px;
+  color: var(--crs-text); background: var(--crs-surface-sunken); padding: 6px 32px 6px 10px; cursor: pointer; }
+.report-page-meta .crs-data-list-item dt { display: none; }
+.report-page-meta .crs-data-list-item dd { font-size: 13px; }

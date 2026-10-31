@@ -17,7 +17,6 @@ import { CrDateField } from './ui/CrDateField';
 import { CrCombobox } from './ui/CrCombobox';
 import { CrReportChart } from './ui/CrReportChart';
 import { CrBreadcrumbs } from './ui/CrBreadcrumbs';
-import { CrSegmentGroup } from './ui/CrSegmentGroup';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
 type Page = 'overview' | 'objects' | 'reports' | 'money' | 'analytics' | 'ai' | 'admin';
@@ -217,14 +216,14 @@ export default function App() {
             /> : <section className="report-panel"><h2>{page==='reports'?'Журнал отчётов':'Отчёты'}</h2><p className="empty">{error?'Данные не загружены.':'Загрузка отчётов…'}</p></section>)}
           {page==='overview' &&
             <div className="chart-panel"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
-              <div className="crs-period-filter"><span>Группировка</span><CrSegmentGroup<Interval> value={interval} onChange={setInterval} ariaLabel="Группировка отчётов" options={[{value:"day",label:"Дни"},{value:"month",label:"Месяцы"},{value:"year",label:"Годы"}]}/></div>
+              <label className="chart-period crs-period-native">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
               <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period => setDrill({title:`Отчёты за ${period.label}`, ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           }
           </div>}
           {page==='analytics' && <section className="analytics-lead">
             <div className="chart-panel"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
-              <div className="crs-period-filter"><span>Группировка</span><CrSegmentGroup<Interval> value={interval} onChange={setInterval} ariaLabel="Группировка отчётов" options={[{value:"day",label:"Дни"},{value:"month",label:"Месяцы"},{value:"year",label:"Годы"}]}/></div>
+              <label className="chart-period crs-period-native">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
               <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period => setDrill({title:`Отчёты за ${period.label}`, ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           </section>}

@@ -148,7 +148,7 @@ export function ReportDetails({
             <CrDataList className="report-meta report-page-meta" items={[
               {label: 'Объект', value: siteName},
               {label: ownerPhotos ? 'Источник' : 'Автор в системе', value: authorName},
-              {label: 'Статус / версия', value: `${statusLabel} · ревизия ${r.revision}`},
+              {label: 'Статус', value: `${statusLabel} · ревизия ${r.revision}`},
             ]} />
 
             <section>
