@@ -175,7 +175,7 @@ export default function App() {
       onSelect={setPage}
       renderIcon={key => <NavIcon page={key}/>}
       archiveUrl={ownerArchive}
-    />ide>
+    />
     <div className="workspace">
       <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login ? displayAuthor(profile.login) : 'Пользователь'} <button className="quiet" onClick={() => {void http('/auth/logout',token,{method:'POST'}).catch(()=>{});endSession();setError('');}}>Выйти</button></span></header>
       <main className={`content${ownerArchive?' owner-content':''}`}>
