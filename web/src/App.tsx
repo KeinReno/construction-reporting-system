@@ -11,6 +11,8 @@ import { SiteList } from './sites/SiteList';
 import { http, login, ApiError, filterQuery, allReports, reportStatusLabels, type Profile, type Report, type ReportAuthor, type Site, type Summary } from './api';
 import { SiteCard } from './SiteCard';
 import { MoneyPage } from './MoneyPage';
+import { CrSidebar } from './ui/CrSidebar';
+import { CrProgress } from './ui/CrProgress';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
 type Page = 'overview' | 'objects' | 'reports' | 'money' | 'analytics' | 'ai' | 'admin';
@@ -78,6 +80,7 @@ export default function App() {
   const [reports, setReports] = useState<Report[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [page, setPage] = useState<Page>('overview');
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [siteId, setSiteId] = useState('all');
   const [authorId, setAuthorId] = useState('all');
@@ -166,12 +169,13 @@ export default function App() {
   const pageTitle = ownerArchive ? ({overview:'Сводка архива',objects:'Объект',reports:'Журнал записей',money:'Деньги',analytics:'Анализ архива',ai:'ИИ-аналитик',admin:'Управление'} as Record<Page,string>)[page] : labels[page];
   if (!token) return <Login onSuccess={setToken} demo={demo}/>;
   return <div className="app-shell">
-    <aside className="sidebar"><div className="brand"><span className="brand-mark">C</span><span>CRS<small className="brand-caption">СТРОЙКОНТРОЛЬ</small></span></div>
-      <nav aria-label="Основная навигация">{(Object.keys(labels) as Page[]).filter(key=>key!=='admin'||profile?.role==='admin').map(key =>
-        <button key={key} className={page === key ? 'nav-item active' : 'nav-item'} onClick={() => setPage(key)}>
-          <NavIcon page={key}/>{labels[key]}</button>)}{ownerArchive&&<a className="nav-item owner-archive-link" href={ownerArchive} target="_blank" rel="noreferrer">Архив MAX ↗</a>}</nav>
-      <div className="sidebar-foot"><span className="online-dot"/> Серверные данные</div>
-    </aside>
+    <CrSidebar<Page>
+      entries={(Object.keys(labels) as Page[]).filter(key => key !== 'admin' || profile?.role === 'admin').map(key => ({key, label: labels[key]}))}
+      current={page}
+      onSelect={setPage}
+      renderIcon={key => <NavIcon page={key}/>}
+      archiveUrl={ownerArchive}
+    />ide>
     <div className="workspace">
       <header className="topbar"><span className="mobile-brand">▣ СтройКонтроль</span><span className="topbar-right">{profile?.login ? displayAuthor(profile.login) : 'Пользователь'} <button className="quiet" onClick={() => {void http('/auth/logout',token,{method:'POST'}).catch(()=>{});endSession();setError('');}}>Выйти</button></span></header>
       <main className={`content${ownerArchive?' owner-content':''}`}>
@@ -184,7 +188,7 @@ export default function App() {
         {page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> : ownerArchive&&page==='reports' ? (dataCurrent&&ownerContext?<OwnerJournal reports={visible} sites={sites} context={ownerContext} onOpen={openReport}/>:<p className="empty">{error?'Не удалось загрузить журнал. Обновите страницу.':'Загрузка журнала…'}</p>) : ownerArchive&&(['overview','objects','analytics'] as Page[]).includes(page) ? (dataCurrent&&ownerContext?<OwnerDemo mode={page as 'overview'|'objects'|'analytics'} reports={visible} sites={sites} selectedSiteId={siteId} context={ownerContext} token={token} onOpen={openReport} onJournal={()=>setPage('reports')} onReconciliation={()=>{setSiteId(sites.find(site=>site.name.startsWith('Объект требует сверки'))?.id||'all');setPage('objects');}}/>:<p className="empty">{error?'Не удалось загрузить историю. Обновите страницу.':'Загрузка истории объекта…'}</p>) : page === 'ai' && (startDate.startsWith('!') || endDate.startsWith('!') || (!!startDate && !!endDate && startDate>endDate)) ? <p className="error">Исправьте период перед формированием анализа.</p> : page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={id=>{const epoch=generation.current;void http<Report>('/reports/'+id,token).then(r=>{if(epoch===generation.current)setSelected(r);}).catch(e=>{if(epoch===generation.current)setError(e.message);});}}/> : <>
           {page !== 'reports' && page !== 'money' && <section className="metric-grid">
             <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
-            <div className="metric"><span>Полученных отчётов</span><strong>{dataCurrent?received.length:'—'}</strong><small>Текущие версии с квитанцией, включая уточнение</small></div>
+            <div className="metric"><span>Полученных отчётов</span><strong>{dataCurrent?received.length:'—'}</strong><small>Текущие версии с квитанцией, включая уточнение</small>{dataCurrent && visible.length > 0 && <CrProgress value={received.length} max={visible.length} label="Доля отчётов с квитанцией" />}</div>
             <div className="metric"><span>Ожидают проверки</span><strong>{dataCurrent?needsReview:'—'}</strong><small>Статус «Доставлен»</small></div>
             {page==='overview' && <div className="metric"><span>Заявленные расходы</span><strong>{!dataCurrent?'—':expenseKopecks==null?'Нет':new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format(expenseKopecks/100)}</strong><small>{!dataCurrent?'По дате операции':expenseKopecks==null?'Нет расходных операций за период. Это не ноль.':'Только расходы, без поступлений и авансов'}</small></div>}
             <div className="metric"><span>Указано событий</span><strong>{currentSummary?.incident_count ?? '—'}</strong><small>Только явно внесённые записи</small></div>
@@ -252,7 +256,28 @@ export default function App() {
         </>}
       </main>
       <footer>СтройКонтроль · данные сервера заказчика</footer>
-      <nav className="bottom-nav" aria-label="Мобильная навигация">{(['overview','objects','reports','money','analytics','ai',...(profile?.role==='admin'?['admin']:[])] as Page[]).map(key=><button key={key} className={page===key?'active':''} aria-current={page===key?'page':undefined} aria-label={key==='ai'?labels[key]:undefined} onClick={()=>setPage(key)}><NavIcon page={key}/><span>{key==='ai'?'ИИ':labels[key]}</span></button>)}</nav>
+      <nav className="bottom-nav crs-bottom-nav" aria-label="Мобильная навигация">
+        {(['overview','objects','reports','money'] as Page[]).map(key => (
+          <button key={key} type="button" className={page===key?'active':''}
+            aria-current={page===key?'page':undefined}
+            onClick={() => {setPage(key);setMobileMoreOpen(false);}}>
+            <NavIcon page={key}/><span>{labels[key]}</span>
+          </button>
+        ))}
+        <button type="button" className={`crs-more-toggle${(['analytics','ai','admin'] as Page[]).includes(page)?' active':''}`}
+          aria-label="Дополнительные разделы" aria-expanded={mobileMoreOpen}
+          aria-controls="crs-more-menu" onClick={() => setMobileMoreOpen(value => !value)}>
+          <span aria-hidden="true" style={{fontSize:22,lineHeight:1}}>⋯</span><span>Ещё</span>
+        </button>
+        {mobileMoreOpen && <div id="crs-more-menu" className="crs-more-menu" role="menu" aria-label="Дополнительные разделы">
+          {(['analytics','ai',...(profile?.role==='admin'?['admin']:[])] as Page[]).map(key => (
+            <button type="button" key={key} role="menuitem" aria-current={page===key?'page':undefined}
+              onClick={() => {setPage(key);setMobileMoreOpen(false);}}>
+              <NavIcon page={key}/><span>{labels[key]}</span>
+            </button>
+          ))}
+        </div>}
+      </nav>
     </div>
     {selected && <ReportDetails key={selected.id} report={selected} token={token} role={profile?.role||''} siteName={siteName(selected.site_id)} authorName={displayAuthor(selected.author_login)} ownerPhotos={ownerArchive?(ownerContext?.reports[selected.client_report_id]?.photos||[]):undefined} returnFocusTo={reportOpener.current} onClose={()=>{setSelected(null);reportOpener.current=null;}} onChange={r=>{setSelected(r);void refresh();}}/>}
   </div>;
