@@ -1,0 +1,285 @@
+/* CRS WORKBENCH V4 / An actual new product interface.
+   Existing reporting logic and data contracts are untouched. */
+:root {
+  --wb-bg:#0e181b;--wb-side:#101d20;--wb-panel:#192a2e;--wb-panel-2:#24383a;
+  --wb-line:#3d5154;--wb-paper:#f0eadd;--wb-paper-ink:#1b2728;
+  --wb-muted:#b1c3c3;--wb-gold:#ecc181;--wb-accent:#e3b36c;
+}
+.wb-shell{min-height:100vh;background:radial-gradient(ellipse 85% 55% at 95% -14%,rgba(79,111,111,.22),transparent 75%),#0e181b;color:#e6eeeb}
+.wb-shell::before{display:none}
+.wb-shell .workspace{min-width:0;isolation:isolate}
+.wb-shell .content{max-width:1940px;width:100%;padding:30px clamp(20px,3vw,60px) 90px;margin:0 auto}
+.wb-overline{font:600 11px/1.5 var(--crs-font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--wb-gold)}
+.wb-shell .crs-breadcrumbs{margin:0 0 18px}
+.wb-shell .crs-breadcrumbs li,.wb-shell .crs-breadcrumbs button{font:11px var(--crs-font-mono);letter-spacing:.045em}
+
+/* NEW CHROME — independent top toolbar, not the previous blank header */
+.wb-shell .wb-topbar{min-height:70px;padding:0 clamp(20px,3vw,60px);display:flex;justify-content:space-between;align-items:center;gap:24px;background:rgba(17,29,32,.97);border-bottom:1px solid #3c4e50;box-shadow:0 10px 30px #0002}
+.wb-topbar-location,.wb-topbar-account{display:flex;align-items:center;gap:16px;min-width:0}
+.wb-topbar-monogram{font:900 20px/1 var(--crs-font-display);letter-spacing:-.07em;color:#f5d19a}
+.wb-topbar-monogram span{color:#f4f4ed}
+.wb-topbar-divider{height:25px;width:1px;background:#4b5c5d}
+.wb-topbar-module{font:11px var(--crs-font-mono);letter-spacing:.08em;text-transform:uppercase;color:#b8cac8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wb-topbar-module span{margin:0 7px;color:#b28b53}
+.wb-topbar-environment{font:10px var(--crs-font-mono);letter-spacing:.11em;color:#a3b9b4;white-space:nowrap}
+.wb-live-dot{width:7px;height:7px;border-radius:50%;background:#94c7a0;display:inline-block;margin-right:8px;box-shadow:0 0 0 4px #83ae971b}
+.wb-topbar-user{font-size:13px;font-weight:600;color:#e4eae8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.wb-shell .wb-logout{display:flex;gap:12px;align-items:center;background:#263539;color:#e8dfce;border:1px solid #506063;border-radius:5px;padding:9px 13px;min-height:37px;font-size:12px}
+.wb-shell .wb-logout:hover{border-color:#c59d65;color:#f2ca94}
+
+/* PRODUCT NAVIGATION — indexed, 50 px rows, new branding */
+.wb-shell .crs-sidebar{--crs-sidebar-width:254px;flex:0 0 var(--crs-sidebar-width);width:var(--crs-sidebar-width);background:linear-gradient(165deg,#17272a,#101c20 68%);border-right:1px solid #36494c;padding:19px 14px;box-shadow:8px 0 30px #0002}
+.wb-shell .crs-sidebar.is-collapsed{--crs-sidebar-width:74px}
+.wb-shell .crs-sidebar-head{padding:0 0 24px;min-height:73px;margin-bottom:7px;border-bottom-color:#405255}
+.wb-shell .crs-sidebar .crs-brand{font-size:26px;gap:13px;padding:0}
+.wb-shell .crs-sidebar .brand-mark{flex:0 0 42px;height:42px;width:42px;background:#e9bf78;border-radius:9px 3px 9px 3px;color:#1c2928;box-shadow:0 5px 18px #d6a34e23}
+.wb-shell .crs-brand-copy{gap:2px}
+.wb-shell .crs-sidebar .brand-caption{font-size:9px;letter-spacing:.12em;color:#a6bdbb}
+.wb-shell .crs-sidebar-trigger{border:1px solid #394d51;border-radius:4px;flex:0 0 31px;margin-left:auto}
+.wb-shell .crs-sidebar-group-label{font-size:10px;letter-spacing:.15em;color:#9bb4b0;padding:12px 11px 16px}
+.wb-shell .crs-sidebar-navigation{gap:5px}
+.wb-shell .crs-sidebar .crs-nav-item{min-height:48px;border:1px solid transparent;border-radius:5px;padding:10px 13px;gap:13px;font-size:14px;color:#bbcecc}
+.wb-shell .crs-sidebar .crs-nav-item:hover{background:#2b3e41;color:#f4f2e9}
+.wb-shell .crs-sidebar .crs-nav-item.active{background:linear-gradient(90deg,#433b30,#273330);border-color:#876c45;color:#f4d3a2;box-shadow:inset 3px 0 0 #f0c27e}
+.wb-shell .crs-sidebar .crs-nav-item.active::before{display:none}
+.wb-shell .crs-sidebar .nav-icon{flex:0 0 20px;width:20px;height:20px}
+.wb-nav-index{font:10px var(--crs-font-mono);color:#819893;margin-left:auto}
+.wb-shell .crs-sidebar .crs-nav-item.active .wb-nav-index{color:#ebbd78}
+.wb-shell .crs-sidebar .crs-sidebar-foot{border-top-color:#3a4d50;padding:16px 5px 0;flex-direction:column;align-items:flex-start}
+.wb-sidebar-build{font:10px var(--crs-font-mono);letter-spacing:.11em;color:#8aa5a0;padding-left:10px}
+.wb-shell .crs-sidebar.is-collapsed .wb-nav-index,.wb-shell .crs-sidebar.is-collapsed .wb-sidebar-build{display:none}
+.wb-shell .crs-sidebar.is-collapsed .crs-sidebar-head{padding-bottom:14px}
+.wb-shell .crs-sidebar.is-collapsed .crs-nav-item{justify-content:center;padding:11px}
+
+/* EDITORIAL MASTHEAD AND FILTERS */
+.wb-shell .wb-masthead{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:20px;border-bottom:1px solid #4b5d5c;padding:0 0 28px;margin:0 0 26px}
+.wb-shell .wb-masthead::before{width:120px;height:3px;background:#f0c27c}
+.wb-masthead-copy{display:grid;gap:6px}
+.wb-shell .wb-masthead h1{font-size:clamp(40px,3.3vw,61px);font-weight:650;letter-spacing:-.055em;line-height:1.08;margin:0;color:#f2f0e7}
+.wb-shell .wb-masthead p{font-size:14px;line-height:1.55;color:#b9c9c7;margin:4px 0 0}
+.wb-shell .wb-refresh{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;min-height:43px;font-size:13px;border:1px solid #64716b;background:#2a393a;border-radius:5px;color:#f1e7d5}
+.wb-shell .wb-refresh:hover:not(:disabled){border-color:#c39b65;background:#38413b}
+.wb-shell .wb-refresh>span:first-child{font-size:22px;line-height:1;color:#eebd78}
+.wb-shell .filters:not(.money-filters){border:1px solid #3c5557;border-radius:8px;background:linear-gradient(120deg,#223437,#1c2d30);padding:20px;margin:0 0 29px;box-shadow:inset 0 1px #ffffff0b}
+.wb-shell .filters .crs-combobox select,.wb-shell .filters .crs-date-control>input[type=text]{min-height:44px;border:1px solid #526666;background:#111e21;color:#ecf0e8;font-size:14px;border-radius:4px}
+.wb-shell .filters .crs-combobox-field>label,.wb-shell .filters .crs-date-field>span:first-child{font:10px var(--crs-font-mono);letter-spacing:.095em;text-transform:uppercase;color:#a9c3c0}
+.wb-shell .filters .crs-combobox-arrow{color:#edb96f}
+
+/* MISSION CONTROL — truly new light hero against dark analytical system */
+.wb-command{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(315px,.86fr);gap:15px;align-items:stretch;margin:3px 0 31px}
+.wb-command-hero{min-width:0!important;min-height:358px!important;padding:27px 32px 22px!important;display:flex!important;flex-direction:column!important;gap:0!important;background:var(--wb-paper)!important;border:1px solid #f5e8ce!important;border-radius:10px!important;box-shadow:0 18px 52px #0003!important;color:var(--wb-paper-ink)}
+.wb-command-head{display:flex;justify-content:space-between;align-items:center;gap:12px;font:600 11px var(--crs-font-mono);letter-spacing:.08em;color:#66716b}
+.wb-command-pulse{display:inline-flex;align-items:center;gap:7px;font-size:10px;color:#516d56;white-space:nowrap}
+.wb-command-pulse i{width:7px;height:7px;border-radius:50%;background:#458565;box-shadow:0 0 0 4px #4585651c}
+.wb-command-main{flex:1;display:flex;align-items:center;gap:clamp(16px,3vw,53px);min-width:0}
+.wb-command-hero .wb-command-number{font:650 clamp(90px,9vw,164px)/.9 var(--crs-font-display)!important;letter-spacing:-.085em;color:#243234!important;white-space:nowrap;display:block;flex-shrink:0}
+.wb-command-decimal{color:#b37f45}
+.wb-command-description{min-width:0;max-width:360px}
+.wb-command-title{font-size:clamp(20px,2vw,32px);line-height:1.13;letter-spacing:-.035em;color:#243334;font-weight:670}
+.wb-command-description p{font-size:14px;line-height:1.53;color:#566366;margin:13px 0 0}
+.wb-command-bottom{display:flex;align-items:end;justify-content:space-between;gap:22px;padding-top:18px;border-top:1px solid #bcb7a9}
+.wb-command-progress{min-width:0;flex:1}
+.wb-command-hero .crs-progress-block{margin:0;padding:0;gap:9px}
+.wb-command-hero .crs-progress-caption{font-size:12px;color:#5c6663}
+.wb-command-hero .crs-progress-caption .crs-progress-percent{color:#5b4831;font-weight:700}
+.wb-command-hero .crs-progress-track{height:7px;background:#d4cbb8;border-radius:2px}
+.wb-command-hero .crs-progress-indicator{background:linear-gradient(90deg,#a77b49,#d69f55);border-radius:2px}
+.wb-command-note{font-size:12px;color:#60716d}
+.wb-command-action{flex-shrink:0;display:flex;align-items:center;gap:15px;padding:10px 13px;background:#243536;border:1px solid #243536;color:#f6e8ce;border-radius:4px;font-size:12px;font-weight:650}
+.wb-command-action:hover{background:#385054}
+.wb-command-action span{font-size:19px;line-height:1}
+.wb-command-brief{min-width:0;min-height:358px;display:flex;flex-direction:column;background:#213135;border:1px solid #4b5b58;border-radius:10px;overflow:hidden}
+.wb-brief-title{padding:22px 25px 15px;display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid #405250}
+.wb-brief-title strong{font-size:21px;font-weight:600;letter-spacing:-.03em;color:#f2eee5}
+.wb-brief-list{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+.wb-brief-item.metric{display:grid!important;grid-template-columns:38px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:59px!important;padding:10px 24px!important;background:none!important;border:0!important;border-bottom:1px solid #455754!important;border-radius:0!important;box-shadow:none!important}
+.wb-brief-index{font:10px var(--crs-font-mono);color:#89a29f}
+.wb-brief-label{font-size:14px;color:#cfdbd7;line-height:1.3}
+.wb-brief-item strong{font:600 27px var(--crs-font-display);letter-spacing:-.035em;color:#f4eddf}
+.wb-brief-item-alert strong{color:#e9bb7c}
+.wb-brief-finance.metric{display:flex!important;flex-direction:column;gap:6px!important;margin-top:auto;padding:17px 24px 20px!important;background:#2a3938!important;border:0!important;border-top:1px solid #536360!important;border-radius:0!important;min-height:0!important;box-shadow:none!important}
+.wb-brief-finance span{font:10px var(--crs-font-mono);letter-spacing:.095em;color:#bbcac3}
+.wb-brief-finance strong{font:650 30px/1.12 var(--crs-font-display);color:#eec38a;letter-spacing:-.035em;overflow-wrap:anywhere}
+.wb-brief-finance small{color:#b5c4c0;font-size:11px;line-height:1.45}
+
+/* SECTION WAYFINDING — separates narrative into purposeful zones */
+.wb-section-rule{display:flex;align-items:center;gap:14px;margin:34px 0 17px;min-width:0}
+.wb-section-number{display:grid;place-items:center;flex:0 0 31px;height:30px;border-radius:4px;background:#efc481;color:#233332;font:650 12px var(--crs-font-mono)}
+.wb-section-rule strong{color:#f2eee5;font-size:19px;font-weight:650;letter-spacing:-.025em;white-space:nowrap}
+.wb-section-detail{font-size:12px;color:#aebfbc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb-section-line{height:1px;background:#455552;min-width:30px;flex:1;margin-left:6px}
+.wb-data-panel{min-width:0}
+.wb-data-panel-head{display:flex;gap:10px;color:#f3d0a0}
+
+/* PROJECT & REVIEW MODULES */
+.wb-situation{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(310px,.86fr);gap:16px;margin:0 0 20px;align-items:stretch}
+.wb-situation-main,.wb-review{border:1px solid #435956;border-radius:8px;background:linear-gradient(145deg,#203135,#19282c);min-width:0;overflow:hidden}
+.wb-situation-main{display:flex;flex-direction:column}
+.wb-panel-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:22px 24px 18px;border-bottom:1px solid #425653}
+.wb-panel-heading h2{font-size:24px;line-height:1.15;letter-spacing:-.035em;font-weight:610;color:#f3eee5;margin:6px 0 0}
+.wb-panel-count{font:650 28px var(--crs-font-mono);color:#ecc181;display:flex;align-items:end;gap:7px}
+.wb-panel-count small{font:9px var(--crs-font-mono);color:#aebdb8;letter-spacing:.07em;margin-bottom:6px}
+.wb-situation .wb-situation-list{padding:7px 13px;flex:1}
+.wb-situation .wb-situation-row{display:grid;grid-template-columns:39px minmax(130px,1.18fr) minmax(140px,.9fr) auto;align-items:center;gap:14px;padding:18px 10px;border-bottom:1px solid #425454;border-radius:0;min-height:85px}
+.wb-situation .wb-situation-row:last-child{border-bottom:0}
+.wb-situation .wb-situation-row:hover{background:#2b4143}
+.wb-situation-row-index{font:12px var(--crs-font-mono);color:#e2b97b;align-self:start;padding-top:3px}
+.wb-situation-row .situation-site-main,.wb-situation-row .situation-site-work{display:grid;gap:6px;min-width:0}
+.wb-situation-row .situation-site-main strong{font-size:15px;font-weight:650;color:#f1f0e8;line-height:1.3;overflow-wrap:anywhere}
+.wb-situation-row .situation-site-main>span{font-size:11px;color:#aebfbb;line-height:1.4}
+.wb-situation-row .situation-site-work{font-size:13px;color:#d8e3df}
+.wb-work-caption{font:9px var(--crs-font-mono);letter-spacing:.09em;color:#93aeaa}
+.wb-site-side{display:grid;justify-items:end;gap:11px}
+.wb-site-side .report-status{white-space:nowrap}
+.wb-row-arrow{font-size:23px;line-height:1;color:#e7bd7e}
+.wb-situation-foot{padding:13px 24px 17px;border-top:1px solid #425551;font-size:11px;color:#a5b8b4;line-height:1.45}
+.wb-review{box-shadow:inset 3px 0 0 #b88e57}
+.wb-review-heading em{font:650 33px var(--crs-font-mono);color:#f2c17b;font-style:normal}
+.wb-review-heading h2{font-size:22px}
+.wb-review-queue{padding:12px 19px 20px;min-height:170px}
+.wb-review-item{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px 12px;text-align:left;padding:14px 7px;border-bottom:1px solid #425753}
+.wb-review-index{color:#e0b373;font:11px var(--crs-font-mono)}
+.wb-review-item strong{color:#f1eee4;font-size:14px}
+.wb-review-item>span:nth-child(3){grid-column:2 / -1;font-size:12px;color:#b7c7c5}
+.wb-review-empty{display:flex;flex-direction:column;align-items:flex-start;gap:9px;padding:17px 14px}
+.wb-review-empty-glyph{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#325047;color:#a5e0b7;font-size:23px;border:1px solid #5d8d73}
+.wb-review-empty strong{font-size:20px;color:#eff4eb}
+.wb-review-empty p{font-size:13px;color:#b5c5c1;margin:0;max-width:40ch}
+.wb-review-note{padding:12px;display:grid;gap:5px;border-top:1px solid #51615b}
+.wb-review-note strong{color:#edc48d;font-size:13px}
+.wb-review-note span{font-size:12px;color:#c4d3cd}
+
+/* DASHBOARD DATA — less generic cards, much clearer hierarchy */
+.wb-overview-data{grid-template-columns:minmax(0,1.45fr) minmax(340px,.85fr);gap:16px}
+.wb-overview-data .report-panel,.wb-overview-data .chart-panel{background:#1b2c2f;border:1px solid #475a57;border-radius:8px;padding:22px}
+.wb-overview-data .report-panel{min-width:0}
+.wb-overview-data .reports-journal-toolbar h2{font-size:24px;color:#f5efe3}
+.wb-overview-data .chart-panel h2{font-size:23px}
+.wb-overview-data .report-intro,.wb-overview-data .chart-panel>p.muted{font-size:13px;color:#b8c9c4}
+.wb-overview-data .crs-data-table{min-width:730px}
+.wb-overview-data .crs-data-table th{font:600 10px var(--crs-font-mono);letter-spacing:.045em;background:#304043;color:#e0e8e3}
+.wb-overview-data .crs-data-table td{font-size:13px;color:#e2e9e5}
+.wb-overview-data .report-open{font-weight:650;color:#f0c58b}
+.wb-overview-data .report-status{border-radius:4px}
+.wb-overview-data .crs-report-chart-bars{background:repeating-linear-gradient(to top,#55676326 0,#55676326 1px,transparent 1px,transparent 43px);border-bottom-color:#73817d}
+.wb-overview-data .crs-report-chart-fill{background:linear-gradient(180deg,#f5d295,#bf8751)}
+.wb-overview-data .crs-report-chart-total strong{font-size:29px;color:#f5e9d8}
+.wb-overview-data .crs-report-chart-bar b{color:#f6ce91}
+.wb-shell .card,.wb-shell .report-panel,.wb-shell .chart-panel{border-radius:8px}
+.wb-shell .work-volume .card,.wb-shell .dashboard-grid>.card{background:#1b2b2f;border:1px solid #405651;padding:24px}
+.wb-shell .work-volume .card h2,.wb-shell .dashboard-grid .card h2{font-size:23px;color:#f6efe1}
+.wb-shell .crs-work-disclosure summary strong{font-size:14px}
+.wb-shell .crs-work-disclosure summary span{color:#f6c581}
+.wb-shell .work-volume .empty{border:1px dashed #63736e;background:#1c2b2b;padding:20px}
+
+/* SECONDARY SCREENS SHARE THE LANGUAGE BUT NOT THE SAME HERO */
+.wb-secondary-kpis{grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.wb-secondary-kpis>.metric{background:#203235!important;border:1px solid #47605d!important;border-radius:7px!important;padding:19px!important}
+.wb-secondary-kpis>.metric>span{color:#bdcbc5;font-size:12px}
+.wb-secondary-kpis>.metric>strong{color:#f7e8d1;font-size:34px}
+.wb-secondary-kpis>.metric.crs-metric-featured{background:#40382e!important;border-color:#b49465!important}
+.wb-secondary-kpis>.metric.crs-metric-featured>strong{color:#f4ca8b}
+.wb-shell .money-page,.wb-shell .object-card,.wb-shell .journal-workspace,.wb-shell .analytics-lead{max-width:none}
+.wb-shell .money-page .metric-grid>.metric{border-radius:7px}
+.wb-shell .site-list-card{background:linear-gradient(160deg,#26393b,#1c2c2f);border:1px solid #50625d;border-radius:8px;min-height:180px}
+.wb-shell .site-list-card:hover{background:#304642;border-color:#d0a269}
+.wb-shell .object-hero{padding:31px 0 36px;border-top:3px solid #e9bc78;border-bottom:1px solid #53635c}
+.wb-shell .object-hero h2{font-size:clamp(29px,2.5vw,44px);color:#f6eee0}
+.wb-shell .object-hero-facts strong{color:#efc27e}
+.wb-shell .crs-money-empty{background:#1b2d2d;border-radius:9px}
+.wb-shell .owner-panel,.wb-shell .owner-hero,.wb-shell .owner-object-intro{border-radius:8px}
+.wb-shell .report-page-header{background:#23373a}
+.wb-shell .report-page-main{background:#18282d}
+.wb-shell .report-page-aside{background:#203033}
+.wb-shell .report-page-header h1{font-size:25px}
+.wb-shell .crs-data-list{border-radius:7px}
+.wb-shell .import-data details{border-radius:7px;background:#223235}
+.wb-shell .import-data details[open]{background:#293b3d}
+.wb-shell .crs-search-field input{border-radius:5px;background:#112024}
+
+/* RESPONSIVE — maintain clean workbench at 1440, tablet and narrow mobile */
+@media(max-width:1490px){
+  .wb-command{grid-template-columns:minmax(0,1.18fr) minmax(300px,.82fr)}
+  .wb-command-hero .wb-command-number{font-size:clamp(88px,8.2vw,136px)!important}
+  .wb-situation{grid-template-columns:minmax(0,1fr) minmax(290px,.7fr)}
+  .wb-situation .wb-situation-row{grid-template-columns:29px minmax(110px,1fr) minmax(115px,.8fr);gap:10px}
+  .wb-situation-row .situation-site-work{grid-column:2/3}
+  .wb-situation-row .situation-site-side{grid-column:3;grid-row:1/3}
+}
+@media(max-width:1220px){
+  .wb-shell .content{padding-inline:22px}
+  .wb-command{grid-template-columns:minmax(0,1fr)}
+  .wb-command-hero{min-height:290px!important}
+  .wb-command-hero .wb-command-number{font-size:clamp(90px,10vw,148px)!important}
+  .wb-command-brief{min-height:0}
+  .wb-brief-list{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .wb-brief-item.metric{grid-template-columns:auto minmax(0,1fr);min-height:95px!important}
+  .wb-brief-item strong{grid-column:2}
+  .wb-situation{grid-template-columns:1fr}
+  .wb-overview-data{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:900px){
+  .wb-shell .wb-topbar{padding-inline:20px}
+  .wb-topbar-environment{display:none}
+  .wb-shell .crs-sidebar{--crs-sidebar-width:210px}
+  .wb-shell .crs-sidebar .crs-nav-item{font-size:13px;padding:10px}
+  .wb-brief-list{grid-template-columns:1fr}
+  .wb-brief-item.metric{grid-template-columns:40px 1fr auto;min-height:57px!important}
+  .wb-brief-item strong{grid-column:3}
+  .wb-shell .wb-masthead h1{font-size:40px}
+  .wb-situation .wb-situation-row{grid-template-columns:28px minmax(0,1fr) auto}
+  .wb-situation-row .situation-site-work{grid-column:2;grid-row:2}
+  .wb-situation-row .situation-site-side{grid-column:3;grid-row:1/3}
+}
+@media(max-width:780px){
+  .wb-shell .crs-sidebar{display:none}
+  .wb-shell .content{padding:18px 14px 104px}
+  .wb-shell .wb-topbar{min-height:58px;padding:0 14px;gap:8px}
+  .wb-topbar-monogram{font-size:17px}
+  .wb-topbar-module{font-size:10px}
+  .wb-topbar-location,.wb-topbar-account{gap:9px}
+  .wb-topbar-user{display:none}
+  .wb-topbar-divider{height:19px}
+  .wb-shell .wb-logout{min-height:34px;padding:6px 9px;font-size:11px}
+  .wb-shell .crs-breadcrumbs{margin-bottom:15px}
+  .wb-shell .wb-masthead{margin-bottom:20px;padding-bottom:22px}
+  .wb-shell .wb-masthead h1{font-size:36px}
+  .wb-shell .wb-masthead p{font-size:13px}
+  .wb-shell .wb-refresh{min-height:38px;padding:8px 12px}
+  .wb-shell .filters.filters-open:not(.money-filters){display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .wb-command-hero{min-height:298px!important;padding:19px!important}
+  .wb-command-main{gap:18px}
+  .wb-command-hero .wb-command-number{font-size:clamp(77px,18vw,126px)!important}
+  .wb-command-title{font-size:22px}
+  .wb-command-description p{font-size:12px}
+  .wb-command-bottom{flex-wrap:wrap;align-items:stretch;gap:14px}
+  .wb-command-action{justify-content:center}
+  .wb-command-brief{border-radius:8px}
+  .wb-section-rule{margin:27px 0 14px;gap:9px}
+  .wb-section-rule strong{font-size:16px}
+  .wb-section-detail{display:none}
+  .wb-situation .wb-panel-heading{padding:16px}
+  .wb-panel-heading h2{font-size:20px}
+  .wb-situation .wb-situation-list{padding:5px}
+  .wb-situation-foot{padding:12px 16px}
+  .wb-overview-data .report-panel,.wb-overview-data .chart-panel{padding:16px}
+  .wb-secondary-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .wb-shell .crs-bottom-nav{background:rgba(23,37,39,.97);border-top:1px solid #5a6056}
+}
+@media(max-width:465px){
+  .wb-shell .wb-masthead h1{font-size:31px}
+  .wb-command-hero{min-height:308px!important}
+  .wb-command-main{align-items:center}
+  .wb-command-hero .wb-command-number{font-size:84px!important}
+  .wb-command-title{font-size:19px}
+  .wb-command-description p{font-size:11px}
+  .wb-brief-title{padding:18px}
+  .wb-brief-item.metric{padding:10px 18px!important}
+  .wb-brief-finance.metric{padding:17px 18px!important}
+  .wb-situation .wb-situation-row{grid-template-columns:24px 1fr;gap:7px}
+  .wb-situation-row .situation-site-main{grid-column:2}
+  .wb-situation-row .situation-site-work{grid-column:2;grid-row:2}
+  .wb-situation-row .situation-site-side{grid-column:2;grid-row:3;display:flex;align-items:center;justify-content:space-between}
+  .wb-overview-data .report-panel,.wb-overview-data .chart-panel{padding:14px}
+}
+@media(prefers-reduced-motion:reduce){.wb-shell button{transition:none}}
