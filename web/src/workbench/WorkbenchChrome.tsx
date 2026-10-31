@@ -48,7 +48,7 @@ export function WorkbenchMasthead({
       </div>
       <div className="wb-masthead-actions">
         <button type="button" className="secondary wb-refresh" onClick={onRefresh} disabled={refreshing}>
-          <span aria-hidden="true">↻</span> {refreshing ? 'Обновление…' : '↻ Обновить'}
+          <span aria-hidden="true">↻</span><span>{refreshing ? 'Обновление…' : '↻ Обновить'}</span>
         </button>
       </div>
     </div>
@@ -99,15 +99,15 @@ export function WorkbenchCommandHero({
 
   return (
     <section className="wb-command" aria-label="Оперативные показатели">
-      <div className="wb-command-hero">
+      <div className="wb-command-hero metric">
         <div className="wb-command-head">
           <span>01 / СВОДКА ЗА ПЕРИОД</span>
           <span className="wb-command-pulse"><i aria-hidden="true" />ДАННЫЕ CRS</span>
         </div>
         <div className="wb-command-main">
-          <div className="wb-command-number">{ready ? reports : '—'}<span className="wb-command-decimal" aria-hidden="true">.</span></div>
+          <strong className="wb-command-number">{ready ? reports : '—'}<span className="wb-command-decimal" aria-hidden="true">.</span></strong>
           <div className="wb-command-description">
-            <strong>Полученных отчётов</strong>
+            <span className="wb-command-title">Полученных отчётов</span>
             <p>С квитанцией о доставке по выбранным фильтрам. Возвращённые на уточнение также учитываются.</p>
           </div>
         </div>
@@ -125,12 +125,12 @@ export function WorkbenchCommandHero({
       <div className="wb-command-brief">
         <div className="wb-brief-title"><span className="wb-overline">СОСТОЯНИЕ СИСТЕМЫ</span><strong>Рабочая картина</strong></div>
         <div className="wb-brief-list">
-          <div className="wb-brief-item">
+          <div className="wb-brief-item metric">
             <span className="wb-brief-index">01</span>
             <span className="wb-brief-label">Объектов в выборке</span>
             <strong>{siteCount}</strong>
           </div>
-          <div className="wb-brief-item wb-brief-item-alert">
+          <div className="wb-brief-item metric wb-brief-item-alert">
             <span className="wb-brief-index">02</span>
             <span className="wb-brief-label">Ожидают проверки</span>
             <strong>{ready ? pending : '—'}</strong>
@@ -141,7 +141,7 @@ export function WorkbenchCommandHero({
             <strong>{ready ? incidents ?? '—' : '—'}</strong>
           </div>
         </div>
-        <div className="wb-brief-finance">
+        <div className="wb-brief-finance metric">
           <span>ЗАЯВЛЕННЫЕ РАСХОДЫ</span>
           <strong>{ready ? moneyText : '—'}</strong>
           <small>Только расходы. Поступления и авансы в сумму не включены.</small>
