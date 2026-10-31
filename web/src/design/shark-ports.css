@@ -208,3 +208,110 @@
 @media (prefers-reduced-motion: reduce) {
   .crs-sidebar, .crs-progress-indicator, .crs-sidebar .crs-nav-item { transition: none; }
 }
+
+
+/* Searchable combobox / filter field */
+.crs-combobox-field { display: grid; gap: 6px; min-width: min(100%, 215px); align-content: start; position: relative; }
+.crs-combobox-field > label { color: var(--crs-muted); font-size: var(--crs-text-sm); font-weight: 600; }
+.crs-combobox { position: relative; min-width: 0; }
+.filters .crs-combobox input {
+  display: block; min-height: 42px; width: 100%; min-width: 0;
+  padding: 9px 34px 9px 11px; border: 1px solid var(--crs-line-strong);
+  background: var(--crs-surface-sunken); color: var(--crs-text);
+  border-radius: var(--crs-radius-sm); font-size: 13px;
+}
+.filters .crs-combobox input::placeholder { color: var(--crs-muted); opacity: 1; }
+.crs-combobox-arrow {
+  position: absolute; inset: 0 0 0 auto; width: 35px;
+  border: 0; border-radius: 0 var(--crs-radius-sm) var(--crs-radius-sm) 0;
+  background: transparent; color: var(--crs-muted); font-size: 20px;
+}
+.crs-combobox-arrow:hover { color: var(--crs-accent); }
+.crs-combobox-popover {
+  position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 60;
+  padding: 5px; border: 1px solid var(--crs-line-strong); border-radius: 6px;
+  background: #202d32; box-shadow: 0 14px 45px #0009;
+}
+.crs-combobox-list { max-height: min(320px, 48vh); overflow: auto; padding: 1px; }
+.crs-combobox-option { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  border-radius: 4px; min-height: 36px; padding: 9px 10px; color: var(--crs-text-secondary);
+  cursor: pointer; font-size: 13px; line-height: 1.25; }
+.crs-combobox-option.active, .crs-combobox-option:hover { background: #3a474c; color: white; }
+.crs-combobox-option[aria-selected="true"] { color: #ffdb9b; }
+.crs-combobox-empty { display: block; padding: 14px 10px; color: var(--crs-muted); font-size: 12px; }
+
+/* Date input supports typed dd/mm/yyyy and a native calendar picker */
+.filters .crs-date-field { display: grid; align-content: start; gap: 6px; color: var(--crs-muted); font-size: var(--crs-text-sm); }
+.crs-date-control { position: relative; display: flex; align-items: center; min-width: 0; }
+.filters .crs-date-control > input[type="text"] {
+  width: 100%; min-width: 0; min-height: 42px; padding: 9px 44px 9px 11px;
+  border: 1px solid var(--crs-line-strong); background: var(--crs-surface-sunken);
+  color: var(--crs-text); border-radius: var(--crs-radius-sm);
+}
+.filters .crs-date-control > input[type="text"][aria-invalid="true"] { border-color: var(--crs-status-revision); }
+.filters .crs-date-native {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 39px; min-height: 42px;
+  padding: 8px; border: 0; border-left: 1px solid var(--crs-line);
+  color: var(--crs-accent); background: transparent;
+  color-scheme: dark; cursor: pointer;
+}
+.crs-date-native::-webkit-datetime-edit { display: none; }
+.crs-date-native::-webkit-calendar-picker-indicator { display: block; margin: 0; opacity: 1; cursor: pointer; }
+
+/* Progress / analytics: value bars, real backend figures only */
+.crs-report-chart { padding-top: 12px; border-top: 1px solid var(--crs-line); margin-top: 16px; }
+.crs-report-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.crs-report-chart-total { display: flex; align-items: baseline; gap: 8px; }
+.crs-report-chart-total strong { color: var(--crs-text); font-size: 24px; font-weight: 650; font-family: var(--crs-font-mono); }
+.crs-report-chart-total span { color: var(--crs-muted); font-size: 11px; }
+.crs-report-chart-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; max-height: 370px; overflow-y: auto; }
+.crs-report-chart-bar {
+  display: grid; align-items: center; grid-template-columns: minmax(90px,1fr) minmax(75px,2fr) 40px;
+  width: 100%; min-width: 0; gap: 14px; padding: 10px;
+  text-align: left; color: var(--crs-text-secondary); background: transparent;
+  border: 0; border-bottom: 1px solid rgba(115,137,145,.18); border-radius: 0;
+}
+.crs-report-chart-bar:hover { background: var(--crs-surface-raised); }
+.crs-report-chart-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
+.crs-report-chart-track { display: block; height: 8px; background: #333f45; border-radius: 2px; overflow: hidden; }
+.crs-report-chart-fill { display: block; height: 100%; min-width: 0; background: linear-gradient(90deg,#b58841,#f0c36b); border-radius: 2px; }
+.crs-report-chart-bar b { font-family: var(--crs-font-mono); font-weight: 600; color: #f1dfbd; text-align: right; font-size: 12px; }
+
+/* Pagination and structured attributes */
+.crs-pagination { display: flex; justify-content: center; align-items: center; gap: 5px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid var(--crs-line); }
+.crs-pagination-slot { display: inline-flex; align-items: center; gap: 5px; }
+.crs-pagination button { border: 1px solid var(--crs-line); background: var(--crs-surface-sunken);
+  border-radius: 4px; color: var(--crs-text-secondary); min-height: 34px; min-width: 34px; padding: 6px 10px; font-size: 12px; }
+.crs-pagination button:hover:not(:disabled) { background: var(--crs-surface-raised); color: var(--crs-text); }
+.crs-pagination button[aria-current="page"] { border-color: #7c6239; color: var(--crs-accent); background: #39342b; }
+.crs-pagination button:disabled { opacity: .4; }
+.crs-data-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap: 1px; border: 1px solid var(--crs-line); background: var(--crs-line); border-radius: 5px; overflow: hidden; padding: 0; margin: 0 0 22px; }
+.crs-data-list-item { display: grid; gap: 5px; padding: 12px 14px; min-width: 0; background: var(--crs-bg-graphite); }
+.crs-data-list-item dt { color: var(--crs-muted); font-size: 11px; }
+.crs-data-list-item dd { margin: 0; color: var(--crs-text); font-size: 13px; overflow-wrap: anywhere; }
+
+/* Skeletons are assistive-technology-labelled and respect reduced motion */
+.crs-skeleton { display: grid; gap: 13px; padding: 18px 12px; }
+.crs-skeleton-row { display: block; height: 15px; max-width: 100%; border-radius: 3px;
+  background: linear-gradient(90deg,#29363b 20%,#37484e 45%,#29363b 70%);
+  background-size: 220% 100%; animation: crs-skeleton-slide 1.5s linear infinite; }
+@keyframes crs-skeleton-slide { to {background-position-x: -220%;} }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Consistent focus across native fields, dialogs, controls */
+:is(.crs-sidebar,.crs-bottom-nav,.crs-combobox,.crs-pagination,.crs-report-chart,.crs-date-field) :focus-visible,
+.crs-segment-group :focus-visible { outline: 2px solid var(--crs-focus); outline-offset: 2px; }
+.report-page-dialog { border-color: var(--crs-line-strong); box-shadow: 0 28px 90px #000a; }
+.report-page-dialog:focus { outline: none; }
+@media(max-width:780px) {
+  .filters .crs-combobox-field { min-width: 0; width: 100%; }
+  .crs-combobox-popover { min-width: min(300px, calc(100vw - 32px)); }
+  .crs-report-chart-bar { grid-template-columns: minmax(70px,1fr) minmax(70px,1.2fr) 30px; gap: 8px; }
+}
+@media(max-width:420px) {
+  .filters .crs-combobox-field:first-child { grid-column: 1/-1; }
+  .crs-pagination { gap: 3px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .crs-skeleton-row { animation: none; }
+}
