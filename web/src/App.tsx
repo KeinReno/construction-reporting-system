@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
-import { formatDate, parseDisplayDate } from './date';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { formatDate } from './date';
 import { AdminPanel } from './AdminPanel';
 import { AnalysisPanel } from './AnalysisPanel';
 import { ReportDetails } from './ReportDetails';
@@ -13,6 +13,9 @@ import { SiteCard } from './SiteCard';
 import { MoneyPage } from './MoneyPage';
 import { CrSidebar } from './ui/CrSidebar';
 import { CrProgress } from './ui/CrProgress';
+import { CrDateField } from './ui/CrDateField';
+import { CrCombobox } from './ui/CrCombobox';
+import { CrReportChart } from './ui/CrReportChart';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
 type Page = 'overview' | 'objects' | 'reports' | 'money' | 'analytics' | 'ai' | 'admin';
@@ -22,15 +25,6 @@ const labels: Record<Page, string> = {
 };
 const dateText = formatDate;
 const moneyLabels = {funding_received:'Поступление',expense:'Расход',advance_issued:'Выдача аванса'} as const;
-function DateFilter({label,value,onChange}:{label:string;value:string;onChange:(value:string)=>void}) {
-  const errorId=useId();
-  const invalid=value.startsWith('!');
-  const display=invalid?value.slice(1):formatDate(value);
-  return <label>{label}<input type="text" inputMode="numeric" placeholder="дд/мм/гггг" aria-label={label} aria-describedby={invalid?errorId:undefined} aria-invalid={invalid} value={display}
-    onChange={e=>{const text=e.target.value;onChange(!text?'':parseDisplayDate(text) ?? '!'+text);}}/>
-    {invalid&&<small id={errorId} className="date-error">Введите дату дд/мм/гггг</small>}</label>;
-}
-
 function NavIcon({page}:{page:Page}) {
   const paths:Record<Page,React.ReactNode> = {
     overview:<><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></>,
@@ -182,9 +176,9 @@ export default function App() {
         {demo&&<div className="card"><strong>ДЕМО · локальная база</strong><p>{demo.notice}</p></div>}
         <div className="heading"><div><h1>{pageTitle}</h1><p>{ownerArchive?({overview:'Последние записи, вопросы для решения и первичные источники',objects:'Рабочие даты, события и исходные сообщения',reports:'Поиск по содержанию и переход к первичке',money:'Зарегистрированные операции по дате операции',analytics:'Показатели, которые подтверждаются архивом',ai:'Вопросы к доступным данным',admin:'Настройки доступа'} as Record<Page,string>)[page]:page === 'overview' ? 'Что поступило, что требует проверки и где за период нет сведений' : page === 'money' ? 'Расходы, поступления и авансы по дате операции, без общего итога' : page === 'analytics' ? 'Работы по дате смены, деньги по дате операции. Считаются доставленные отчёты.' : 'Данные по выбранным условиям'}</p></div><button className="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Обновление…' : '↻ Обновить'}</button></div>
         {error && <div className="error" role="alert">Ошибка: {error}</div>}
-        {page!=='admin' && <><button className="mobile-filter-toggle secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'} <span>{siteId==='all'?'Все объекты':siteName(siteId)} · {authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}</span></button><div id="report-filters" className={`filters ${filtersOpen?'filters-open':''}`}><label>Объект<select value={siteId} onChange={e=>setSiteId(e.target.value)}><option value="all">Все объекты</option>{sites.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}</select></label>
-          <label>Автор<select value={authorId} onChange={e=>setAuthorId(e.target.value)}><option value="all">Все авторы</option>{authors.map(a=><option value={a.id} key={a.id}>{displayAuthor(a.login)}</option>)}</select></label>
-          <DateFilter label="С" value={startDate} onChange={setStartDate}/><DateFilter label="По" value={endDate} onChange={setEndDate}/></div></>}
+        {page!=='admin' && <><button className="mobile-filter-toggle secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'} <span>{siteId==='all'?'Все объекты':siteName(siteId)} · {authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}</span></button><div id="report-filters" className={`filters ${filtersOpen?'filters-open':''}`}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
+          <CrCombobox label="Автор" value={authorId} onChange={setAuthorId} options={[{value:'all',label:'Все авторы'},...authors.map(a=>({value:a.id,label:displayAuthor(a.login)}))]}/>
+          <CrDateField label="С" value={startDate} onChange={setStartDate}/><CrDateField label="По" value={endDate} onChange={setEndDate}/></div></>}
         {page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> : ownerArchive&&page==='reports' ? (dataCurrent&&ownerContext?<OwnerJournal reports={visible} sites={sites} context={ownerContext} onOpen={openReport}/>:<p className="empty">{error?'Не удалось загрузить журнал. Обновите страницу.':'Загрузка журнала…'}</p>) : ownerArchive&&(['overview','objects','analytics'] as Page[]).includes(page) ? (dataCurrent&&ownerContext?<OwnerDemo mode={page as 'overview'|'objects'|'analytics'} reports={visible} sites={sites} selectedSiteId={siteId} context={ownerContext} token={token} onOpen={openReport} onJournal={()=>setPage('reports')} onReconciliation={()=>{setSiteId(sites.find(site=>site.name.startsWith('Объект требует сверки'))?.id||'all');setPage('objects');}}/>:<p className="empty">{error?'Не удалось загрузить историю. Обновите страницу.':'Загрузка истории объекта…'}</p>) : page === 'ai' && (startDate.startsWith('!') || endDate.startsWith('!') || (!!startDate && !!endDate && startDate>endDate)) ? <p className="error">Исправьте период перед формированием анализа.</p> : page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={id=>{const epoch=generation.current;void http<Report>('/reports/'+id,token).then(r=>{if(epoch===generation.current)setSelected(r);}).catch(e=>{if(epoch===generation.current)setError(e.message);});}}/> : <>
           {page !== 'reports' && page !== 'money' && <section className="metric-grid">
             <div className="metric"><span>Объектов</span><strong>{siteId==='all' ? sites.length : 1}</strong><small>Доступные объекты</small></div>
@@ -221,16 +215,14 @@ export default function App() {
           {page==='overview' &&
             <div className="chart-panel"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
               <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
-              <ul className="daily-chart" aria-label="Количество отчётов по периодам">{reportPeriods.map(period=><li key={period.key}><button type="button" className="chart-hit" onClick={()=>setDrill({title:`Отчёты за ${period.label}`,ids:period.ids})}><span>{period.label}</span><meter min={0} max={Math.max(...reportPeriods.map(p=>p.count),1)} value={period.count}/><b>{period.count}</b></button></li>)}</ul>{dataCurrent && !reportPeriods.length && <p className="empty">За выбранный период данных для графика нет. Это не подтверждённый ноль работ.</p>}
-              <div className="big-number">{currentSummary?.report_count ?? '—'}<span> в графике</span></div>
+              <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period => setDrill({title:`Отчёты за ${period.label}`, ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           }
           </div>}
           {page==='analytics' && <section className="analytics-lead">
             <div className="chart-panel"><h2>Контроль отчётности</h2><p className="muted">Доставленные и проверенные отчёты по текущему фильтру; возвращённые на уточнение в график не включены</p>
               <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
-              <ul className="daily-chart" aria-label="Количество отчётов по периодам">{reportPeriods.map(period=><li key={period.key}><button type="button" className="chart-hit" onClick={()=>setDrill({title:`Отчёты за ${period.label}`,ids:period.ids})}><span>{period.label}</span><meter min={0} max={Math.max(...reportPeriods.map(p=>p.count),1)} value={period.count}/><b>{period.count}</b></button></li>)}</ul>{dataCurrent && !reportPeriods.length && <p className="empty">За выбранный период данных для графика нет. Это не подтверждённый ноль работ.</p>}
-              <div className="big-number">{currentSummary?.report_count ?? '—'}<span> в графике</span></div>
+              <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period => setDrill({title:`Отчёты за ${period.label}`, ids:period.ids})} />
               <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
           </section>}
           {(page==='overview' || page==='analytics') && <section className="work-volume">
