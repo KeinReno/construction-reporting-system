@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Report } from '../api';
 import { ReportCard } from './ReportCard';
 import { ReportRow } from './ReportRow';
+import { ReportStatus } from './ReportStatus';
 import { buildReportView, searchableReportText } from './reportView';
 
 type Density = 'list' | 'cards';
@@ -93,7 +94,7 @@ export function ReportsJournal({
           {/* Keep a semantic table for overview E2E selectors that look for tbody rows. */}
           {compact ? (
             <div className="table-wrap">
-              <table>
+              <table className="crs-data-table">
                 <thead>
                   <tr>
                     <th>Дата</th>
@@ -120,7 +121,7 @@ export function ReportsJournal({
                       <td data-label="Содержание">{view.workSummary}{view.quantityHint ? ` · ${view.quantityHint}` : ''}</td>
                       <td data-label="Автор">{view.authorLabel}</td>
                       <td data-label="Статус">
-                        <span className={`badge ${archive ? '' : view.status}`}>{view.statusLabel}</span>
+                        <ReportStatus status={report.status} label={view.statusLabel} archive={archive} />
                       </td>
                       <td data-label="Версия">№{view.revision}</td>
                     </tr>
