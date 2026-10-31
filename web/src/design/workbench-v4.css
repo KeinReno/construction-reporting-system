@@ -283,3 +283,6 @@
   .wb-overview-data .report-panel,.wb-overview-data .chart-panel{padding:14px}
 }
 @media(prefers-reduced-motion:reduce){.wb-shell button{transition:none}}
+
+/* Decorative decimal is CSS-only, leaving the numeric DOM accessible for filters and automation. */
+.wb-command-number::after{content:".";color:#b37f45}

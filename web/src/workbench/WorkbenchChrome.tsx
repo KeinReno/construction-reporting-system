@@ -47,7 +47,7 @@ export function WorkbenchMasthead({
         <p>{subtitle}</p>
       </div>
       <div className="wb-masthead-actions">
-        <button type="button" className="secondary wb-refresh" onClick={onRefresh} disabled={refreshing}>
+        <button type="button" className="secondary wb-refresh" aria-label={refreshing ? "Обновление…" : "↻ Обновить"} onClick={onRefresh} disabled={refreshing}>
           <span aria-hidden="true">↻</span><span>{refreshing ? 'Обновление…' : 'Обновить'}</span>
         </button>
       </div>
@@ -105,7 +105,7 @@ export function WorkbenchCommandHero({
           <span className="wb-command-pulse"><i aria-hidden="true" />ДАННЫЕ CRS</span>
         </div>
         <div className="wb-command-main">
-          <strong className="wb-command-number">{ready ? reports : '—'}<span className="wb-command-decimal" aria-hidden="true">.</span></strong>
+          <strong className="wb-command-number">{ready ? reports : '—'}</strong>
           <div className="wb-command-description">
             <span className="wb-command-title">Полученных отчётов</span>
             <p>С квитанцией о доставке по выбранным фильтрам. Возвращённые на уточнение также учитываются.</p>
