@@ -146,3 +146,18 @@ body {
   .site-list-card, .crs-data-table tbody tr { transition: none; }
   .site-list-card:hover { transform: none; }
 }
+
+/* Imported message registry — align new data screens with Web tokens. */
+.import-data { border-left: 2px solid #876c45; }
+.import-data > h2 { font-size: 18px; }
+.import-data details { border: 1px solid var(--crs-line); border-radius: 4px; background: #152228; margin: 10px 0; padding: 12px 14px; }
+.import-data details[open] { background: #1b2b31; border-color: #506067; }
+.import-data summary { cursor: pointer; font-weight: 600; color: #e2e9e9; }
+.import-data summary:hover { color: var(--crs-accent); }
+.import-data .crs-import-search { display: flex; align-items: end; flex-wrap: wrap; gap: 9px; margin: 16px 0; }
+.import-data .crs-import-search .crs-search-field { flex: 1 1 250px; }
+.import-data .crs-import-search .secondary { min-height: 40px; }
+.import-data label { display: inline-grid; gap: 6px; color: var(--crs-muted); font-size: 12px; }
+.import-data label select { padding: 10px; background: var(--crs-surface-sunken); color: var(--crs-text); border: 1px solid var(--crs-line-strong); border-radius: 4px; }
+.import-data p { overflow-wrap: anywhere; }
+.import-data img { border: 1px solid var(--crs-line-strong); border-radius: 3px; }
