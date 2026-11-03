@@ -24,6 +24,7 @@ test('desktop navigation collapses without losing pages', async ({page}) => {
 
 test('native filter selectors, calendar fields and observed KPI progress', async ({page}) => {
   await login(page);
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   await expect(page.getByRole('combobox',{name:'Объект',exact:true})).toBeVisible();
   await page.getByRole('combobox',{name:'Автор',exact:true}).selectOption({label:'manager'});
   await expect(page.getByRole('progressbar',{name:'Доля отчётов с квитанцией'})).toBeVisible();

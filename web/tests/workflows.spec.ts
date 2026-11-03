@@ -9,7 +9,8 @@ test('journal switches views and keeps author and recorded signals',async({page}
   await page.goto('/'); await login(page);
   await page.locator('.sidebar').getByRole('button',{name:'Отчёты',exact:true}).click();
   const journal=page.getByRole('region',{name:'Журнал отчётов'});
-  const authors=journal.getByRole('region',{name:'Отчёты по авторам'});
+  const authors=journal.locator('details.journal-authors');
+  await authors.locator('summary').click();
   await expect(authors.getByText('Все записи по выбранным фильтрам, включая черновики')).toBeVisible();
   const firstAuthor=authors.locator('.journal-author-bar').first();
   await firstAuthor.click();
@@ -34,10 +35,11 @@ test('journal switches views and keeps author and recorded signals',async({page}
 });
 test('report link preserves context, supports history and requires access after reload',async({page})=>{
   await page.goto('/'); await login(page);
+  await page.locator('.sidebar').getByRole('button',{name:'Отчёты',exact:true}).click();
   const from=page.getByRole('textbox',{name:'С',exact:true});
   await from.fill('25/10/2026');
   await expect(page.getByText('2.5 m',{exact:true})).toBeVisible();
-  await page.locator('tbody tr').first().click();
+  await page.locator('.report-row').first().click();
   const report=page.getByRole('region',{name:'Просмотр отчёта'});
   await expect(report).toBeVisible();
   await expect(page).toHaveURL(/#report\/[0-9a-f-]{36}$/i);
@@ -58,7 +60,8 @@ test('report link preserves context, supports history and requires access after 
 test('author chart does not restore a hidden selection after changing the global filter',async({page})=>{
   await page.goto('/'); await login(page);
   await page.locator('.sidebar').getByRole('button',{name:'Отчёты',exact:true}).click();
-  const chart=page.getByRole('region',{name:'Отчёты по авторам'});
+  const chart=page.locator('details.journal-authors');
+  await chart.locator('summary').click();
   await expect(chart.locator('.journal-author-bar')).toHaveCount(2);
   const chosen=chart.locator('.journal-author-bar').first();
   const chosenName=(await chosen.locator('.author-badge > span').last().innerText()).trim();
@@ -75,6 +78,7 @@ test('author chart does not restore a hidden selection after changing the global
 });
 test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await page.goto('/');await login(page);
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   await expect(page.getByText('4.0 m',{exact:true})).toBeVisible();
   let dateRequests=0;
   page.on('request',request=>{if(request.url().includes('/api/v1/analytics/summary'))dateRequests++;});
@@ -99,7 +103,8 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await page.getByLabel('С',{exact:true}).fill('25/10/2026');
   await page.getByLabel('По',{exact:true}).fill('25/10/2026');
   await expect(page.getByText('2.5 m',{exact:true})).toBeVisible();
-  await page.locator('tbody tr').first().click();
+  await page.locator('.sidebar').getByRole('button',{name:'Отчёты',exact:true}).click();
+  await page.locator('.report-row').first().click();
   await expect(page.getByRole('region',{name:'Просмотр отчёта'})).toBeVisible();
   await expect(page.getByRole('region',{name:'Просмотр отчёта'}).getByRole('heading',{name:'Отчёт за 25/10/2026'})).toBeVisible();
   await expect(page.getByRole('region',{name:'Просмотр отчёта'}).getByText('Автор в системе: manager')).toBeVisible();
@@ -146,7 +151,8 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await page.getByRole('button',{name:'Выйти',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Вход в систему'})).toBeVisible();
   await login(page,'other');
-  await expect(page.getByText('Нет подтверждённых количественных работ.')).toBeVisible();
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
+  await expect(page.getByText(/Нет подтверждённых количественных работ/)).toBeVisible();
   await expect(page.getByText('Synthetic site A',{exact:true})).toHaveCount(0);
 });
 test('late response cannot expose previous account data',async({page})=>{
@@ -175,6 +181,7 @@ test('chart groups dates across months and years',async({page})=>{
     await route.fulfill({response,json:body});
   });
   await page.goto('/');await login(page);
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   const chart=page.getByLabel('Количество отчётов по периодам');
   await expect(chart.locator('li')).toHaveCount(4);
   await page.getByLabel('Группировка').selectOption('month');
@@ -202,25 +209,29 @@ test('admin creates user and object, grants and revokes access',async({page})=>{
 });
 test('author filter applies to journal, totals and analyst',async({page})=>{
   await page.goto('/');await login(page);
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   await page.getByRole('combobox',{name:'Автор',exact:true}).selectOption({label:'manager'});
   await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('1');
-  await expect(page.locator('tbody tr')).toHaveCount(1);
   await expect(page.getByText('2.5 m',{exact:true})).toBeVisible();
+  await page.locator('.sidebar').getByRole('button',{name:'Отчёты',exact:true}).click();
+  await expect(page.locator('.report-row')).toHaveCount(1);
   await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
   await page.getByRole('button',{name:'Сформировать анализ'}).click();
   await expect(page.getByRole('heading',{name:'Получено отчётов: 1. Без работ: 0.'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Отчёт 1',exact:true})).toHaveCount(1);
   await page.getByRole('combobox',{name:'Автор',exact:true}).selectOption({label:'Оператор переноса'});
-  await page.getByRole('button',{name:'Главная',exact:true}).first().click();
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('1');
   await expect(page.getByText('1.5 m',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Выйти',exact:true}).click();
   await login(page,'other');
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   await expect(page.getByRole('combobox',{name:'Автор',exact:true})).toHaveValue('all');
   await expect(page.getByRole('combobox',{name:'Автор',exact:true}).locator('option')).toHaveCount(1);
 });
 test('author selection resets when access to that author disappears',async({page})=>{
   await page.goto('/');await login(page);
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   const author=page.getByRole('combobox',{name:'Автор',exact:true});
   await author.selectOption({label:'manager'});
   await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('1');
@@ -238,13 +249,16 @@ test('returned report stays received but leaves the analytics chart',async({page
   const fresh=await created.json();
   expect((await request.post(`/api/v1/reports/${fresh.id}/submit`,{headers,data:{expected_revision:1}})).ok()).toBeTruthy();
   await page.goto('/');await login(page);
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   const received=page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong');
   await expect(received).toHaveText('3');
-  await page.locator('tbody tr').filter({hasText:'23/10/2026'}).first().click();
+  await page.locator('.sidebar').getByRole('button',{name:'Отчёты',exact:true}).click();
+  await page.locator('.report-row').filter({hasText:'23/10/2026'}).first().click();
   await page.getByLabel('Причина возврата').fill('Synthetic clarification');
   await page.getByRole('button',{name:'Вернуть на уточнение'}).click();
   await expect(page.getByRole('region',{name:'Просмотр отчёта'}).getByText('Статус: На уточнении · ревизия 1')).toBeVisible();
   await page.getByRole('button',{name:'← Назад'}).click();
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   await expect(received).toHaveText('3');
   await expect(page.locator('.big-number')).toContainText('2');
 });
@@ -285,7 +299,7 @@ test('money journal uses operation date and keeps kinds apart',async({page})=>{
   await page.getByLabel('С',{exact:true}).fill('20/10/2026');
   await page.getByLabel('По',{exact:true}).fill('20/10/2026');
   await expect(journal).toContainText('125,50');
-  await page.locator('.sidebar').getByRole('button',{name:'Главная',exact:true}).click();
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   await expect(page.getByRole('region',{name:'Деньги и спецтехника'})).toContainText('125,50');
   await page.getByRole('region',{name:'Деньги и спецтехника'}).getByRole('button',{name:/Расход/}).click();
   await expect(page.getByRole('region',{name:'Исходные записи'})).toBeVisible();
