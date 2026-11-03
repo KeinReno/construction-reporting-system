@@ -25,6 +25,7 @@ test('money totals follow filters and invalid dates do not claim zero operations
   await expect(journal).toContainText('125,50');
   await page.getByLabel('Вид операции').selectOption('funding_received');
   await expect(journal.locator('.metric').filter({hasText:'Расход'})).toContainText('Нет');
+  await page.getByRole('button',{name:'Фильтры',exact:true}).click();
   await page.getByLabel('С',{exact:true}).fill('25/10/2026');await page.getByLabel('По',{exact:true}).fill('20/10/2026');
   await expect(journal).toContainText('Проверьте период');
   await expect(journal.locator('.metric')).toHaveCount(0);

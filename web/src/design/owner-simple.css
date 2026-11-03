@@ -22,3 +22,38 @@
 .owner-simple .wb-overline,.owner-simple .wb-topbar-module,.owner-simple .wb-topbar-environment,.owner-simple .wb-section-number,.owner-simple .wb-section-detail{display:none!important}
 
 .owner-simple .owner-analytics-note{max-width:75ch;color:#d0ddd9;margin:0 0 24px;line-height:1.5}
+
+/* Owner workflows: keep the existing palette and prioritise content. */
+.owner-simple .owner-filter-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 18px;color:#b6c5c2;font-size:13px}
+.owner-simple .owner-filter-bar button{min-height:42px}.owner-simple #report-filters[hidden]{display:none!important}
+.owner-simple .owner-site-result{display:block;margin-top:6px;color:#edf4f0;font-size:14px;line-height:1.45}
+.owner-simple .owner-object{gap:18px}.owner-simple .owner-object .section-heading h2{margin:0;font-size:21px}
+.owner-simple .owner-object-brief{display:flex;justify-content:space-between;gap:24px;padding:20px 0;border-top:1px solid #415654;border-bottom:1px solid #415654}
+.owner-simple .owner-object-brief > div{flex:1;min-width:0}.owner-simple .owner-object-brief p{display:block;margin:0 0 9px;padding:0;border:0;line-height:1.5}.owner-simple .owner-object-period{flex:0 0 240px;color:#b6c5c2;font-size:13px}
+.owner-simple .owner-object-nav{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #415654;padding-bottom:12px}
+.owner-simple .owner-object-nav button{min-height:44px;padding:9px 14px;border:1px solid #415654;border-radius:5px;background:transparent;color:#e8eeeb;font:inherit;cursor:pointer}
+.owner-simple .owner-object-nav button[aria-pressed=true]{background:#37423a;border-color:#d7a957;color:#ffe0a4}
+.owner-simple .owner-section-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}.owner-simple .owner-section-heading span{color:#b6c5c2;font-size:13px}
+.owner-simple .owner-show-more{justify-self:start;margin-top:12px}
+.owner-simple .owner-object-entry{display:block;width:100%;padding:12px 4px;border:0;border-top:1px solid #39494f;background:transparent;color:inherit;text-align:left;font:inherit;line-height:1.5;cursor:pointer}
+.owner-simple .owner-object-entry:hover{background:#243b3b}.owner-simple .owner-object-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0}
+.owner-simple .owner-object-totals div{display:grid;gap:4px;padding:12px;border:1px solid #415654;border-radius:5px}.owner-simple .owner-object-totals span{color:#b6c5c2;font-size:13px}.owner-simple .owner-object-totals strong{font-size:18px}
+.owner-simple .owner-possible-photos{margin-top:20px}.owner-simple .owner-possible-photos summary,.owner-simple .owner-technical summary,.owner-simple .owner-money-explain summary{cursor:pointer;min-height:44px;padding:10px 0;color:#f3c57e}.owner-simple .owner-possible-photos p{margin:8px 0 16px}
+.owner-simple .report-row-no-photo{grid-template-columns:minmax(88px,120px) minmax(0,1fr) minmax(0,1.4fr) auto auto;min-height:76px}
+.owner-simple .report-row .report-status{white-space:nowrap;word-break:normal;min-width:max-content}
+.owner-simple .report-detail .report-page-body{display:flex;flex-direction:column}.owner-simple .report-detail .report-page-main,.owner-simple .report-detail .report-page-aside{width:100%;max-width:none;overflow:visible}
+.owner-simple .report-detail .report-page-aside{position:static;max-height:none;border-left:0;border-top:1px solid #415654}
+.owner-simple .owner-money-heading h2{margin:0 0 5px}.owner-simple .owner-money-explain{margin:8px 0}.owner-simple .owner-money-explain p{max-width:75ch;line-height:1.5}
+@media(max-width:1100px){.owner-simple .report-row-no-photo{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"date status" "main main" "work flags"}}
+@media(max-width:600px){.owner-simple .owner-filter-bar{align-items:flex-start}.owner-simple .owner-object-brief{display:block}.owner-simple .owner-object-period{margin-top:16px!important}.owner-simple .owner-object-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.owner-simple .owner-object-nav button{padding:9px 8px;font-size:13px}.owner-simple .owner-object-totals{grid-template-columns:1fr}.owner-simple .report-row-no-photo{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"date status" "main main" "work flags"}}
+.owner-simple .owner-expense-breakdown{padding:18px 0 8px;border-top:1px solid #415654}
+.owner-simple .owner-expense-breakdown h3{margin:0;font-size:17px}.owner-simple .owner-expense-row{display:grid;grid-template-columns:minmax(110px,1fr) minmax(80px,2fr) auto;gap:14px;align-items:center;width:100%;padding:12px 0;border:0;border-bottom:1px solid #34474a;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.owner-simple .owner-expense-row[aria-pressed=true]{color:#ffcb77}.owner-simple .owner-expense-track,.owner-simple .owner-volume-track{display:block;height:7px;background:#34474a;overflow:hidden;border-radius:4px}.owner-simple .owner-expense-track>span,.owner-simple .owner-volume-track>span{display:block;height:100%;background:#eab35b;border-radius:4px}
+.owner-simple .owner-volume-main{min-width:0;flex:1}.owner-simple .owner-volume-track{margin-top:8px;max-width:400px}
+@media(max-width:600px){.owner-simple .owner-expense-row{grid-template-columns:minmax(0,1fr) auto;gap:8px}.owner-simple .owner-expense-track{grid-column:1/-1;grid-row:2}}
+.owner-simple .owner-journal-status{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:12px 0}
+.owner-simple .owner-journal-status button{border:1px solid #415654;border-radius:5px;padding:8px 12px;background:transparent;color:#dce7e3;cursor:pointer;min-height:40px}
+.owner-simple .owner-journal-status button[aria-pressed=true]{background:#37423a;border-color:#d7a957;color:#ffe0a4}
+.owner-simple .owner-journal-status span{margin-left:auto;font-size:13px;color:#b6c5c2}
+.owner-simple .owner-analytics-totals{display:flex;flex-wrap:wrap;gap:12px 24px;margin:12px 0 18px;color:#b6c5c2}.owner-simple .owner-analytics-totals strong{color:#f2f3ee}
+@media(max-width:420px){.auth-card{padding:26px 22px}.auth-card .brand-dark{font-size:20px;letter-spacing:.2px;white-space:normal}.auth-card .brand-mark{flex:0 0 32px}}

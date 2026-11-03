@@ -30,7 +30,7 @@ export function ReportCard({
       type="button"
       className={`report-card crs-fade-in${view.photoIds.length === 0 ? ' report-card-no-media' : ''}`}
       onClick={onOpen}
-      aria-label={`Открыть отчёт за ${view.workDateLabel} · ${view.siteName} · Автор: ${view.authorLabel} · ${view.statusLabel} · ${view.workSummary} · Работ: ${view.workCount}, фото: ${view.photoCount}, событий: ${view.incidentCount}`}
+      aria-label={`Открыть отчёт за ${view.workDateLabel} · ${view.siteName} · Автор: ${view.authorLabel} · ${view.statusLabel} · ${view.workSummary} · Работ: ${view.workCount}, фото: ${view.photoCount}, событий: ${view.incidentCount}${view.possiblePhotoCount ? `, фото по дате: ${view.possiblePhotoCount}, связь требует проверки` : ''}`}
     >
       {view.photoIds.length > 0 && <CardMedia id={view.photoIds[0]} token={token} count={view.photoCount} />}
       <div className="report-card-body">
@@ -42,6 +42,7 @@ export function ReportCard({
         <p className="report-card-summary crs-truncate-2">{view.headline}{view.quantityHint ? ` · ${view.quantityHint}` : ''}</p>
         {view.incidentHint && <p className="report-card-summary crs-truncate-2">Событие: {view.incidentHint}</p>}
         <ReportSignals works={view.workCount} photos={view.photoCount} events={view.incidentCount} />
+        {view.possiblePhotoCount>0 && <small>Фото по дате: {view.possiblePhotoCount} · связь требует проверки</small>}
         <div className="report-card-footer">
           <AuthorBadge id={view.authorId} label={view.authorLabel} />
           <span>Версия {view.revision}</span>

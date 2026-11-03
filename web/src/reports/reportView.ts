@@ -18,6 +18,7 @@ export type ReportView = {
   quantityHint: string | null;
   photoIds: string[];
   photoCount: number;
+  possiblePhotoCount: number;
   hasIncident: boolean;
   incidentHint: string | null;
   isNoWork: boolean;
@@ -43,17 +44,15 @@ export function buildReportView(
   const isNoWork = reportWorkState(report) === 'no_work';
   const headline = isNoWork
     ? 'Работ не было'
-    : first?.type || 'Работы не указаны';
+    : first?.description || first?.type || 'Работы не указаны';
   const workSummary = isNoWork
     ? (report.data.no_work_reason || 'Причина не указана')
     : works.length
-      ? works.map(work => work.type).join('; ') + (works.length > 2 ? '' : '')
+      ? works.map(work => work.description || work.type).join('; ')
       : 'В записи нет описания выполненных работ.';
   const quantityHint = first && first.quantity !== null
     ? `${first.quantity}${first.unit ? ` ${first.unit}` : ''}`
-    : works.length > 1
-      ? `ещё ${works.length - 1}`
-      : null;
+    : null;
   const data=reportViewData(report);
   const incident = data.incidents?.[0] || null;
   const photoIds = [...new Set([...(report.data.required_photo_ids || []), ...(report.evidence?.photos || []).filter(p=>p.relation==='same_message').map(p=>p.id)])];
@@ -71,11 +70,12 @@ export function buildReportView(
     revision: report.revision,
     headline,
     workSummary: works.length > 1 && !isNoWork
-      ? `${first?.type || 'Работа'}${works.length > 1 ? ` и ещё ${works.length - 1}` : ''}`
+      ? `${first?.description || first?.type || 'Работа'}${works.length > 1 ? ` и ещё ${works.length - 1}` : ''}`
       : workSummary,
     quantityHint,
     photoIds,
     photoCount: photoIds.length,
+    possiblePhotoCount: new Set((report.evidence?.photos || []).filter(p=>p.relation==='same_work_date').map(p=>p.id)).size,
     hasIncident: !!incident,
     incidentHint: incident?.description || null,
     isNoWork,

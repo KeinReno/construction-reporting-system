@@ -110,7 +110,6 @@ export function ReportDetails({
       <div className="report-page">
         <div className="report-page-header report-dialog-header section-heading">
           <div>
-            <span className="crs-eyebrow">Смена · доказательства · проверка</span>
             <h1 ref={title} tabIndex={-1}>Отчёт за {formatDate(r.data.work_date)}</h1>
           </div>
           <button className="quiet" onClick={onClose}>
@@ -125,6 +124,34 @@ export function ReportDetails({
               {label:imported?'Добавил в систему':'Автор в системе',value:authorName},
               {label:'Статус',value:`${statusLabel} · ревизия ${r.revision}`},
             ]}/>
+
+              {!imported && role === 'manager' && r.status === 'submitted' && (
+                <section>
+                  <h3>Проверка</h3>
+                  <label>
+                    Причина возврата
+                    <input maxLength={500} value={reason} onChange={e => setReason(e.target.value)} />
+                  </label>
+                  <div className="review-actions">
+                    <button disabled={busy} className="primary" onClick={() => void review('reviewed')}>
+                      Проверен
+                    </button>
+                    <button
+                      disabled={busy || !reason.trim()}
+                      className="secondary"
+                      onClick={() => void review('needs_revision')}
+                    >
+                      Вернуть на уточнение
+                    </button>
+                  </div>
+                </section>
+              )}
+
+            {error && (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            )}
 
             <section>
               <h3>Описанные работы</h3>
@@ -153,6 +180,15 @@ export function ReportDetails({
                 <p className="report-comment">{r.data.crew}</p>
               </section>
             )}
+            <section>
+              <h3>Фотографии ({directPhotos.length})</h3>
+              {directPhotos.length ? <ReportGallery ids={directPhotos} token={token} /> : <p className="muted">Фото с подтверждённой связью не найдены.</p>}
+              {!!datePhotos.length && <details className="owner-date-photos">
+                <summary>Дополнительные фотографии за дату · {datePhotos.length} — связь с отчётом требует проверки</summary>
+                <ReportGallery ids={datePhotos.map(photo => photo.id)} token={token} />
+              </details>}
+            </section>
+
             {!!shiftContext.length && (
               <section>
                 <h3>Сведения о смене</h3>
@@ -260,25 +296,14 @@ export function ReportDetails({
                 <small>{formatTimestamp(decision.created_at)}</small>
               </li>)}</ol>
             </section>}
-            <section>
-              <h3>Фотографии ({directPhotos.length})</h3>
-              {directPhotos.length ? <ReportGallery ids={directPhotos} token={token} /> : <p className="muted">Фотографии не приложены.</p>}
-              {!!datePhotos.length && <details className="owner-date-photos">
-                <summary>Дополнительные фотографии за дату · {datePhotos.length} — связь с отчётом требует проверки</summary>
-                <ReportGallery ids={datePhotos.map(photo => photo.id)} token={token} />
-              </details>}
-            </section>
 
-            {r.receipt_id && <p className="footnote">Квитанция: {r.receipt_id}</p>}
-            {error && (
-              <p className="error" role="alert">
-                {error}
-              </p>
-            )}
+
+
+
           </div>
 
           <aside className="report-page-aside">
-            <div className="review-panel">
+            <details className="review-panel owner-technical"><summary>История и сведения о доставке</summary>
               <div className="status-block">
                 <h3>Состояние</h3>
                 <ReportStatus status={r.status} label={statusLabel} archive={imported} />
@@ -288,27 +313,7 @@ export function ReportDetails({
                 </p>
               </div>
 
-              {!imported && role === 'manager' && r.status === 'submitted' && (
-                <section>
-                  <h3>Проверка</h3>
-                  <label>
-                    Причина возврата
-                    <input maxLength={500} value={reason} onChange={e => setReason(e.target.value)} />
-                  </label>
-                  <div className="review-actions">
-                    <button disabled={busy} className="primary" onClick={() => void review('reviewed')}>
-                      Проверен
-                    </button>
-                    <button
-                      disabled={busy || !reason.trim()}
-                      className="secondary"
-                      onClick={() => void review('needs_revision')}
-                    >
-                      Вернуть на уточнение
-                    </button>
-                  </div>
-                </section>
-              )}
+
 
               <section>
                 <h3>История</h3>
@@ -322,7 +327,8 @@ export function ReportDetails({
                   ))}
                 </ol>
               </section>
-            </div>
+              {r.receipt_id && <p className="footnote">Квитанция: {r.receipt_id}</p>}
+            </details>
           </aside>
         </div>
       </div>

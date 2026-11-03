@@ -35,6 +35,7 @@ test('object overview and date filters keep the common history reachable',async(
   const home=page.getByRole('region',{name:'Объекты и отчёты'});
   await expect(home).toContainText('25/10/2026');
   await home.getByRole('button',{name:/^Synthetic site A Последний отчёт:/}).click();
+  await page.getByRole('button',{name:'Фильтры',exact:true}).click();
   await page.getByLabel('С',{exact:true}).fill('26/10/2026');
   await expect(page.getByRole('article',{name:'Карточка объекта Synthetic site A'})).toContainText('За выбранные условия отчётов нет');
   await expect(page.getByRole('combobox',{name:'Автор',exact:true}).locator('option').filter({hasText:'Оператор переноса'})).toHaveCount(1);

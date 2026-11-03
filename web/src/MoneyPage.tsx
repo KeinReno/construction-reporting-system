@@ -75,20 +75,18 @@ export function MoneyPage({
     counts[entry.kind] += 1;
   }
 
+  // Integers remain kopecks throughout aggregation; the bar width is a display-only ratio.
+  const expenseByCategory = new Map<string,bigint>();
+  for (const entry of operations) if (entry.kind === 'expense' && (!kind || kind === 'expense')) {
+    expenseByCategory.set(entry.category,(expenseByCategory.get(entry.category) ?? 0n) + BigInt(entry.amount_kopecks));
+  }
+  const expenseBars = [...expenseByCategory].sort((a,b)=>a[1]===b[1] ? a[0].localeCompare(b[0],'ru') : a[1]>b[1] ? -1 : 1);
+  const maximumExpense = expenseBars[0]?.[1] ?? 1n;
+  const formatKopecks = (value:bigint) => `${new Intl.NumberFormat('ru-RU').format(value/100n)},${String(value%100n).padStart(2,'0')} ₽`;
+
   return (
     <section className="money-page" aria-label="Журнал денежных операций">
-      <div>
-        <span className="crs-eyebrow">Финансовый журнал</span>
-        <p className="muted">
-          Фильтр дат относится к указанной дате операции. Для разобранных исторических расходов без даты оплаты
-          используется дата отчёта с отдельной пометкой. Работы считаются по дате смены.
-          В журнал включены и операции отчётов, возвращённых на исправление. Суммы трёх видов не складываются и не образуют остаток.
-        </p>
-      </div>
-      <div className="filters money-filters">
-        <CrCombobox label="Вид операции" value={kind} onChange={value=>setKind(value as typeof kind)} options={[{value:'',label:'Все виды'},...kinds.map(item=>({value:item,label:kindLabel[item]}))]}/>
-        <CrCombobox label="Категория" value={category} onChange={setCategory} options={[{value:'',label:'Все категории'},...categories.map(item=>({value:item,label:item}))]}/>
-      </div>
+      <div className="owner-money-heading"><h2>Денежные операции</h2><p className="muted">Период по дате операции · {fromDate && !fromDate.startsWith('!') ? formatDate(fromDate) : 'начало'} — {toDate && !toDate.startsWith('!') ? formatDate(toDate) : 'без ограничения'}</p></div>
       {error && (
         <p className="error" role="alert">
           {error}
@@ -103,13 +101,23 @@ export function MoneyPage({
               <strong>{counts[item] ? money(totals[item]) : 'Нет'}</strong>
               <small>
                 {counts[item]
-                  ? 'По указанным датам; у исторических записей возможна дата отчёта'
+                  ? `${counts[item]} записей · по выбранным условиям`
                   : 'Нет операций этого вида. Это не ноль и не остаток.'}
               </small>
             </div>
           ))}
         </div>
       )}
+      {reports && !invalid && expenseBars.length>0 && <section className="owner-expense-breakdown" aria-label="Расходы по категориям">
+        <div className="owner-section-heading"><h3>Расходы по категориям</h3><span>Нажмите на категорию, чтобы отфильтровать операции</span></div>
+        {expenseBars.map(([name,amount])=><button key={name} type="button" className="owner-expense-row" aria-pressed={category===name} onClick={()=>setCategory(category===name?'':name)}><span>{name}</span><span className="owner-expense-track" aria-hidden="true"><span style={{width:`${Number(amount*100n/maximumExpense)}%`}}/></span><strong>{formatKopecks(amount)}</strong></button>)}
+        <p className="footnote">Даты отдельных операций могут быть датой отчёта, если дата оплаты не указана.</p>
+      </section>}
+      <div className="filters money-filters">
+        <CrCombobox label="Вид операции" value={kind} onChange={value=>setKind(value as typeof kind)} options={[{value:'',label:'Все виды'},...kinds.map(item=>({value:item,label:kindLabel[item]}))]}/>
+        <CrCombobox label="Категория" value={category} onChange={setCategory} options={[{value:'',label:'Все категории'},...categories.map(item=>({value:item,label:item}))]}/>
+      </div>
+      <details className="owner-money-explain"><summary>Как посчитаны суммы</summary><p>Указаны зарегистрированные операции, включая операции возвращённых отчётов. Если дата оплаты не указана, используется дата отчёта с отдельной пометкой. Расход, поступление и аванс не складываются.</p></details>
       {reports && (
         <p className="footnote">
           Начальный остаток не задан, поэтому баланс не показывается. Включены структурированные операции и

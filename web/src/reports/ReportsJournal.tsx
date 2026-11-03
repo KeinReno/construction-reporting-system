@@ -4,7 +4,6 @@ import type { Report } from '../api';
 import { ReportCard } from './ReportCard';
 import { ReportRow } from './ReportRow';
 import { buildReportView, searchableReportText } from './reportView';
-import { ReportStatus } from './ReportStatus';
 import { CrSegmentGroup } from '../ui/CrSegmentGroup';
 import { CrPagination } from '../ui/CrPagination';
 import { CrSearchField } from '../ui/CrSearchField';
@@ -36,6 +35,7 @@ export function ReportsJournal({
 }) {
   const [density, setDensity] = useState<Density>('list');
   const [query, setQuery] = useState('');
+  const [statusFilter,setStatusFilter]=useState<'all'|'waiting'|'needs_revision'|'reviewed'>('all');
   const [page, setPage] = useState(1);
   const [authorFilter, setAuthorFilter] = useState<string | null>(null);
   const views = useMemo(
@@ -64,11 +64,11 @@ export function ReportsJournal({
     const needle = query.trim().toLocaleLowerCase('ru-RU');
     return views
       .map((view, index) => ({ view, report: reports[index] }))
-      .filter(({ view, report }) => (!activeAuthor || (view.authorId || '__unknown__')===activeAuthor) && (!needle || searchableReportText(view, report.data.comment).includes(needle)));
-  }, [views, reports, query, activeAuthor]);
+      .filter(({ view, report }) => (!activeAuthor || (view.authorId || '__unknown__')===activeAuthor) && (statusFilter==='all' || (statusFilter==='waiting' ? report.origin!=='imported' && report.status==='submitted' : report.origin!=='imported' && report.status===statusFilter)) && (!needle || searchableReportText(view, report.data.comment).includes(needle)));
+  }, [views, reports, query, activeAuthor,statusFilter]);
   const perPage=24;
   const pageCount=Math.max(1,Math.ceil(filtered.length/perPage));
-  useEffect(()=>setPage(1),[query,reports.length,compact,archive,activeAuthor]);
+  useEffect(()=>setPage(1),[query,reports.length,compact,archive,activeAuthor,statusFilter]);
   const boundedPage=Math.min(page,pageCount);
   const shown=compact?filtered.slice(0,6):filtered.slice((boundedPage-1)*perPage,boundedPage*perPage);
 
@@ -92,6 +92,7 @@ export function ReportsJournal({
         </div>
       </div>
 
+      {!compact && <div className="owner-journal-status" role="group" aria-label="Статус отчётов">{([['all','Все'],['waiting','На проверке'],['needs_revision','На уточнении'],['reviewed','Проверены']] as const).map(([key,label])=><button type="button" key={key} aria-pressed={statusFilter===key} onClick={()=>setStatusFilter(key)}>{label}</button>)}<span>Найдено: {filtered.length}</span></div>}
       {!compact && !archive && authorGroups.length > 0 && <details className="journal-authors" aria-label="Отчёты по авторам"><summary>Отчёты по авторам</summary>
         <div className="journal-authors-heading"><h3>Отчёты по авторам</h3><span>Все записи по выбранным фильтрам, включая черновики</span></div>
         <div className="journal-author-chart">{authorGroups.map(([key,group])=><button type="button" className="journal-author-bar" key={key} aria-pressed={activeAuthor===key} onClick={()=>setAuthorFilter(activeAuthor===key?null:key)}>
@@ -101,59 +102,13 @@ export function ReportsJournal({
       </details>}
       {!shown.length ? (
         <p className="empty">
-          {reports.length ? 'По выбранному автору и запросу ничего не найдено.' : 'Отчёты по выбранным условиям отсутствуют.'}
+          {reports.length ? 'По выбранным условиям ничего не найдено.' : 'Отчёты по выбранным условиям отсутствуют.'}
         </p>
       ) : density === 'list' ? (
         <div className="report-rows">
-          {/* Keep a semantic table for overview E2E selectors that look for tbody rows. */}
-          {compact ? (
-            <div className="table-wrap">
-              <table className="crs-data-table">
-                <thead>
-                  <tr>
-                    <th>Дата</th>
-                    <th>Объект</th>
-                    <th>Содержание</th>
-                    <th>Автор</th>
-                    <th>Статус</th>
-                    <th>Версия</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map(({ view, report }) => (
-                    <tr key={report.id} onClick={() => onOpen(report)}>
-                      <td data-label="Дата">
-                        <button
-                          className="report-open"
-                          onClick={event => { event.stopPropagation(); onOpen(report); }}
-                          aria-label={`Открыть отчёт за ${view.workDateLabel} · ${view.siteName}`}
-                        >
-                          {view.workDateLabel}
-                        </button>
-                      </td>
-                      <td data-label="Объект">{view.siteName}</td>
-                      <td data-label="Содержание">{view.workSummary}{view.quantityHint ? ` · ${view.quantityHint}` : ''}</td>
-                      <td data-label="Автор"><AuthorBadge id={view.authorId} label={view.authorLabel} /></td>
-                      <td data-label="Статус">
-                        <ReportStatus status={report.status} label={view.statusLabel} archive={archive} />
-                      </td>
-                      <td data-label="Версия">№{view.revision}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            shown.map(({ view, report }) => (
-              <ReportRow
-                key={report.id}
-                view={view}
-                token={token}
-                archive={archive}
-                onOpen={() => onOpen(report)}
-              />
-            ))
-          )}
+          {shown.map(({ view, report }) => (
+            <ReportRow key={report.id} view={view} token={token} archive={archive} onOpen={() => onOpen(report)} />
+          ))}
         </div>
       ) : (
         <div className="report-cards">

@@ -5,6 +5,7 @@ async function login(page:Page,name='manager') {
   await page.getByRole('button',{name:'Войти',exact:true}).click();
   await expect(page.locator('.topbar-right')).toContainText(name);
 }
+async function showFilters(page:Page) { const button=page.getByRole('button',{name:/^(Фильтры|Скрыть фильтры)$/}); if(await button.getAttribute('aria-expanded')==='false') await button.click(); }
 test('journal switches views and keeps author and recorded signals',async({page})=>{
   await page.goto('/'); await login(page);
   await page.locator('.sidebar').getByRole('button',{name:'Отчёты',exact:true}).click();
@@ -21,6 +22,7 @@ test('journal switches views and keeps author and recorded signals',async({page}
   await search.fill('Synthetic');
   const row=journal.locator('.report-row').first();
   await expect(row).toContainText('Работы:');
+  await expect(row).toContainText('Synthetic work description');
   const author=await row.locator('.author-badge > span').last().innerText();
   const color=await row.locator('.author-avatar').evaluate(el=>getComputedStyle(el).color);
   await journal.getByRole('button',{name:'Карточки',exact:true}).click();
@@ -36,6 +38,7 @@ test('journal switches views and keeps author and recorded signals',async({page}
 test('report link preserves context, supports history and requires access after reload',async({page})=>{
   await page.goto('/'); await login(page);
   await page.locator('.sidebar').getByRole('button',{name:'Отчёты',exact:true}).click();
+  await showFilters(page);
   const from=page.getByRole('textbox',{name:'С',exact:true});
   await from.fill('25/10/2026');
   await expect(page.getByText('2.5 m',{exact:true})).toBeVisible();
@@ -66,6 +69,7 @@ test('author chart does not restore a hidden selection after changing the global
   const chosen=chart.locator('.journal-author-bar').first();
   const chosenName=(await chosen.locator('.author-badge > span').last().innerText()).trim();
   await chosen.click();
+  await showFilters(page);
   const globalAuthor=page.getByRole('combobox',{name:'Автор'});
   const options=await globalAuthor.locator('option').evaluateAll(items=>items.map(item=>({value:(item as HTMLOptionElement).value,label:item.textContent?.trim()})));
   const other=options.find(option=>option.value!=='all' && option.label!==chosenName);
@@ -82,6 +86,7 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await expect(page.getByText('4.0 m',{exact:true})).toBeVisible();
   let dateRequests=0;
   page.on('request',request=>{if(request.url().includes('/api/v1/analytics/summary'))dateRequests++;});
+  await showFilters(page);
   const from=page.getByRole('textbox',{name:'С',exact:true});
   await from.fill('31/02/2026');
   await expect(from).toHaveAttribute('aria-invalid','true');
@@ -122,7 +127,7 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
   await page.getByRole('button',{name:'Проверен',exact:true}).click();
   await expect(page.getByRole('region',{name:'Просмотр отчёта'}).getByText('Статус: Проверен · ревизия 1')).toBeVisible();
   await page.getByRole('button',{name:'← Назад'}).click();
-  await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
+  await page.getByRole('button',{name:'Готовые сводки',exact:true}).first().click();
   await page.getByRole('button',{name:'Сформировать анализ'}).click();
   await expect(page.getByRole('heading',{name:'Получено отчётов: 1. Без работ: 0.'})).toBeVisible();
   await page.getByRole('button',{name:'Отчёт 1',exact:true}).click();
@@ -183,6 +188,7 @@ test('chart groups dates across months and years',async({page})=>{
   await page.goto('/');await login(page);
   await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   const chart=page.getByLabel('Количество отчётов по периодам');
+  await page.getByLabel('Группировка').selectOption('day');
   await expect(chart.locator('li')).toHaveCount(4);
   await page.getByLabel('Группировка').selectOption('month');
   await expect(chart.locator('li')).toHaveCount(3);
@@ -210,35 +216,38 @@ test('admin creates user and object, grants and revokes access',async({page})=>{
 test('author filter applies to journal, totals and analyst',async({page})=>{
   await page.goto('/');await login(page);
   await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
+  await showFilters(page);
   await page.getByRole('combobox',{name:'Автор',exact:true}).selectOption({label:'manager'});
-  await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('1');
+  await expect(page.getByLabel('Сводка отчётов').locator('span').filter({hasText:'Получено отчётов'}).locator('strong')).toHaveText('1');
   await expect(page.getByText('2.5 m',{exact:true})).toBeVisible();
   await page.locator('.sidebar').getByRole('button',{name:'Отчёты',exact:true}).click();
   await expect(page.locator('.report-row')).toHaveCount(1);
-  await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
+  await page.getByRole('button',{name:'Готовые сводки',exact:true}).first().click();
   await page.getByRole('button',{name:'Сформировать анализ'}).click();
   await expect(page.getByRole('heading',{name:'Получено отчётов: 1. Без работ: 0.'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Отчёт 1',exact:true})).toHaveCount(1);
   await page.getByRole('combobox',{name:'Автор',exact:true}).selectOption({label:'Оператор переноса'});
   await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
-  await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('1');
+  await expect(page.getByLabel('Сводка отчётов').locator('span').filter({hasText:'Получено отчётов'}).locator('strong')).toHaveText('1');
   await expect(page.getByText('1.5 m',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Выйти',exact:true}).click();
   await login(page,'other');
   await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
+  await showFilters(page);
   await expect(page.getByRole('combobox',{name:'Автор',exact:true})).toHaveValue('all');
   await expect(page.getByRole('combobox',{name:'Автор',exact:true}).locator('option')).toHaveCount(1);
 });
 test('author selection resets when access to that author disappears',async({page})=>{
   await page.goto('/');await login(page);
   await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
+  await showFilters(page);
   const author=page.getByRole('combobox',{name:'Автор',exact:true});
   await author.selectOption({label:'manager'});
-  await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('1');
+  await expect(page.getByLabel('Сводка отчётов').locator('span').filter({hasText:'Получено отчётов'}).locator('strong')).toHaveText('1');
   await page.route('**/api/v1/reports/authors',route=>route.fulfill({json:[]}),{times:1});
   await page.getByRole('button',{name:'↻ Обновить'}).click();
   await expect(author).toHaveValue('all');
-  await expect(page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong')).toHaveText('2');
+  await expect(page.getByLabel('Сводка отчётов').locator('span').filter({hasText:'Получено отчётов'}).locator('strong')).toHaveText('2');
 });
 test('returned report stays received but leaves the analytics chart',async({page,request})=>{
   const auth=await request.post('/api/v1/auth/login',{data:{login:'manager',password:'SyntheticPassword123'}});
@@ -250,7 +259,7 @@ test('returned report stays received but leaves the analytics chart',async({page
   expect((await request.post(`/api/v1/reports/${fresh.id}/submit`,{headers,data:{expected_revision:1}})).ok()).toBeTruthy();
   await page.goto('/');await login(page);
   await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
-  const received=page.locator('.metric').filter({hasText:'Полученных отчётов'}).locator('strong');
+  const received=page.getByLabel('Сводка отчётов').locator('span').filter({hasText:'Получено отчётов'}).locator('strong');
   await expect(received).toHaveText('3');
   await page.locator('.sidebar').getByRole('button',{name:'Отчёты',exact:true}).click();
   await page.locator('.report-row').filter({hasText:'23/10/2026'}).first().click();
@@ -268,17 +277,20 @@ test('object card keeps money kinds and resources apart',async({page})=>{
   await page.getByRole('button',{name:'Synthetic site A'}).click();
   const card=page.getByRole('article',{name:'Карточка объекта Synthetic site A'});
   await expect(card).toBeVisible();
-  await expect(card).toContainText('Заявлено в отчёте 25/10/2026: Synthetic incident');
+  await expect(card).toContainText('Указано в отчёте: Synthetic incident');
   await expect(card).toContainText('План следующей смены: Synthetic next step');
+  await card.getByRole('button',{name:'Деньги',exact:true}).click();
   const money=card.getByRole('region',{name:'Деньги объекта'});
   await expect(money).toContainText('125,50');
-  await expect(money).toContainText('операция 20/10/2026, отчёт 25/10/2026');
-  await expect(money.getByText('Нет',{exact:true})).toHaveCount(2);
+  await expect(money).toContainText('20/10/2026');
+  await expect(money.getByText('Не указано',{exact:true})).toHaveCount(2);
+  await card.getByRole('button',{name:'Материалы и техника',exact:true}).click();
   await expect(card).toContainText('Synthetic material, m · Поступило 2.5');
   await expect(card).toContainText('Synthetic paint, bucket · Упоминание, количество не указано');
   await expect(card).toContainText('Synthetic crane · 7.5 ч · наёмная');
-  await expect(card).toContainText('Synthetic weld · 2.5 m');
-  await expect(card).toContainText('Synthetic weld · 1.5 m');
+  await card.getByRole('button',{name:'Работы и отчёты',exact:true}).click();
+  await expect(card).toContainText('Synthetic work description · 2.5 m');
+  await expect(card).toContainText('Synthetic work description · 1.5 m');
   await card.getByRole('button',{name:'Открыть отчёт'}).first().click();
   await expect(page.getByRole('region',{name:'Просмотр отчёта'})).toBeVisible();
 });
@@ -292,7 +304,12 @@ test('money journal uses operation date and keeps kinds apart',async({page})=>{
   await expect(journal).not.toContainText('80 000');
   await page.getByLabel('Вид операции').selectOption('expense');
   await expect(journal).toContainText('Synthetic fuel');
+  const categoryChart=journal.getByRole('region',{name:'Расходы по категориям'});
+  await categoryChart.getByRole('button',{name:/Synthetic fuel/}).click();
+  await expect(page.getByLabel('Категория',{exact:true})).toHaveValue('Synthetic fuel');
+  await page.getByLabel('Категория',{exact:true}).selectOption('');
   await expect(journal.locator('.metric').filter({hasText:'Поступление'})).toContainText('Нет');
+  await showFilters(page);
   await page.getByLabel('С',{exact:true}).fill('25/10/2026');
   await page.getByLabel('По',{exact:true}).fill('25/10/2026');
   await expect(journal.getByText('Нет операций по выбранным условиям. Это не подтверждённый ноль.')).toBeVisible();
@@ -310,6 +327,6 @@ test('money journal uses operation date and keeps kinds apart',async({page})=>{
   await page.locator('.sidebar').getByRole('button',{name:'Деньги',exact:true}).click();
   await page.getByLabel('С',{exact:true}).fill('20/10/2026');
   await page.getByLabel('По',{exact:true}).fill('20/10/2026');
-  await journal.getByRole('button').filter({hasText:'Synthetic fuel'}).click();
+  await journal.locator('.money-entry').filter({hasText:'Synthetic fuel'}).click();
   await expect(page.getByRole('region',{name:'Просмотр отчёта'})).toBeVisible();
 });
