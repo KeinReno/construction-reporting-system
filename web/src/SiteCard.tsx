@@ -3,6 +3,7 @@ import { BASE, reportViewData, reportWorkState, equipmentOwnership, type Report,
 import { formatDate } from './date';
 import { ReportStatus } from './reports/ReportStatus';
 import { buildReportView, primaryWorks } from './reports/reportView';
+import { OwnerIcon } from './ui/OwnerIcon';
 
 const moneyKind = { expense: 'Расход', funding_received: 'Поступление', advance_issued: 'Аванс' } as const;
 const movementLabel = { received: 'Поступило', consumed: 'Израсходовано', mentioned: 'Упоминание' } as const;
@@ -62,7 +63,7 @@ export function SiteCard({ site, reports, ready, token, authorName, onOpen, onBa
     <div className="section-heading"><span className="muted">Сведения по объекту</span><button type="button" className="link-button" onClick={onBack}>Все объекты</button></div>
     {!ready ? <p className="empty">Загрузка сведений объекта…</p> : !ordered.length ? <p className="empty">За выбранные условия отчётов нет. Это не подтверждённый ноль работ.</p> : <>
       <header className="owner-object-brief">
-        <div><p className="muted">Последний отчёт · {formatDate(latest.data.work_date)} · {latestView?.statusLabel}</p>
+        <div><p className="owner-object-last"><OwnerIcon name="calendar"/> Последний отчёт · {formatDate(latest.data.work_date)} <ReportStatus status={latest.status} label={latestView?.statusLabel || ''} archive={latest.origin==='imported'}/></p>
           {reportWorkState(latest) === 'no_work' ? <p>Работ не было: {latest.data.no_work_reason || 'причина не указана'}</p> : <p>{latestWorks.length ? latestWorks.slice(0,2).map(work => work.description || work.type).join('; ') : 'Работы не указаны'}</p>}
           {latestData?.incidents?.[0] && <p>Указано в отчёте: {latestData.incidents[0].description}</p>}
           {latestData?.next_shift_plans?.[0] && <p>План следующей смены: {latestData.next_shift_plans[0]}</p>}
@@ -70,12 +71,12 @@ export function SiteCard({ site, reports, ready, token, authorName, onOpen, onBa
         </div><p className="owner-object-period">{ordered.length} отчётов · {periods}<br/>{photos.length} фото с подтверждённой связью</p>
       </header>
       <nav className="owner-object-nav" aria-label="Разделы объекта">
-        {([['overview','Обзор'],['work','Работы и отчёты'],['photos','Фотографии'],['money','Деньги'],['resources','Материалы и техника']] as [Section,string][]).map(([key,label])=><button key={key} type="button" aria-pressed={section===key} onClick={()=>setTab(key)}>{label}</button>)}
+        {([['overview','Обзор','chart'],['work','Работы и отчёты','reports'],['photos','Фотографии','photo'],['money','Деньги','money'],['resources','Материалы и техника','work']] as const).map(([key,label,icon])=><button key={key} type="button" aria-pressed={section===key} onClick={()=>setTab(key)}><OwnerIcon name={icon}/>{label}</button>)}
       </nav>
       {section==='overview' && <div className="site-overview" aria-label="Обзор объекта">
         <div className="site-overview-main">
           <section aria-label="Последние отчёты объекта">
-            <div className="owner-section-heading"><h3>Последние отчёты</h3><button type="button" className="link-button" onClick={()=>setTab('work')}>Все отчёты · {ordered.length}</button></div>
+            <div className="owner-section-heading"><h3><span className="owner-section-icon"><OwnerIcon name="reports"/></span>Последние отчёты</h3><button type="button" className="link-button" onClick={()=>setTab('work')}>Все отчёты · {ordered.length}</button></div>
             <div className="site-overview-reports">{ordered.slice(0,4).map(report => {
               const data=reportViewData(report); const works=primaryWorks(report);
               const view=buildReportView(report,site.name,authorName(report.author_login));
@@ -87,20 +88,20 @@ export function SiteCard({ site, reports, ready, token, authorName, onOpen, onBa
             })}</div>
           </section>
           <section aria-label="Последние фотографии объекта" className="site-overview-photos">
-            <div className="owner-section-heading"><h3>Фотографии</h3><button type="button" className="link-button" onClick={()=>setTab('photos')}>Все фото</button></div>
+            <div className="owner-section-heading"><h3><span className="owner-section-icon"><OwnerIcon name="photo"/></span>Фотографии</h3><button type="button" className="link-button" onClick={()=>setTab('photos')}>Все фото</button></div>
             {photos.length ? photoList(photos.slice(0,4),'direct') : <p className="empty">Фото с подтверждённой связью не найдены за выбранный период.</p>}
             {!!possiblePhotos.length && <p className="site-overview-note">Есть фото за даты отчётов; их связь требует проверки. <button type="button" className="link-button" onClick={()=>setTab('photos')}>Посмотреть</button></p>}
           </section>
         </div>
         <aside className="site-overview-side">
           <section aria-label="Деньги в обзоре объекта">
-            <div className="owner-section-heading"><h3>Деньги</h3><button type="button" className="link-button" onClick={()=>setTab('money')}>Подробнее</button></div>
+            <div className="owner-section-heading"><h3><span className="owner-section-icon"><OwnerIcon name="money"/></span>Деньги</h3><button type="button" className="link-button" onClick={()=>setTab('money')}>Подробнее</button></div>
             <p className="site-overview-note">В отчётах за выбранные даты смен</p>
             <dl className="site-overview-money">{(['expense','funding_received','advance_issued'] as const).map(kind=><div key={kind}><dt>{moneyKind[kind]}</dt><dd>{counts[kind] ? money(totals[kind]) : 'Не указано'}</dd></div>)}</dl>
             <p className="site-overview-note">Дата операции может отличаться от даты смены. Остаток не рассчитан.</p>
           </section>
           <section aria-label="События из отчётов" className="site-overview-events">
-            <div className="owner-section-heading"><h3>События из отчётов</h3></div>
+            <div className="owner-section-heading"><h3><span className="owner-section-icon owner-section-icon-event"><OwnerIcon name="event"/></span>События из отчётов</h3></div>
             {incidents.length ? <><p className="site-overview-note">Последние указанные события за выбранный период</p><div>{incidents.slice(0,3).map(({incident,report,index})=><button className="site-overview-event" type="button" key={`${report.id}-${index}`} onClick={()=>onOpen(report)}><time dateTime={report.data.work_date}>{formatDate(report.data.work_date)}</time><span>{incident.description}</span><small>Открыть отчёт →</small></button>)}</div>{incidents.length>3 && <button type="button" className="link-button" onClick={()=>setTab('work')}>Все отчёты</button>}</> : <p className="empty">События в выбранных отчётах не указаны.</p>}
           </section>
         </aside>

@@ -19,7 +19,10 @@ import { CrCombobox } from './ui/CrCombobox';
 import { CrDateField } from './ui/CrDateField';
 import { CrReportChart } from './ui/CrReportChart';
 import { CrBreadcrumbs } from './ui/CrBreadcrumbs';
+import { OwnerIcon } from './ui/OwnerIcon';
+import { OwnerActivity } from './OwnerActivity';
 import './design/owner-simple.css';
+import './design/owner-visual.css';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
 type Page = 'overview' | 'objects' | 'reports' | 'money' | 'analytics' | 'ai' | 'admin';
@@ -209,11 +212,20 @@ export default function App() {
          page === 'ai' && (startDate.startsWith('!') || endDate.startsWith('!') || (!!startDate && !!endDate && startDate>endDate)) ? <p className="error">Исправьте период перед формированием анализа.</p> :
          page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={openById} siteName={siteName}/> : <>
           {page==='overview' && <section className="owner-home" aria-label="Объекты и отчёты">
-            <div className="owner-home-top"><div><h2>Объекты</h2><p>Доступные вам объекты</p></div><button className="owner-text-button" onClick={()=>{setSiteId('all');navigate('objects');}}>Все объекты</button></div>
-            {dataCurrent ? <div className="owner-sites">{sites.map(site=>{const latest=latestReport(site.id);const data=latest?reportViewData(latest):null;const works=latest?primaryWorks(latest):[];return <button key={site.id} className="owner-site" onClick={()=>{setSiteId(site.id);navigate('objects');}}><span><strong>{site.name}</strong><small>{latest?`Последний отчёт: ${dateText(latest.data.work_date)}`:'Отчётов пока нет'}</small>{latest && <span className="owner-site-result">{reportWorkState(latest)==='no_work'?`Работ не было: ${data?.no_work_reason||'причина не указана'}`:works.length?works.slice(0,2).map(w=>w.description||w.type).join('; '):'Работы не указаны'}</span>}{data?.incidents?.[0]&&<small>Указано событие: {data.incidents[0].description}</small>}</span><span aria-hidden="true">→</span></button>;})}{!sites.length&&<p>Доступных объектов пока нет.</p>}</div> : <p>{error?'Не удалось загрузить объекты.':'Загрузка объектов…'}</p>}
-            <div className="owner-home-top owner-report-heading"><div><h2>Последние отчёты</h2><p>{dataCurrent?(needsReview?`Ожидают проверки: ${needsReview}`:'Нет новых отчётов на проверку'):error?'Не удалось загрузить отчёты.':'Загрузка отчётов…'}</p></div><button className="owner-text-button" onClick={()=>navigate('reports')}>Все отчёты</button></div>
-            {dataCurrent && <ReportsJournal reports={overviewReports} token={token} siteName={siteName} authorName={displayAuthor} title="Последние отчёты" intro="Сначала отчёты, ожидающие проверки" archive={false} compact onOpen={openReport} />}
-            <div className="owner-home-links"><button onClick={()=>navigate('analytics')}><strong>Работы и аналитика</strong><span>Объёмы и исходные отчёты →</span></button><button onClick={()=>navigate('money')}><strong>Деньги</strong><span>Расходы, поступления и авансы →</span></button></div>
+            <div className="owner-snapshot" aria-label="Сводка по доступным данным">
+              <div className="owner-snapshot-item"><span className="owner-snapshot-icon"><OwnerIcon name="building"/></span><span><small>Объекты</small><strong>{dataCurrent?sites.length:'—'}</strong></span></div>
+              <div className="owner-snapshot-item"><span className="owner-snapshot-icon"><OwnerIcon name="reports"/></span><span><small>Получено отчётов</small><strong>{dataCurrent?received.length:'—'}</strong></span></div>
+              <div className="owner-snapshot-item"><span className={`owner-snapshot-icon ${dataCurrent && needsReview?'is-attention':''}`}><OwnerIcon name="review"/></span><span><small>На проверке</small><strong>{dataCurrent?needsReview:'—'}</strong></span></div>
+            </div>
+            <div className="owner-home-dashboard"><div className="owner-home-main">
+              <div className="owner-home-top"><div><h2>Объекты</h2><p>Последние записи по каждому объекту</p></div><button className="owner-text-button" onClick={()=>{setSiteId('all');navigate('objects');}}>Все объекты</button></div>
+              {dataCurrent ? <div className="owner-sites">{sites.map(site=>{const latest=latestReport(site.id);const data=latest?reportViewData(latest):null;const works=latest?primaryWorks(latest):[];return <button key={site.id} className="owner-site" onClick={()=>{setSiteId(site.id);navigate('objects');}}><span className="owner-site-copy"><span className="owner-site-heading"><span className="owner-site-icon"><OwnerIcon name="building"/></span><strong>{site.name}</strong></span><small>{latest?`Последний отчёт: ${dateText(latest.data.work_date)}`:'Отчётов пока нет'}</small>{latest && <span className="owner-site-result">{reportWorkState(latest)==='no_work'?`Работ не было: ${data?.no_work_reason||'причина не указана'}`:works.length?works.slice(0,2).map(w=>w.description||w.type).join('; '):'Работы не указаны'}</span>}{data?.incidents?.[0]&&<small className="owner-site-event">Указано событие: {data.incidents[0].description}</small>}</span><span className="owner-site-arrow"><OwnerIcon name="arrow"/></span></button>;})}{!sites.length&&<p>Доступных объектов пока нет.</p>}</div> : <p>{error?'Не удалось загрузить объекты.':'Загрузка объектов…'}</p>}
+              <div className="owner-home-top owner-report-heading"><div><h2>Последние отчёты</h2><p>{dataCurrent?(needsReview?`Ожидают проверки: ${needsReview}`:'Нет новых отчётов на проверку'):error?'Не удалось загрузить отчёты.':'Загрузка отчётов…'}</p></div><button className="owner-text-button" onClick={()=>navigate('reports')}>Все отчёты</button></div>
+              {dataCurrent && <ReportsJournal reports={overviewReports} token={token} siteName={siteName} authorName={displayAuthor} title="Последние отчёты" intro="Сначала отчёты, ожидающие проверки" archive={false} compact onOpen={openReport} />}
+            </div><aside className="owner-home-aside">
+              {dataCurrent ? <OwnerActivity reports={received} siteName={siteName} onOpen={openReport}/> : <div className="owner-widget-loading">{error?'Данные графика не загружены.':'Загрузка графика…'}</div>}
+              <div className="owner-home-links"><button onClick={()=>navigate('analytics')}><span className="owner-link-icon"><OwnerIcon name="chart"/></span><span><strong>Работы и аналитика</strong><small>Объёмы и исходные отчёты</small></span><OwnerIcon name="arrow"/></button><button onClick={()=>navigate('money')}><span className="owner-link-icon"><OwnerIcon name="money"/></span><span><strong>Деньги</strong><small>Расходы, поступления и авансы</small></span><OwnerIcon name="arrow"/></button></div>
+            </aside></div>
           </section>}
            {(page==='reports') && <div className="journal-workspace wb-journal-workspace">
           {(page==='reports') && (dataCurrent || visible.length ? <ReportsJournal
