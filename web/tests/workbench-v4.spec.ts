@@ -16,6 +16,7 @@ test('desktop simplified home presents objects and reports with accessible actio
   await expect(home.getByRole('button',{name:/^Synthetic site A Последний отчёт:/})).toBeVisible();
   await expect(home.getByRole('button',{name:/Открыть отчёт за/}).first()).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:'test-results/crs-owner-latest-1920.png',fullPage:true});
 });
 
 test('mobile simplified home remains readable and navigation usable',async({page})=>{
@@ -23,6 +24,7 @@ test('mobile simplified home remains readable and navigation usable',async({page
   await expect(page.locator('.crs-sidebar')).toBeHidden();
   await expect(page.getByRole('heading',{name:'Объекты и отчёты'})).toBeVisible();
   await expect(page.getByRole('region',{name:'Последние отчёты'})).toBeVisible();
+  await page.screenshot({path:'test-results/crs-owner-latest-390.png',fullPage:true});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.getByRole('button',{name:'Дополнительные разделы'}).click();
   await expect(page.getByRole('menu',{name:'Дополнительные разделы'})).toBeVisible();

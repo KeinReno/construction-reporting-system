@@ -152,6 +152,10 @@ class Ask(Input):
     intent:Literal["auto","summary","work_volume","no_work","site_timeline","incidents","materials","finance","equipment"]="summary"
     filters:AnalyticsFilters=Field(default_factory=AnalyticsFilters)
 
+class AIChat(Input):
+    question:str=Field(min_length=1,max_length=800)
+    filters:AnalyticsFilters=Field(default_factory=AnalyticsFilters)
+
 def stamp(value):
     if value is None:return None
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
@@ -361,7 +365,9 @@ def create_app(database_url=None, storage=None, initialize=False):
         if u.role!='admin':q=q.join(Assignment,Assignment.site_id==Report.site_id).where(Assignment.user_id==u.id)
         if u.role=='foreman':q=q.where(Report.author_id==u.id)
         authors={}
-        for row in db.execute(q.distinct().order_by(User.login,User.id)).all():
+        # PostgreSQL has no equality operator for JSON: DISTINCT over ReportSource.payload fails.
+        # Deduplicate author IDs in the existing dictionary; keep all rows for imported_only.
+        for row in db.execute(q.order_by(User.login,User.id)).all():
             item=authors.setdefault(row.id,{'id':row.id,'login':row.login,'imported_only':True})
             if not imported_origin(row.payload):item['imported_only']=False
         return list(authors.values())
@@ -619,6 +625,27 @@ def create_app(database_url=None, storage=None, initialize=False):
         target=folder/filename
         if target.is_symlink() or not target.is_file():raise HTTPException(503,'Photo missing from storage')
         return FileResponse(target,media_type='image/jpeg',headers={'Cache-Control':'private, no-store'})
+    @api.get('/api/v1/ai/status')
+    def get_ai_status(u:User=Depends(current)):
+        if u.role not in ('manager','admin'):
+            raise HTTPException(403,'Manager role required')
+        from app.ai_provider import status
+        return status()
+
+    @api.post('/api/v1/ai/chat')
+    def chat_ai(data:AIChat,db:Session=Depends(dbdep),u:User=Depends(current)):
+        if u.role not in ('manager','admin'):
+            raise HTTPException(403,'Manager role required')
+        from app.ai_provider import answer, AIUnavailable
+        f=data.filters
+        work=analytic_rows(db,u,f.site_id,f.from_date,f.to_date,f.author_id)
+        money=analytic_rows(db,u,f.site_id,f.from_date,f.to_date,f.author_id,by_work_date=False)
+        result=metrics(work,f.from_date,f.to_date,money)
+        try:
+            return answer(data.question,result,u.id)
+        except AIUnavailable as exc:
+            raise HTTPException(status_code=503,detail=str(exc)) from None
+
     @api.post('/api/v1/analytics/ask')
     def ask(data:Ask,db:Session=Depends(dbdep),u:User=Depends(current)):
         f=data.filters

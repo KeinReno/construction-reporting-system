@@ -36,3 +36,11 @@ jobs:
           path: web/test-results/workbench-v4-*.png
           if-no-files-found: error
           retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: success() && github.ref_name == 'feat/crs-demo-readiness-20261104'
+        with:
+          name: crs-latest-ui-screenshots
+          path: web/test-results/crs-*.png
+          if-no-files-found: error
+          retention-days: 14
