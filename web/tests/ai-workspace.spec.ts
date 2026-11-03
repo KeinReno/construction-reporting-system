@@ -8,6 +8,7 @@ async function login(page:import('@playwright/test').Page){
 }
 
 test('analytics workspace reports truthful model status and keeps source navigation',async({page})=>{
+  await page.setViewportSize({width:1440,height:900});
   await login(page);
   await page.getByRole('button',{name:'Готовые сводки',exact:true}).first().click();
   const workspace=page.getByRole('region',{name:'Аналитический центр CRS'});
@@ -17,6 +18,7 @@ test('analytics workspace reports truthful model status and keeps source navigat
   await workspace.getByRole('button',{name:'Сформировать анализ'}).click();
   await expect(workspace.getByRole('heading',{name:/Указано событий: 1/})).toBeVisible();
   await expect(workspace.getByRole('button',{name:/Synthetic incident/})).toBeVisible();
+  await page.screenshot({path:'test-results/crs-ai-latest-1440.png',fullPage:true});
   await workspace.getByRole('button',{name:'Отчёт 1',exact:true}).click();
   await expect(page.getByRole('region',{name:'Просмотр отчёта'})).toContainText('Synthetic incident');
 });
@@ -27,6 +29,7 @@ test('analytics workspace stays within 390px viewport',async({page})=>{
   await page.getByRole('button',{name:'Дополнительные разделы'}).click();
   await page.getByRole('menuitem',{name:'Готовые сводки'}).click();
   await expect(page.getByRole('region',{name:'Аналитический центр CRS'})).toBeVisible();
+  await page.screenshot({path:'test-results/crs-ai-latest-390.png',fullPage:true});
   const dimensions=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,viewport:window.innerWidth}));
   expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.viewport+1);
 });
