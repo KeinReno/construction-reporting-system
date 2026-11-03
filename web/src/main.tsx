@@ -1,4 +1,4 @@
-import React from "react";
+import React, {lazy,Suspense} from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "@fontsource/ibm-plex-sans/400.css";
@@ -26,4 +26,6 @@ import "./design/shark-finish.css";
 import "./design/visual-v3.css";
 import "./design/workbench-v4.css";
 
-createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);
+const EmployeeApp=lazy(()=>import('./employee/EmployeeApp'));
+const employeeMode=new URLSearchParams(window.location.search).get('mode')==='employee';
+createRoot(document.getElementById("root")!).render(<React.StrictMode>{employeeMode?<Suspense fallback={<p>Открываем отчёт за смену…</p>}><EmployeeApp/></Suspense>:<App />}</React.StrictMode>);

@@ -1,2 +1,6 @@
 import { defineConfig } from 'vite';
-export default defineConfig({ server: { proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: false } } } });
+// Optional local employee preview; browser assets never contain this server address.
+export default defineConfig(() => {
+  const proxy = { '/api': { target: process.env.CRS_API_PROXY || 'http://127.0.0.1:8000', changeOrigin: false } };
+  return { server: { proxy }, preview: { proxy } };
+});
