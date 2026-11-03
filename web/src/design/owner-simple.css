@@ -57,3 +57,38 @@
 .owner-simple .owner-journal-status span{margin-left:auto;font-size:13px;color:#b6c5c2}
 .owner-simple .owner-analytics-totals{display:flex;flex-wrap:wrap;gap:12px 24px;margin:12px 0 18px;color:#b6c5c2}.owner-simple .owner-analytics-totals strong{color:#f2f3ee}
 @media(max-width:420px){.auth-card{padding:26px 22px}.auth-card .brand-dark{font-size:20px;letter-spacing:.2px;white-space:normal}.auth-card .brand-mark{flex:0 0 32px}}
+
+/* A compact overview keeps the report feed and its context visible together. */
+.owner-simple .site-page{padding-top:20px}
+.owner-simple .site-page .crs-breadcrumbs{margin-bottom:10px}
+.owner-simple .site-page .wb-masthead{padding-bottom:14px;margin-bottom:14px}
+.owner-simple .site-page .wb-masthead h1{font-size:32px;letter-spacing:-.02em}
+.owner-simple .site-page .wb-masthead p{margin-top:0}
+.owner-simple .site-page .owner-object{gap:12px}
+.owner-simple .site-page .owner-object-brief{padding:12px 0}
+.owner-simple .site-page .owner-object-brief p{margin-bottom:5px}
+.owner-simple .site-page .owner-object-nav{padding-bottom:8px}
+.owner-simple .site-overview{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(250px,.8fr);gap:32px;align-items:start;min-width:0}
+.owner-simple .site-overview-main,.owner-simple .site-overview-side{display:grid;gap:28px;min-width:0}
+.owner-simple .site-overview section{min-width:0;align-content:start}
+.owner-simple .site-overview-reports{border-top:1px solid #415654}
+.owner-simple .site-overview-report{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:12px;align-items:start;width:100%;padding:14px 4px;border:0;border-bottom:1px solid #39494f;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.owner-simple .site-overview-report:hover,.owner-simple .site-overview-event:hover{background:#243b3b}
+.owner-simple .site-overview-date,.owner-simple .site-overview-event time{color:#f3c57e;font-size:12px;font-variant-numeric:tabular-nums}
+.owner-simple .site-overview-report-body{display:grid;gap:5px;min-width:0;line-height:1.45;overflow-wrap:anywhere}
+.owner-simple .site-overview-report-body strong{font-size:14px;font-weight:600}
+.owner-simple .site-overview-report-body small,.owner-simple .site-overview-note,.owner-simple .site-overview-event small{color:#b6c5c2;font-size:12px;line-height:1.5}
+.owner-simple .site-overview-report-action{color:#f3c57e;font-size:12px;white-space:nowrap}
+.owner-simple .site-overview-photos .object-photos{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.owner-simple .site-overview-photos .object-photo{min-height:0;aspect-ratio:4/3;cursor:pointer}
+.owner-simple .site-overview-photos .object-photo img{height:100%;aspect-ratio:4/3;object-fit:cover}
+.owner-simple .site-overview-photos figcaption{font-size:11px;line-height:1.35}
+.owner-simple .site-overview-note{margin:0}
+.owner-simple .site-overview-money{margin:0;border-top:1px solid #415654}
+.owner-simple .site-overview-money div{display:flex;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid #39494f}
+.owner-simple .site-overview-money dt{color:#b6c5c2}.owner-simple .site-overview-money dd{margin:0;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.owner-simple .site-overview-events{border-top:1px solid #415654;padding-top:20px}
+.owner-simple .site-overview-event{display:grid;gap:4px;width:100%;padding:11px 4px;border:0;border-top:1px solid #39494f;background:transparent;color:inherit;text-align:left;font:inherit;overflow-wrap:anywhere;cursor:pointer}
+.owner-simple .site-overview-event small{color:#f3c57e}
+@media(max-width:900px){.owner-simple .site-overview{grid-template-columns:1fr;gap:26px}.owner-simple .site-overview-side{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.owner-simple .site-overview-events{border-top:0;padding-top:0}}
+@media(max-width:600px){.owner-simple .site-overview-side{grid-template-columns:1fr}.owner-simple .site-overview-events{border-top:1px solid #415654;padding-top:20px}.owner-simple .site-overview-report{grid-template-columns:78px minmax(0,1fr);gap:8px}.owner-simple .site-overview-report-action{grid-column:2}.owner-simple .site-overview-photos .object-photos{grid-template-columns:repeat(2,minmax(0,1fr))}}

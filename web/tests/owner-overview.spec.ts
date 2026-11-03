@@ -41,7 +41,31 @@ test('object overview and date filters keep the common history reachable',async(
   await expect(page.getByRole('combobox',{name:'Автор',exact:true}).locator('option').filter({hasText:'Оператор переноса'})).toHaveCount(1);
   await page.getByLabel('С',{exact:true}).fill('');
   const site=page.getByRole('article',{name:'Карточка объекта Synthetic site A'});
+  await site.getByRole('button',{name:'Работы и отчёты',exact:true}).click();
   await expect(site.locator('.object-timeline-item')).toHaveCount(2);
   await site.getByRole('button',{name:'Открыть отчёт',exact:true}).first().click();
   await expect(page.getByRole('region',{name:'Просмотр отчёта'})).toContainText('Synthetic weld');
+});
+
+test('object overview connects dated events and separate money totals to the source report',async({page})=>{
+  await signIn(page);
+  await page.getByRole('region',{name:'Объекты и отчёты'}).getByRole('button',{name:/^Synthetic site A Последний отчёт:/}).click();
+  const site=page.getByRole('article',{name:'Карточка объекта Synthetic site A'});
+  const reports=site.getByRole('region',{name:'Последние отчёты объекта'});
+  await expect(reports).toContainText('Synthetic work description');
+  const money=site.getByRole('region',{name:'Деньги в обзоре объекта'});
+  await expect(money).toContainText('125,50');
+  await expect(money).toContainText('Поступление');
+  await expect(money).toContainText('Не указано');
+  await expect(money).toContainText('Остаток не рассчитан');
+  const events=site.getByRole('region',{name:'События из отчётов'});
+  const event=events.getByRole('button',{name:/Synthetic incident/});
+  await expect(event).toContainText('25/10/2026');
+  await event.click();
+  const detail=page.getByRole('region',{name:'Просмотр отчёта'});
+  await expect(detail.getByText('Synthetic incident',{exact:true})).toBeVisible();
+  await detail.getByRole('button',{name:'← Назад'}).click();
+  await expect(events).toBeVisible();
+  await money.getByRole('button',{name:'Подробнее'}).click();
+  await expect(site.getByRole('region',{name:'Деньги объекта'})).toContainText('20/10/2026');
 });

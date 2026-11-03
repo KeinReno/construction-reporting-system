@@ -6,7 +6,7 @@ import { buildReportView, primaryWorks } from './reports/reportView';
 
 const moneyKind = { expense: 'Расход', funding_received: 'Поступление', advance_issued: 'Аванс' } as const;
 const movementLabel = { received: 'Поступило', consumed: 'Израсходовано', mentioned: 'Упоминание' } as const;
-type Section = 'work' | 'photos' | 'money' | 'resources';
+type Section = 'overview' | 'work' | 'photos' | 'money' | 'resources';
 type Photo = { id: string; report: Report; relation: 'direct' | 'date' };
 const money = (kopecks: number) => new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(kopecks / 100);
 
@@ -28,13 +28,13 @@ export function SiteCard({ site, reports, ready, token, authorName, onOpen, onBa
   authorName: (login: string | null | undefined) => string;
   onOpen: (report: Report) => void; onBack: () => void; onMoney: () => void;
 }) {
-  const [section, setSection] = useState<Section>('work');
+  const [section, setSection] = useState<Section>('overview');
   const [showAllWork, setShowAllWork] = useState(false);
   const [showAllPhotos, setShowAllPhotos] = useState(false);
   const [showAllResources, setShowAllResources] = useState(false);
   const [photoIndex, setPhotoIndex] = useState<number | null>(null);
   const [photoGroup, setPhotoGroup] = useState<'direct' | 'date'>('direct');
-  useEffect(() => { setSection('work'); setShowAllWork(false); setShowAllPhotos(false); setShowAllResources(false); setPhotoIndex(null); }, [site.id]);
+  useEffect(() => { setSection('overview'); setShowAllWork(false); setShowAllPhotos(false); setShowAllResources(false); setPhotoIndex(null); }, [site.id]);
   const ordered = [...reports].sort((a, b) => b.data.work_date.localeCompare(a.data.work_date) || b.revision - a.revision);
   const latest = ordered[0];
   const latestView = latest ? buildReportView(latest, site.name, authorName(latest.author_login)) : null;
@@ -42,6 +42,7 @@ export function SiteCard({ site, reports, ready, token, authorName, onOpen, onBa
   const possiblePhotos: Photo[] = ordered.flatMap(report => (report.evidence?.photos || []).filter(p => p.relation === 'same_work_date').map(p => ({id:p.id,report,relation:'date' as const})));
   const activePhotos = photoGroup === 'direct' ? photos : possiblePhotos;
   const operations = ordered.filter(report => !!report.receipt_id && ['submitted','reviewed','needs_revision'].includes(report.status)).flatMap(report => (reportViewData(report).financial_entries ?? []).map(entry => ({ ...entry, report })));
+  const incidents = ordered.flatMap(report => (reportViewData(report).incidents ?? []).map((incident,index) => ({ incident, report, index })));
   const totals = { expense: 0, funding_received: 0, advance_issued: 0 }; const counts = { expense: 0, funding_received: 0, advance_issued: 0 };
   for (const entry of operations) { totals[entry.kind] += entry.amount_kopecks; counts[entry.kind] += 1; }
   const materials = ordered.flatMap(report => (reportViewData(report).materials ?? []).map((row, index) => ({ row, report, index })));
@@ -69,8 +70,41 @@ export function SiteCard({ site, reports, ready, token, authorName, onOpen, onBa
         </div><p className="owner-object-period">{ordered.length} отчётов · {periods}<br/>{photos.length} фото с подтверждённой связью</p>
       </header>
       <nav className="owner-object-nav" aria-label="Разделы объекта">
-        {([['work','Работы и отчёты'],['photos','Фотографии'],['money','Деньги'],['resources','Материалы и техника']] as [Section,string][]).map(([key,label])=><button key={key} type="button" aria-pressed={section===key} onClick={()=>setTab(key)}>{label}</button>)}
+        {([['overview','Обзор'],['work','Работы и отчёты'],['photos','Фотографии'],['money','Деньги'],['resources','Материалы и техника']] as [Section,string][]).map(([key,label])=><button key={key} type="button" aria-pressed={section===key} onClick={()=>setTab(key)}>{label}</button>)}
       </nav>
+      {section==='overview' && <div className="site-overview" aria-label="Обзор объекта">
+        <div className="site-overview-main">
+          <section aria-label="Последние отчёты объекта">
+            <div className="owner-section-heading"><h3>Последние отчёты</h3><button type="button" className="link-button" onClick={()=>setTab('work')}>Все отчёты · {ordered.length}</button></div>
+            <div className="site-overview-reports">{ordered.slice(0,4).map(report => {
+              const data=reportViewData(report); const works=primaryWorks(report);
+              const view=buildReportView(report,site.name,authorName(report.author_login));
+              return <button type="button" className="site-overview-report" key={report.id} onClick={()=>onOpen(report)}>
+                <span className="site-overview-date">{formatDate(report.data.work_date)}</span>
+                <span className="site-overview-report-body"><strong>{reportWorkState(report)==='no_work' ? `Работ не было: ${data.no_work_reason || 'причина не указана'}` : works.length ? works.slice(0,2).map(work=>work.description||work.type).join('; ') : 'Работы не указаны'}</strong><small>{data.crew || authorName(report.author_login)} · {view.statusLabel}</small></span>
+                <span className="site-overview-report-action">Открыть →</span>
+              </button>;
+            })}</div>
+          </section>
+          <section aria-label="Последние фотографии объекта" className="site-overview-photos">
+            <div className="owner-section-heading"><h3>Фотографии</h3><button type="button" className="link-button" onClick={()=>setTab('photos')}>Все фото</button></div>
+            {photos.length ? photoList(photos.slice(0,4),'direct') : <p className="empty">Фото с подтверждённой связью не найдены за выбранный период.</p>}
+            {!!possiblePhotos.length && <p className="site-overview-note">Есть фото за даты отчётов; их связь требует проверки. <button type="button" className="link-button" onClick={()=>setTab('photos')}>Посмотреть</button></p>}
+          </section>
+        </div>
+        <aside className="site-overview-side">
+          <section aria-label="Деньги в обзоре объекта">
+            <div className="owner-section-heading"><h3>Деньги</h3><button type="button" className="link-button" onClick={()=>setTab('money')}>Подробнее</button></div>
+            <p className="site-overview-note">В отчётах за выбранные даты смен</p>
+            <dl className="site-overview-money">{(['expense','funding_received','advance_issued'] as const).map(kind=><div key={kind}><dt>{moneyKind[kind]}</dt><dd>{counts[kind] ? money(totals[kind]) : 'Не указано'}</dd></div>)}</dl>
+            <p className="site-overview-note">Дата операции может отличаться от даты смены. Остаток не рассчитан.</p>
+          </section>
+          <section aria-label="События из отчётов" className="site-overview-events">
+            <div className="owner-section-heading"><h3>События из отчётов</h3></div>
+            {incidents.length ? <><p className="site-overview-note">Последние указанные события за выбранный период</p><div>{incidents.slice(0,3).map(({incident,report,index})=><button className="site-overview-event" type="button" key={`${report.id}-${index}`} onClick={()=>onOpen(report)}><time dateTime={report.data.work_date}>{formatDate(report.data.work_date)}</time><span>{incident.description}</span><small>Открыть отчёт →</small></button>)}</div>{incidents.length>3 && <button type="button" className="link-button" onClick={()=>setTab('work')}>Все отчёты</button>}</> : <p className="empty">События в выбранных отчётах не указаны.</p>}
+          </section>
+        </aside>
+      </div>}
       {section==='work' && <section className="object-zone" aria-label="Ход работ"><div className="owner-section-heading"><h3>Ход работ</h3><span>{ordered.length} отчётов за выбранный период</span></div><div className="object-timeline">
         {worksShown.map(report => { const data=reportViewData(report); const works=primaryWorks(report); return <article className="object-timeline-item" key={report.id}>
           <time dateTime={report.data.work_date}>{formatDate(report.data.work_date)}</time><div className="body"><span className="meta">{authorName(report.author_login)}{data.crew ? ` · ${data.crew}` : ''}</span>

@@ -196,7 +196,7 @@ export default function App() {
     />
     <div className="workspace">
       <WorkbenchTopbar pageTitle={pageTitle} user={profile?.login ? displayAuthor(profile.login) : 'Пользователь'} onLogout={() => {void http('/auth/logout',token,{method:'POST'}).catch(()=>{});endSession();setError('');}} />
-      <main className={`content`}>
+      <main className={`content${page==='objects' && siteId!=='all' ? ' site-page' : ''}`}>
         <div hidden={!!reportId}>
         {demo&&<div className="card"><strong>ДЕМО · локальная база</strong><p>{demo.notice}</p></div>}
         {page!=='overview' && <CrBreadcrumbs items={[{label:"СтройКонтроль",onSelect:()=>{navigate("overview");setSiteId("all");}},{label:pageTitle},...(page==="objects"&&siteId!=="all"?[{label:siteName(siteId)}]:[])]}/>}
