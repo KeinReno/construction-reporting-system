@@ -83,6 +83,11 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
     <div className="crs-ai-layout">
       <aside className="crs-ai-commands" aria-label="Темы анализа">
         <div className="crs-ai-section-title"><span>01 / ЗАПРОС</span><strong>Что исследуем?</strong></div>
+        <label className="crs-ai-select-wrap">Вид анализа
+          <select value={intent} onChange={e=>{setIntent(e.target.value as Mode);setError('');}} disabled={busy}>
+            {modes.map(mode=><option value={mode.id} key={mode.id}>{mode.title}</option>)}
+          </select>
+        </label>
         <div className="crs-ai-modes">
           {modes.map(mode=><button type="button" key={mode.id} className={intent===mode.id?'is-active':''}
             aria-pressed={intent===mode.id} disabled={busy} onClick={()=>{setIntent(mode.id);setError('');}}>
@@ -101,7 +106,7 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
         <form className="crs-ai-prompt" onSubmit={ask}>
           <label htmlFor="crs-ai-question">{intent==='auto'?'Вопрос по доступным шаблонам':heading(intent)}</label>
           {intent==='auto' ? <textarea id="crs-ai-question" maxLength={1000} rows={3}
-            placeholder="Например: какие простои повторяются?" value={question} onChange={e=>setQuestion(e.target.value)}/> :
+            aria-label="Вопрос (сохраняется только на экране)" placeholder="Например: какие простои повторяются?" value={question} onChange={e=>setQuestion(e.target.value)}/> :
             <p>Сервер выполнит расчёт по выбранной теме и покажет подтверждающие записи.</p>}
           <div className="crs-ai-prompt-actions">
             <span>{intent==='auto'?'Свободный диалог с GPT ещё не включён.':'Цифры рассчитываются сервером, не языковой моделью.'}</span>
@@ -126,7 +131,7 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
                 <h3>{current?.title||'Результат'}</h3></div>
               <span className="crs-ai-count">{sources.length} источн.</span>
             </div>
-            <p className="crs-ai-answer-text">{answer.answer}</p>
+            <h4 className="crs-ai-answer-text">{answer.answer}</h4>
             <p className="crs-ai-period">Период: {date(answer.period.from_date)} — {date(answer.period.to_date)}</p>
             {metrics&&<div className="crs-ai-evidence">
               <div className="crs-ai-kpis">
@@ -146,6 +151,13 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
               </ul><p className="crs-ai-muted">Остаток не рассчитывается без начального баланса.</p></section>}
               {answer.intent==='materials'&&<section><h4>Учтённые движения материалов</h4>
                 {metrics.material_movements.length?<ul className="crs-ai-fact-list">{metrics.material_movements.map((row,i)=><li key={i}><span>{row.name}<small>{row.direction==='received'?'Поступило':'Израсходовано'}</small></span><strong>{row.quantity} {row.unit}</strong></li>)}</ul>:<p className="crs-ai-muted">Движений не учтено. Упоминания материалов сами по себе не означают расход.</p>}
+              <h4 className="crs-ai-secondary-heading">Первичные записи материалов</h4>
+                <ul className="crs-ai-fact-list">{metrics.materials.map((item,i)=><li key={i}>
+                  <button type="button" onClick={()=>onSource(item.report_id)}>
+                    {(item.direction==='received'?'Поступило':item.direction==='consumed'?'Израсходовано':'Упомянуто')+': '+item.name+
+                      (item.quantity!==null?' · '+item.quantity+' '+(item.unit||''):item.unit?' · '+item.unit:'')} ↗
+                  </button>
+                </li>)}</ul>
               </section>}
               {answer.intent==='incidents'&&<section><h4>Заявленные события</h4>
                 {metrics.incidents.length?<ul className="crs-ai-fact-list">{metrics.incidents.slice(0,20).map((item,i)=><li key={i}>
