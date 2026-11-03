@@ -154,8 +154,8 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
               <h4 className="crs-ai-secondary-heading">Первичные записи материалов</h4>
                 <ul className="crs-ai-fact-list">{metrics.materials.map((item,i)=><li key={i}>
                   <button type="button" onClick={()=>onSource(item.report_id)}>
-                    {(item.direction==='received'?'Поступило':item.direction==='consumed'?'Израсходовано':'Упомянуто')+': '+item.name+
-                      (item.quantity!==null?' · '+item.quantity+' '+(item.unit||''):item.unit?' · '+item.unit:'')} ↗
+                    <span>{(item.direction==='received'?'Поступило':item.direction==='consumed'?'Израсходовано':'Упомянуто')+': '+item.name+
+                      (item.quantity!==null?' · '+item.quantity+' '+(item.unit||''):item.unit?' · '+item.unit:'')}</span><span aria-hidden="true"> ↗</span>
                   </button>
                 </li>)}</ul>
               </section>}
