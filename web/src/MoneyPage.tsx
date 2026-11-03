@@ -53,7 +53,7 @@ export function MoneyPage({
       active = false;
     };
   }, [token, siteId, authorId]);
-  const invalid = fromDate.startsWith('!') || toDate.startsWith('!');
+  const invalid = fromDate.startsWith('!') || toDate.startsWith('!') || (!!fromDate && !!toDate && fromDate > toDate);
   const delivered = (reports ?? []).filter(
     report => !!report.receipt_id && ['submitted', 'reviewed', 'needs_revision'].includes(report.status)
   );
@@ -66,16 +66,14 @@ export function MoneyPage({
         (!toDate || entry.operation_date <= toDate)
     )
     .sort((a, b) => b.operation_date.localeCompare(a.operation_date) || b.id.localeCompare(a.id));
+  const categories = [...new Set(operations.map(entry => entry.category))].sort();
+  const list = operations.filter(entry => (!kind || entry.kind === kind) && (!category || entry.category === category));
   const totals = { expense: 0, funding_received: 0, advance_issued: 0 };
   const counts = { expense: 0, funding_received: 0, advance_issued: 0 };
-  for (const entry of operations) {
+  for (const entry of list) {
     totals[entry.kind] += entry.amount_kopecks;
     counts[entry.kind] += 1;
   }
-  const categories = [...new Set(operations.map(entry => entry.category))].sort();
-  const list = operations.filter(
-    entry => (!kind || entry.kind === kind) && (!category || entry.category === category)
-  );
 
   return (
     <section className="money-page" aria-label="Журнал денежных операций">
@@ -84,7 +82,7 @@ export function MoneyPage({
         <p className="muted">
           Фильтр дат относится к указанной дате операции. Для разобранных исторических расходов без даты оплаты
           используется дата отчёта с отдельной пометкой. Работы считаются по дате смены.
-          Суммы трёх видов не складываются и не образуют остаток.
+          В журнал включены и операции отчётов, возвращённых на исправление. Суммы трёх видов не складываются и не образуют остаток.
         </p>
       </div>
       <div className="filters money-filters">
@@ -97,7 +95,7 @@ export function MoneyPage({
         </p>
       )}
       {!reports && !error && <CrSkeleton rows={5} label="Загрузка денежных операций" />}
-      {reports && (
+      {reports && !invalid && (
         <div className="metric-grid crs-money-kpis">
           {kinds.map(item => (
             <div className="metric" key={item}>

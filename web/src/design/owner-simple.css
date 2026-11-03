@@ -1,0 +1,24 @@
+.owner-simple .wb-nav-index,.owner-simple .wb-sidebar-build,.owner-simple .crs-sidebar-group-label,.owner-simple .wb-masthead-index {display:none!important}
+.owner-simple .owner-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin:18px 0 36px}
+.owner-simple .owner-heading h1{margin:0;font-size:clamp(28px,3vw,38px);line-height:1.2;letter-spacing:-.02em}
+.owner-simple .owner-heading p,.owner-simple .owner-home-top p{margin:8px 0 0;color:#b6c5c2}
+.owner-simple .owner-home{max-width:1120px}
+.owner-simple .owner-home-top{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:16px}
+.owner-simple .owner-home h2{font-size:21px;margin:0;line-height:1.25}
+.owner-simple .owner-text-button{background:none;border:0;color:#f3c57e;text-decoration:underline;text-underline-offset:4px;cursor:pointer;padding:10px 0;font-weight:600;white-space:nowrap}
+.owner-simple .owner-sites{border-top:1px solid #415654}
+.owner-simple .owner-site{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;background:transparent;border:0;border-bottom:1px solid #415654;padding:18px 4px;cursor:pointer;color:#edf4f0;font:inherit}
+.owner-simple .owner-site:hover,.owner-simple .owner-home-links button:hover{background:#243b3b}
+.owner-simple .owner-site strong,.owner-simple .owner-site small,.owner-simple .owner-home-links strong,.owner-simple .owner-home-links span{display:block}
+.owner-simple .owner-site small,.owner-simple .owner-home-links span{color:#b6c5c2;margin-top:5px;font-size:14px}
+.owner-simple .owner-report-heading{margin-top:42px}
+.owner-simple .owner-home .reports-journal-toolbar{display:none}
+.owner-simple .owner-home .reports-journal{padding:0;background:transparent;box-shadow:none;border:0}
+.owner-simple .owner-home-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:32px 0}
+.owner-simple .owner-home-links button{border:1px solid #415654;border-radius:8px;background:transparent;text-align:left;padding:20px;cursor:pointer;color:#edf4f0;font:inherit}
+.owner-simple :focus-visible{outline:3px solid #a87719;outline-offset:3px}
+@media(max-width:650px){.owner-simple .owner-heading{margin:12px 0 28px;align-items:center}.owner-simple .owner-heading h1{font-size:27px}.owner-simple .owner-heading p{font-size:14px}.owner-simple .owner-home-links{grid-template-columns:1fr}.owner-simple .owner-home-top{align-items:center}.owner-simple .owner-home-top p{font-size:14px}}
+
+.owner-simple .wb-overline,.owner-simple .wb-topbar-module,.owner-simple .wb-topbar-environment,.owner-simple .wb-section-number,.owner-simple .wb-section-detail{display:none!important}
+
+.owner-simple .owner-analytics-note{max-width:75ch;color:#d0ddd9;margin:0 0 24px;line-height:1.5}

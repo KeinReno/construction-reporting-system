@@ -92,13 +92,13 @@ export function ReportsJournal({
         </div>
       </div>
 
-      {!compact && !archive && authorGroups.length > 0 && <section className="journal-authors" aria-label="Отчёты по авторам">
+      {!compact && !archive && authorGroups.length > 0 && <details className="journal-authors" aria-label="Отчёты по авторам"><summary>Отчёты по авторам</summary>
         <div className="journal-authors-heading"><h3>Отчёты по авторам</h3><span>Все записи по выбранным фильтрам, включая черновики</span></div>
         <div className="journal-author-chart">{authorGroups.map(([key,group])=><button type="button" className="journal-author-bar" key={key} aria-pressed={activeAuthor===key} onClick={()=>setAuthorFilter(activeAuthor===key?null:key)}>
           <AuthorBadge id={group.id} label={group.label}/><span className="journal-author-track" aria-hidden="true"><span style={{width:`${group.count / authorGroups[0][1].count * 100}%`}}/></span><strong>{group.count}</strong>
         </button>)}</div>
         {activeAuthor && <button type="button" className="link-button journal-author-reset" onClick={()=>setAuthorFilter(null)}>Все авторы</button>}
-      </section>}
+      </details>}
       {!shown.length ? (
         <p className="empty">
           {reports.length ? 'По выбранному автору и запросу ничего не найдено.' : 'Отчёты по выбранным условиям отсутствуют.'}

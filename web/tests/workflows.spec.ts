@@ -151,6 +151,7 @@ test('real API: filtered volumes, review, sources and logout',async({page})=>{
 });
 test('late response cannot expose previous account data',async({page})=>{
   await page.goto('/');await login(page);
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   await expect(page.getByText('4.0 m',{exact:true})).toBeVisible();
   let release!:()=>void;let arrived!:()=>void;
   const waiting=new Promise<void>(resolve=>{arrived=resolve;});
@@ -161,6 +162,7 @@ test('late response cannot expose previous account data',async({page})=>{
   await page.getByRole('button',{name:'↻ Обновить'}).click();await waiting;
   await page.getByRole('button',{name:'Выйти',exact:true}).click();
   await login(page,'other');
+  await page.locator('.sidebar').getByRole('button',{name:'Аналитика',exact:true}).click();
   await expect(page.getByText('Нет подтверждённых количественных работ.')).toBeVisible();
   release();await page.waitForResponse('**/api/v1/analytics/summary');
   await expect(page.getByText('4.0 m',{exact:true})).toHaveCount(0);
