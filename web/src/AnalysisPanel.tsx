@@ -9,9 +9,10 @@ type Answer={
   period:Summary['period'];metrics:Summary|null;
   source_report_ids:string[];limitations:string[];
 };
-type Mode='auto'|'summary'|'work_volume'|'no_work'|'materials'|'incidents'|'finance'|'equipment'|'site_timeline';
+type Mode='gpt'|'auto'|'summary'|'work_volume'|'no_work'|'materials'|'incidents'|'finance'|'equipment'|'site_timeline';
 type Turn={id:number;title:string;answer:Answer};
 const modes:ReadonlyArray<{id:Mode;title:string;hint:string}>= [
+  {id:'gpt',title:'Диалог с GPT',hint:'Доступен после подтверждения внешней обработки данных'},
   {id:'summary',title:'Общая сводка',hint:'Полученные отчёты и показатели'},
   {id:'work_volume',title:'Объёмы работ',hint:'Только указанные количества'},
   {id:'no_work',title:'Простои',hint:'Причины отсутствия работ'},
@@ -32,6 +33,7 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
   onSource:(id:string)=>void;siteName:(id:string)=>string;
 }){
   const [intent,setIntent]=useState<Mode>('summary');
+  const [aiStatus,setAiStatus]=useState<{enabled:boolean;model:string|null}>({enabled:false,model:null});
   const [question,setQuestion]=useState('');
   const [turns,setTurns]=useState<Turn[]>([]);
   const [active,setActive]=useState<number|null>(null);
@@ -40,21 +42,28 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
   const seq=useRef(0);
   const thread=useRef<HTMLDivElement|null>(null);
   useEffect(()=>()=>{seq.current++;},[]);
+  useEffect(()=>{
+    let active=true;
+    void http<{enabled:boolean;model:string|null}>('/ai/status',token)
+      .then(info=>{if(active)setAiStatus(info);}).catch(()=>{if(active)setAiStatus({enabled:false,model:null});});
+    return()=>{active=false;};
+  },[token]);
   const current=turns.find(t=>t.id===active)||turns[turns.length-1];
   async function ask(e?:FormEvent){
     e?.preventDefault();
     if(busy)return;
     const q=question.trim();
-    if(intent==='auto'&&!q){setError('Введите вопрос для локального сценария.');return;}
+    if((intent==='auto'||intent==='gpt')&&!q){setError('Введите вопрос для анализа.');return;}
+    if(intent==='gpt'&&!aiStatus.enabled){setError('GPT не настроен. Используйте локальную аналитику.');return;}
     const request=++seq.current;
     setBusy(true);setError('');
     try{
-      const answer=await http<Answer>('/analytics/ask',token,{
-        method:'POST',body:JSON.stringify({
-          intent,question:q||'Сформировать '+heading(intent).toLowerCase(),
-          filters:{site_id:siteId==='all'?null:siteId,author_id:authorId==='all'?null:authorId,
-            from_date:fromDate||null,to_date:toDate||null}
-        })
+      const filters={site_id:siteId==='all'?null:siteId,author_id:authorId==='all'?null:authorId,
+        from_date:fromDate||null,to_date:toDate||null};
+      const answer=await http<Answer>(intent==='gpt'?'/ai/chat':'/analytics/ask',token,{
+        method:'POST',body:JSON.stringify(intent==='gpt'
+          ?{question:q,filters}
+          :{intent,question:q||'Сформировать '+heading(intent).toLowerCase(),filters})
       });
       if(request!==seq.current)return;
       const item={id:Date.now(),title:q||heading(intent),answer};
@@ -74,10 +83,10 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
         <h2>Факты, выводы, источники</h2>
         <p>Изучайте ход работ, простои, материалы и деньги — с переходом к первичным отчётам.</p>
       </div>
-      <div className="crs-ai-status" role="status">
+      <div className={'crs-ai-status'+(aiStatus.enabled?' is-model-ready':'')} role="status">
         <span className="crs-ai-status-dot" aria-hidden="true"/>
-        <strong>Локальная аналитика</strong>
-        <small>GPT пока не подключён</small>
+        <strong>{aiStatus.enabled?'GPT настроен':'Локальная аналитика'}</strong>
+        <small>{aiStatus.enabled?aiStatus.model:'GPT пока не подключён'}</small>
       </div>
     </div>
     <div className="crs-ai-layout">
@@ -85,12 +94,12 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
         <div className="crs-ai-section-title"><span>01 / ЗАПРОС</span><strong>Что исследуем?</strong></div>
         <label className="crs-ai-select-wrap">Вид анализа
           <select value={intent} onChange={e=>{setIntent(e.target.value as Mode);setError('');}} disabled={busy}>
-            {modes.map(mode=><option value={mode.id} key={mode.id}>{mode.title}</option>)}
+            {modes.map(mode=><option value={mode.id} key={mode.id} disabled={mode.id==='gpt'&&!aiStatus.enabled}>{mode.title}</option>)}
           </select>
         </label>
         <div className="crs-ai-modes">
           {modes.map(mode=><button type="button" key={mode.id} className={intent===mode.id?'is-active':''}
-            aria-pressed={intent===mode.id} disabled={busy} onClick={()=>{setIntent(mode.id);setError('');}}>
+            aria-pressed={intent===mode.id} disabled={busy||(mode.id==='gpt'&&!aiStatus.enabled)} onClick={()=>{setIntent(mode.id);setError('');}}>
             <strong>{mode.title}</strong><span>{mode.hint}</span>
           </button>)}
         </div>
@@ -104,13 +113,13 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
       </aside>
       <div className="crs-ai-body">
         <form className="crs-ai-prompt" onSubmit={ask}>
-          <label htmlFor="crs-ai-question">{intent==='auto'?'Вопрос по доступным шаблонам':heading(intent)}</label>
-          {intent==='auto' ? <textarea id="crs-ai-question" maxLength={1000} rows={3}
+          <label htmlFor="crs-ai-question">{intent==='auto'?'Вопрос по доступным шаблонам':intent==='gpt'?'Вопрос к GPT':heading(intent)}</label>
+          {(intent==='auto'||intent==='gpt') ? <textarea id="crs-ai-question" maxLength={1000} rows={3}
             aria-label="Вопрос (сохраняется только на экране)" placeholder="Например: какие простои повторяются?" value={question} onChange={e=>setQuestion(e.target.value)}/> :
             <p>Сервер выполнит расчёт по выбранной теме и покажет подтверждающие записи.</p>}
           <div className="crs-ai-prompt-actions">
-            <span>{intent==='auto'?'Свободный диалог с GPT ещё не включён.':'Цифры рассчитываются сервером, не языковой моделью.'}</span>
-            <button type="submit" disabled={busy||(intent==='auto'&&!question.trim())}>
+            <span>{intent==='gpt'?'Внешнему провайдеру передаются вопрос и ограниченные агрегаты.':intent==='auto'?'Работают только локальные шаблоны вопросов.':'Цифры рассчитываются сервером, не языковой моделью.'}</span>
+            <button type="submit" disabled={busy||((intent==='auto'||intent==='gpt')&&!question.trim())}>
               {busy?'Анализируем…':'Сформировать анализ'} <span aria-hidden="true">→</span>
             </button>
           </div>
@@ -127,7 +136,7 @@ export function AnalysisPanel({token,siteId,authorId,fromDate,toDate,onSource,si
           </div>}
           {!busy&&answer&&<article className="crs-ai-answer" aria-label="Результат анализа" aria-live="polite">
             <div className="crs-ai-answer-head">
-              <div><span className="crs-ai-eyebrow">{answer.supported?'ПОДТВЕРЖДАЕМАЯ СВОДКА':'НЕТ ПОДДЕРЖИВАЕМОГО СЦЕНАРИЯ'}</span>
+              <div><span className="crs-ai-eyebrow">{answer.mode==='external_gpt'?'ИНТЕРПРЕТАЦИЯ GPT · ПРОВЕРЬТЕ ИСТОЧНИКИ':answer.supported?'ПОДТВЕРЖДАЕМАЯ СВОДКА':'НЕТ ПОДДЕРЖИВАЕМОГО СЦЕНАРИЯ'}</span>
                 <h3>{current?.title||'Результат'}</h3></div>
               <span className="crs-ai-count">{sources.length} источн.</span>
             </div>
