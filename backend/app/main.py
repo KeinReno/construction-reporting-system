@@ -365,7 +365,9 @@ def create_app(database_url=None, storage=None, initialize=False):
         if u.role!='admin':q=q.join(Assignment,Assignment.site_id==Report.site_id).where(Assignment.user_id==u.id)
         if u.role=='foreman':q=q.where(Report.author_id==u.id)
         authors={}
-        for row in db.execute(q.distinct().order_by(User.login,User.id)).all():
+        # PostgreSQL has no equality operator for JSON: DISTINCT over ReportSource.payload fails.
+        # Deduplicate author IDs in the existing dictionary; keep all rows for imported_only.
+        for row in db.execute(q.order_by(User.login,User.id)).all():
             item=authors.setdefault(row.id,{'id':row.id,'login':row.login,'imported_only':True})
             if not imported_origin(row.payload):item['imported_only']=False
         return list(authors.values())
