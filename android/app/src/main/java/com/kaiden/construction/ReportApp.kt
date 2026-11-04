@@ -394,8 +394,8 @@ fun ReportApp() {
         }
         if(showMaterials) {
         Text("Движение материала",style=MaterialTheme.typography.titleSmall)
-        listOf("mentioned" to "Упоминание","received" to "Поступило","consumed" to "Израсходовано").forEach { (direction,label) ->
-            FilterChip(selected=materialDirection==direction,onClick={materialDirection=direction},label={Text(label)},modifier=Modifier.fillMaxWidth())
+        listOf("received" to "Поступило","consumed" to "Израсходовано").forEach { (direction,label) ->
+            FilterChip(selected=materialDirection==direction,onClick={materialDirection=if(materialDirection==direction)"mentioned" else direction},label={Text(label)},modifier=Modifier.fillMaxWidth())
         }
         OutlinedTextField(materialName,{materialName=it},label={Text("Название материала")},modifier=Modifier.fillMaxWidth())
         OutlinedTextField(materialQuantity,{materialQuantity=it},label={Text("Количество материала (необязательно)")},modifier=Modifier.fillMaxWidth(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
@@ -406,7 +406,7 @@ fun ReportApp() {
             if(materialName.isBlank() || materialName.length>200 || materialUnit.length>50 || materials.size>=100 || (materialDirection!="mentioned" && (n==null || n<=java.math.BigDecimal.ZERO)) || (materialQuantity.isNotBlank() && (n==null || n<java.math.BigDecimal.ZERO || n.stripTrailingZeros().scale()>6 || n.precision()-n.scale()>14 || materialUnit.isBlank())))formError="Проверьте название, направление, количество и единицу материала"
             else {materials.add(JSONObject().put("name",materialName.trim()).put("quantity",n?.toPlainString()?:JSONObject.NULL).put("unit",materialUnit.ifBlank { null }?:JSONObject.NULL).put("direction",materialDirection));materialName="";materialQuantity="";materialUnit="";materialDirection="mentioned";formError=""}
         }){Text("+ Добавить материал")}
-        materials.forEachIndexed { i,m -> Row {Text("${m.getString("name")} · ${when(m.optString("direction","mentioned")){"received"->"поступило";"consumed"->"израсходовано";else->"упомянуто"}}${if(m.isNull("quantity"))"" else " · ${m.getString("quantity")} ${m.optString("unit")}"}",Modifier.weight(1f));TextButton(onClick={materials.removeAt(i)}){Text("Удалить")}} }
+        materials.forEachIndexed { i,m -> Row {Text("${m.getString("name")}${when(m.optString("direction","mentioned")){"received"->" · поступило";"consumed"->" · израсходовано";else->""}}${if(m.isNull("quantity"))"" else " · ${m.getString("quantity")} ${m.optString("unit")}"}",Modifier.weight(1f));TextButton(onClick={materials.removeAt(i)}){Text("Удалить")}} }
         }
         TextButton(onClick={showIncidents=!showIncidents},modifier=Modifier.fillMaxWidth()) {
             Text("События и проблемы (${incidents.size})${if(incidentText.isNotBlank()) " · не завершено" else ""} ${if(showIncidents) "▴" else "▾"}",modifier=Modifier.weight(1f))
