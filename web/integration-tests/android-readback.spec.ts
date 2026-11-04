@@ -21,7 +21,7 @@ test('Android-created report persists through real API into Web and review',asyn
   await report.getByRole('button',{name:'Проверен',exact:true}).click();
   await expect(report.getByText('Статус: Проверен · ревизия 2')).toBeVisible();
   await report.getByRole('button',{name:'← Назад'}).click();
-  await page.getByRole('button',{name:'ИИ-аналитик',exact:true}).first().click();
+  await page.getByRole('button',{name:'Готовые сводки',exact:true}).first().click();
   await page.getByRole('button',{name:'Сформировать анализ'}).click();
   await expect(page.getByRole('heading',{name:'Получено отчётов: 1. Без работ: 0.'})).toBeVisible();
   await page.getByRole('button',{name:'Отчёт 1',exact:true}).click();
