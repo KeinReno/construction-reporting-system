@@ -23,6 +23,19 @@ $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')).TrimEnd('\')
 if(-not [IO.Path]::IsPathRooted($TransferRoot) -or -not [IO.Path]::IsPathRooted($DataRoot)){throw 'Use absolute TransferRoot and DataRoot paths'}
 $source=[IO.Path]::GetFullPath($TransferRoot).TrimEnd('\')
 $target=[IO.Path]::GetFullPath($DataRoot).TrimEnd('\')
+function Assert-NoReparseAncestor([string]$path){
+  $part=$path
+  while($part){
+    if(Test-Path -LiteralPath $part){
+      if((Get-Item -LiteralPath $part -Force).Attributes -band [IO.FileAttributes]::ReparsePoint){throw ('Linked path is not allowed: '+$part)}
+    }
+    $parent=Split-Path -Path $part -Parent
+    if(-not $parent -or [string]::Equals($part,$parent,[StringComparison]::OrdinalIgnoreCase)){break}
+    $part=$parent
+  }
+}
+Assert-NoReparseAncestor $source
+Assert-NoReparseAncestor $target
 if(-not(Test-Path -LiteralPath $source -PathType Container)){throw 'Transfer folder does not exist'}
 if(Test-Path -LiteralPath $target){throw 'Target already exists; no existing data will be changed'}
 if($target.StartsWith($repo+'\',[StringComparison]::OrdinalIgnoreCase) -or
@@ -33,6 +46,9 @@ if(-not(Test-Path -LiteralPath $manifestFile)){throw 'Private runtime manifest m
 $manifest=Get-Content -LiteralPath $manifestFile -Raw -Encoding UTF8 | ConvertFrom-Json
 if($manifest.version -ne 1 -or -not $manifest.files){throw 'Invalid transfer manifest'}
 $runtimeSource=Join-Path $source 'runtime'
+foreach($part in @('data','web')){
+  Assert-NoReparseAncestor (Join-Path $runtimeSource $part)
+}
 $known=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach($entry in $manifest.files.PSObject.Properties){[void]$known.Add([string]$entry.Name)}
 foreach($part in @('data','web')){
