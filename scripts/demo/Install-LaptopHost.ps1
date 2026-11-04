@@ -86,6 +86,7 @@ The HTTPS tunnel passes traffic through srv.us; verify availability on the physi
 Keep this code checkout in place: the runtime points to it. This pilot is not a 24/7 server.
 "@
 [IO.File]::WriteAllText((Join-Path $target 'START-HERE.txt'),$instructions,[Text.Encoding]::UTF8)
+[IO.File]::WriteAllText((Join-Path $target 'README-FIRST.txt'),"Open START-HERE.txt for the laptop host setup and Android connection steps.`r`n",[Text.Encoding]::UTF8)
 Write-Host ('INSTALL READY: '+$target)
 Write-Host ('Next: open '+(Join-Path $target 'START-HERE.txt'))
 Write-Warning 'No customer data imported. Android/HTTPS and physical phone delivery are not yet verified.'
