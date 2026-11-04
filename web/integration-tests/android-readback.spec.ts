@@ -5,7 +5,7 @@ test('Android-created report persists through real API into Web and review',asyn
   await page.getByLabel('Пароль',{exact:true}).fill('SyntheticPassword123');
   await page.getByRole('button',{name:'Войти',exact:true}).click();
   await expect(page.getByText('2.25 m',{exact:true})).toBeVisible();
-  await page.locator('tbody tr').first().click();
+  await page.getByRole('region',{name:'Объекты и отчёты'}).getByRole('button',{name:/Открыть отчёт за/}).first().click();
   const report=page.getByRole('region',{name:'Просмотр отчёта'});
   await expect(report.getByText('Corrected synthetic comment',{exact:true})).toBeVisible();
   await expect(report.getByText('Synthetic crew',{exact:true})).toBeVisible();
