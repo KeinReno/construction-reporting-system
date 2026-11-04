@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -59,13 +60,14 @@ def run(root:Path,local_only=False):
     stop.unlink(missing_ok=True)
     state_path=root/'running.json'
     local_url=f"http://127.0.0.1:{int(cfg['port'])}"
-    state={'pid':os.getpid(),'local_url':local_url,'public_url':None,'status':'starting','started_at':time.time()}
+    instance_id=secrets.token_hex(16)
+    state={'pid':os.getpid(),'instance_id':instance_id,'local_url':local_url,'public_url':None,'status':'starting','started_at':time.time()}
     state_lock=threading.Lock()
     def gateway_state(status,public_url=None):
         with state_lock:
             state.update(status=status,public_url=public_url)
             write_json(state_path,state)
-            message=(public_url+'\n\nЛогин и пароль находятся в ДОСТУП.txt.\n'
+            message=(public_url+'\n\nИспользуйте выданные учётные данные.\n'
                 'Адрес временный и может измениться. При ошибке проверьте этот файл снова.\n') if public_url else (
                 'Внешнее соединение отсутствует. CRS переподключается автоматически.\n'
                 'Дождитесь появления HTTPS-ссылки в этом файле.\n')
@@ -74,6 +76,11 @@ def run(root:Path,local_only=False):
     os.environ['WEB_DIR']=str(web)
     os.environ.pop('CRS_IMPORT_USER_IDS',None)  # Imports require admin in this public-facing runtime.
     api=create_app(database_url=cfg['database_url'],storage=str(uploads))
+    @api.middleware('http')
+    async def identify_ready(request,call_next):
+        response=await call_next(request)
+        if request.url.path=='/ready':response.headers['X-CRS-Instance']=instance_id
+        return response
     server=uvicorn.Server(uvicorn.Config(api,host='127.0.0.1',port=int(cfg['port']),workers=1,
         proxy_headers=False,access_log=False,log_level='warning'))
     thread=threading.Thread(target=server.run,daemon=True)
@@ -134,7 +141,7 @@ def run(root:Path,local_only=False):
         if reader is not None:
             reader.join(timeout=2)
         gateway_state('stopped')
-        (root/'ССЫЛКА.txt').write_text('CRS остановлен. Запустите ярлык на рабочем столе для получения новой ссылки.\n',encoding='utf-8-sig')
+        (root/'ССЫЛКА.txt').write_text('CRS остановлен. Запустите START-CRS.cmd для получения новой ссылки.\n',encoding='utf-8-sig')
         stop.unlink(missing_ok=True)
 
 

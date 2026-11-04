@@ -13,8 +13,8 @@ android {
         targetSdk = 35
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["crsApiBase"]=providers.gradleProperty("crsTestApiBase").orElse("").get()
-        versionCode = 6
-        versionName = "0.4.1"
+        versionCode = 7
+        versionName = "0.4.2"
         val baseUrl = providers.gradleProperty("apiBaseUrl").orElse("https://example.invalid/api/v1").get()
         buildConfigField("String", "API_BASE_URL", "\"$baseUrl\"")
         buildConfigField("boolean", "DEMO_MODE", "false")
@@ -22,6 +22,14 @@ android {
     }
     testBuildType=providers.gradleProperty("crsTestBuildType").orElse("debug").get()
     buildTypes {
+        create("pilot") {
+            initWith(getByName("debug"))
+            applicationIdSuffix=".pilot"
+            versionNameSuffix="-pilot"
+            matchingFallbacks+=listOf("debug")
+            buildConfigField("boolean","DEMO_MODE","false")
+            manifestPlaceholders["appLabel"]="СтройКонтроль 0.4.2"
+        }
         create("demo") {
             initWith(getByName("debug"))
             applicationIdSuffix=".demo"
