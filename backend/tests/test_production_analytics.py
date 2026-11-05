@@ -243,6 +243,16 @@ def test_weather_negation_and_temporary_worker_are_not_overclassified():
     assert TEMPORARY_MARKER.search('Работник #1')
 
 
+def test_same_site_work_and_no_work_do_not_count_one_date_twice(env):
+    c,f,m,sid,_ = env
+    worked=submit(c,f,sid,date='2026-03-10',entries=['монтаж блоков'])
+    idle=submit(c,f,sid,date='2026-03-10',kind='no_work',reason='No access earlier')
+    result=production_metrics(loaded(c,[worked,idle]))
+    assert result['workday_count']==1 and result['rest_day_count']==0
+    assert result['sites'][0]['work_days']==1 and result['sites'][0]['rest_days']==0
+    assert result['calendar'][0]['state']=='work'
+
+
 def test_declared_shift_conditions_roundtrip_capabilities_and_revision_guard(env):
     c, f, m, sid, _ = env
     data = report(sid)

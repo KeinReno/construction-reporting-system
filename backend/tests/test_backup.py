@@ -39,3 +39,34 @@ def test_backup_restore_and_corruption(env,tmp_path):
 
 def test_backup_requires_offline_ack(tmp_path):
     with pytest.raises(ValueError,match='Stop the API'):backup('sqlite:///unused.db',tmp_path,tmp_path/'copy')
+
+
+def test_postgres_client_version_mismatch_is_rejected_before_dump_or_restore(monkeypatch,tmp_path):
+    from types import SimpleNamespace
+    from app.backup import pg_tool
+    import app.backup as module
+    monkeypatch.delenv('CRS_PG_BIN_DIR',raising=False)
+    original_candidates=module.pg_candidates
+    monkeypatch.setattr(module,'pg_candidates',lambda name,major:['synthetic-'+name])
+    calls=[]
+    def run(args,**kwargs):
+        calls.append(args)
+        assert args[-1]=='--version', 'mismatch must never start a database operation'
+        return SimpleNamespace(stdout='pg_restore (PostgreSQL) 17.8')
+    monkeypatch.setattr(module.subprocess,'run',run)
+    for name in ('pg_dump','pg_restore'):
+        with pytest.raises(ValueError,match='major must match'):pg_tool(name,16)
+    assert len(calls)==2
+    monkeypatch.setattr(module,'pg_candidates',original_candidates)
+    monkeypatch.setenv('CRS_PG_BIN_DIR',str(tmp_path))
+    monkeypatch.setattr(module.subprocess,'run',lambda args,**kwargs:SimpleNamespace(stdout='pg_restore (PostgreSQL) 16.15'))
+    result=pg_tool('pg_restore',16)
+    assert Path(result).parent==tmp_path
+
+
+def test_matching_installed_postgres_client_is_selected_over_newer_path_client(monkeypatch):
+    from types import SimpleNamespace
+    import app.backup as module
+    monkeypatch.setattr(module,'pg_candidates',lambda name,major:['synthetic-17','synthetic-16'])
+    monkeypatch.setattr(module.subprocess,'run',lambda args,**kwargs:SimpleNamespace(stdout='pg_dump (PostgreSQL) '+args[0].split('-')[-1]+'.1'))
+    assert module.pg_tool('pg_dump',16)=='synthetic-16'

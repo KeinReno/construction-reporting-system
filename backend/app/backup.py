@@ -1,12 +1,13 @@
 """Offline backup/restore of DB and referenced photos; no network storage or live snapshots.
 
 Stop API before use. Restore only into a NEW database and an empty upload directory.
-PostgreSQL requires pg_dump/pg_restore on PATH. Credentials stay in child environment.
+PostgreSQL requires matching installed client tools or CRS_PG_BIN_DIR. Credentials stay in child environment.
 """
 import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import sqlite3
@@ -31,6 +32,25 @@ def pg_environment(url):
     return env
 
 
+def pg_candidates(name, server_major):
+    folder=os.environ.get('CRS_PG_BIN_DIR')
+    filename=name+('.exe' if os.name=='nt' else '')
+    if folder:return [str(Path(folder)/filename)]
+    installed=[Path('/usr/lib/postgresql')/str(server_major)/'bin'/filename,
+               Path(os.environ.get('ProgramFiles','C:/Program Files'))/'PostgreSQL'/str(server_major)/'bin'/filename]
+    return list(dict.fromkeys([p for p in [shutil.which(name),*(str(p) for p in installed if p.is_file())] if p]))
+
+
+def pg_tool(name, server_major):
+    """Choose a matching installed client before creating a snapshot or changing a restore target."""
+    for executable in pg_candidates(name,server_major):
+        try:result=subprocess.run([executable,'--version'],check=True,capture_output=True,text=True)
+        except (OSError,subprocess.CalledProcessError):continue
+        version=re.search(r'PostgreSQL\)\s+(\d+)',result.stdout)
+        if version and int(version[1])==server_major:return executable
+    raise ValueError('PostgreSQL client major must match server; configure CRS_PG_BIN_DIR')
+
+
 def backup(database_url, uploads, output, service_stopped=False):
     if not service_stopped:raise ValueError('Stop the API and acknowledge service_stopped before backup')
     uploads=Path(uploads).resolve();output=Path(output).resolve();url=make_url(database_url)
@@ -47,9 +67,12 @@ def backup(database_url, uploads, output, service_stopped=False):
                 src.backup(dst)
         elif url.get_backend_name()=='postgresql':
             name='database.dump'
-            subprocess.run(['pg_dump','--format=custom','--file',str(stage/name)],env=pg_environment(url),check=True,capture_output=True)
+            engine=create_engine(database_url)
+            with engine.connect() as db:major=int(db.scalar(text('SHOW server_version_num')))//10000
+            executable=pg_tool('pg_dump',major)
+            subprocess.run([executable,'--format=custom','--file',str(stage/name)],env=pg_environment(url),check=True,capture_output=True)
         else:raise ValueError('Unsupported database')
-        engine=create_engine(database_url)
+        if engine is None:engine=create_engine(database_url)
         with engine.connect() as db:
             photos=list(db.execute(text('SELECT filename,sha256 FROM photos')).all())
             if inspect(engine).has_table('imported_corpora'):
@@ -102,6 +125,8 @@ def restore(source,database_url,uploads,service_stopped=False):
         engine=create_engine(database_url)
         try:
             if inspect(engine).get_table_names():raise ValueError('Restore database must be empty')
+            with engine.connect() as db:major=int(db.scalar(text('SHOW server_version_num')))//10000
+            restore_executable=pg_tool('pg_restore',major)
         finally:engine.dispose()
     uploads.parent.mkdir(parents=True,exist_ok=True)
     stage=Path(tempfile.mkdtemp(prefix='.crs-restore-',dir=uploads.parent))
@@ -113,7 +138,7 @@ def restore(source,database_url,uploads,service_stopped=False):
                 if src.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise ValueError('Database integrity check failed')
                 src.backup(dst)
         else:
-            subprocess.run(['pg_restore','--exit-on-error','--no-owner','--no-privileges','--dbname',url.database,str(source/'database.dump')],env=pg_environment(url),check=True,capture_output=True)
+            subprocess.run([restore_executable,'--exit-on-error','--no-owner','--no-privileges','--dbname',url.database,str(source/'database.dump')],env=pg_environment(url),check=True,capture_output=True)
         if uploads.exists():uploads.rmdir()  # Verified empty above; never remove existing media.
         os.replace(stage,uploads)
     finally:

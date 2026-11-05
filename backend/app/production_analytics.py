@@ -525,7 +525,7 @@ def production_metrics(rows, from_date=None, to_date=None, calendar_limit=400, w
                            'samples': values['samples']}
                           for text, values in sorted(uncategorized.items(),
                                                     key=lambda kv: (-len(kv[1]['days']), kv[0]))][:40],
-        'sites': [{'site_id': site, 'work_days': len(site_work[site]), 'rest_days': len(site_rest[site]),
+        'sites': [{'site_id': site, 'work_days': len(site_work[site]), 'rest_days': len(site_rest[site] - site_work[site]),
                    'equipment_hours': str(hours_by_site.get(site, Decimal(0)))}
                   for site in sorted(set(site_work) | set(site_rest) | set(hours_by_site))],
         'equipment': {
