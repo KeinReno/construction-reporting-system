@@ -74,16 +74,16 @@ export function CrSidebar<Page extends string>({
             href={archiveUrl}
             target="_blank"
             rel="noreferrer"
-            title={collapsed ? 'Архив MAX' : undefined}
+            title={collapsed ? 'Архив' : undefined}
           >
             <span className="crs-nav-archive-icon" aria-hidden="true">↗</span>
-            <span className="crs-nav-label">Архив MAX</span>
+            <span className="crs-nav-label">Архив</span>
           </a>
         )}
       </nav>
-      <div className="sidebar-foot crs-sidebar-foot" title={collapsed ? 'Серверные данные' : undefined}>
+      <div className="sidebar-foot crs-sidebar-foot" title={collapsed ? 'Рабочий кабинет' : undefined}>
         <span className="online-dot" aria-hidden="true" />
-        <span className="crs-nav-label">Серверные данные</span><span className="wb-sidebar-build" aria-hidden="true">CRS / WORKBENCH V4</span>
+        <span className="crs-nav-label">Рабочий кабинет</span><span className="wb-sidebar-build" aria-hidden="true">CRS</span>
       </div>
     </aside>
   );

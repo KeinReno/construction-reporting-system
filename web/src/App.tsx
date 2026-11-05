@@ -1,16 +1,20 @@
 import { AuthorColorsProvider } from './reports/ReportSignals';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { formatDate } from './date';
+import { ConversationDock } from './ConversationDock';
+import { OwnerOperations } from './OwnerOperations';
 import { AdminPanel } from './AdminPanel';
+import { AnalyticsOverview } from './AnalyticsOverview';
+import { AnalyticsProduction } from './AnalyticsProduction';
+import './design/control-review.css';
 import { AnalysisPanel } from './AnalysisPanel';
 import { ReportDetails } from './ReportDetails';
 import { ReportsJournal } from './reports/ReportsJournal';
 import { WorkbenchMasthead, WorkbenchSection, WorkbenchTopbar } from './workbench/WorkbenchChrome';
 import { SiteList } from './sites/SiteList';
-import { http, login, ApiError, filterQuery, allReports, type Profile, type Report, type ReportAuthor, type Site, type Summary } from './api';
+import { http, login, ApiError, filterQuery, allReports, type Profile, type Report, type ReportAuthor, type Site, type Summary, type Production } from './api';
 import { SiteCard } from './SiteCard';
 import { MoneyPage } from './MoneyPage';
-import { ImportData } from './ImportData';
 import { equipmentOwnership } from './api';
 import { CrSidebar } from './ui/CrSidebar';
 import { primaryWorks } from './reports/reportView';
@@ -21,15 +25,17 @@ import { CrReportChart } from './ui/CrReportChart';
 import { CrBreadcrumbs } from './ui/CrBreadcrumbs';
 import { OwnerIcon } from './ui/OwnerIcon';
 import { OwnerActivity } from './OwnerActivity';
+import { ImportData } from './ImportData';
+import { HostAddress } from './HostAddress';
 import './design/owner-simple.css';
 import './design/owner-visual.css';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
-type Page = 'overview' | 'objects' | 'reports' | 'money' | 'analytics' | 'ai' | 'admin';
+type Page = 'overview' | 'objects' | 'reports' | 'money' | 'analytics' | 'ai' | 'admin' | 'catalog' | 'labor';
 type Interval = 'day' | 'month' | 'year';
 const reportFromLocation = () => /^#report\/([0-9a-f-]{36})$/i.exec(window.location.hash)?.[1] ?? null;
 const labels: Record<Page, string> = {
-  overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', money: 'Деньги', analytics: 'Аналитика', ai: 'Готовые сводки', admin:'Управление'
+  catalog:'Виды работ',labor:'Табель',overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', money: 'Деньги', analytics: 'Аналитика', ai: 'Помощник', admin:'Управление'
 };
 const dateText = formatDate;
 const moneyLabels = {funding_received:'Поступление',expense:'Расход',advance_issued:'Выдача аванса'} as const;
@@ -41,6 +47,8 @@ function NavIcon({page}:{page:Page}) {
     money:<><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M12 14h.01"/></>,
     analytics:<><path d="M4 20V11m5 9V5m5 15v-7m5 7V3M2 21h20"/></>,
     ai:<><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z"/></>,
+    catalog:<path d="M4 5h16M4 12h16M4 19h16"/>,
+    labor:<path d="M4 3h16v18H4zM8 8h8M8 12h8M8 16h8"/>,
     admin:<><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M19 5l-1.5 1.5m-11 11L5 19"/></>
   };
   return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[page]}</svg>;
@@ -77,7 +85,10 @@ export default function App() {
   const [authors, setAuthors] = useState<ReportAuthor[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [production, setProduction] = useState<Production | null>(null);
   const [page, setPage] = useState<Page>('overview');
+  const [chatOpen,setChatOpen]=useState(false);
+  const [chatReport,setChatReport]=useState<string|null>(null);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [siteId, setSiteId] = useState('all');
@@ -93,8 +104,11 @@ export default function App() {
   const [error, setError] = useState('');
   const [loadedScope, setLoadedScope] = useState('');
   const [drill, setDrill] = useState<{title:string; ids:string[]} | null>(null);
+  const sourceList=useRef<HTMLElement|null>(null);
+  useEffect(()=>{if(drill){sourceList.current?.scrollIntoView({block:"start"});sourceList.current?.focus({preventScroll:true});}},[drill]);
   const reportOpener=useRef<HTMLElement|null>(null);
   const openById=(id:string)=>{
+    setChatReport(id);
     reportOpener.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
     window.history.pushState({crsReport:true},'',`#report/${id}`);
     setReportId(id);
@@ -127,24 +141,28 @@ export default function App() {
   },[reportId]);
   const filterKey=JSON.stringify([siteId,authorId,startDate,endDate]);
   const generation=useRef(0);
-  const endSession=useCallback(()=>{generation.current++;setToken(null);setProfile(null);setSites([]);setAuthors([]);setReports([]);setSummary(null);setLoadedScope('');setSelected(null);setPage('overview');setSiteId('all');setAuthorId('all');setStartDate('');setEndDate('');setLoading(false);},[]);
+  const endSession=useCallback(()=>{generation.current++;setToken(null);setProfile(null);setChatOpen(false);setChatReport(null);setSites([]);setAuthors([]);setReports([]);setSummary(null);setProduction(null);setLoadedScope('');setSelected(null);setPage('overview');setSiteId('all');setAuthorId('all');setStartDate('');setEndDate('');setLoading(false);},[]);
   const refresh = useCallback(async () => {
     if (!token) return;
     const requestGeneration=++generation.current;
-    setLoading(true); setError('');setSummary(null);
+    setLoading(true); setError('');setSummary(null);setProduction(null);
     try {
       if(startDate.startsWith('!') || endDate.startsWith('!'))throw new Error('Введите корректную дату в формате дд/мм/гггг');
       if(startDate && endDate && startDate>endDate)throw new Error('Начало периода позже окончания');
       const query=filterQuery(siteId,startDate,endDate,authorId);
-      const [u, s, people, r, a] = await Promise.all([
+      const [u, s, people, r, a, prod] = await Promise.all([
         http<Profile>('/me', token), http<Site[]>('/sites', token),
-        http<ReportAuthor[]>('/reports/authors',token),allReports(token, query), http<Summary>('/analytics/summary'+query, token)
+        http<ReportAuthor[]>('/reports/authors',token),allReports(token, query), http<Summary>('/analytics/summary'+query, token),
+        http<Production>('/analytics/production'+query, token).catch(e=>{
+          if(e instanceof ApiError && e.status===401)throw e;
+          return null;
+        })
       ]);
       if(requestGeneration!==generation.current)return;
       if(authorId!=='all' && !people.some(person=>person.id===authorId)) {
-        setProfile(u);setSites(s);setAuthors(people);setReports([]);setSummary(null);setLoadedScope('');setAuthorId('all');return;
+        setProfile(u);setSites(s.map(site=>({...site,name:site.name.startsWith('Объект требует сверки')?'Без объекта':site.name.replace(/ · по истории чата$/,'')})));setAuthors(people);setReports([]);setSummary(null);setLoadedScope('');setAuthorId('all');return;
       }
-      setProfile(u); setSites(s);setAuthors(people); setReports(r); setSummary(a);setLoadedScope(filterKey);
+      setProfile(u); setSites(s.map(site=>({...site,name:site.name.startsWith('Объект требует сверки')?'Без объекта':site.name.replace(/ · по истории чата$/,'')})));setAuthors(people); setReports(r); setSummary(a);setProduction(prod);setLoadedScope(filterKey);
     } catch (e) {
       if(requestGeneration!==generation.current)return;
       const reason = e instanceof Error ? e.message : 'Ошибка загрузки';
@@ -156,7 +174,7 @@ export default function App() {
   const siteName = (id: string) => {const name=sites.find(s => s.id === id)?.name;return name ?? 'Неизвестный объект';};
   const displayAuthor = (login:string|null|undefined) => {
     if (!login) return 'Не указан';
-    if(authors.find(a=>a.login===login)?.imported_only)return 'Оператор переноса';
+    if(authors.find(a=>a.login===login)?.imported_only)return '';
     if (demo) {
       if (login===demo.accounts.manager) return 'Руководитель (демо)';
       if (login===demo.accounts.foreman) return 'Бригадир (демо)';
@@ -190,9 +208,9 @@ export default function App() {
   },[currentSummary,interval]);
   const pageTitle = labels[page];
   if (!token) return <Login onSuccess={setToken} demo={demo}/>;
-  return <AuthorColorsProvider authors={authors}><div className="app-shell wb-shell owner-simple">
+  return <AuthorColorsProvider authors={authors}><div className={`app-shell wb-shell owner-simple${chatOpen?' has-conversation':''}`}>
     <CrSidebar<Page>
-      entries={(Object.keys(labels) as Page[]).filter(key=>key!=='admin'||profile?.role==='admin').map(key=>({key,label:labels[key]}))}
+      entries={(Object.keys(labels) as Page[]).filter(key=>(key!=='admin'||profile?.role==='admin')&&(key!=='labor'||profile?.is_owner)).map(key=>({key,label:labels[key]}))}
       current={page}
       onSelect={navigate}
       renderIcon={key=><NavIcon page={key}/>}
@@ -206,11 +224,11 @@ export default function App() {
         {page==='overview' ? <div className="owner-heading"><div><h1>Объекты и отчёты</h1><p>Выберите объект или откройте отчёт для проверки.</p></div><button className="secondary" onClick={()=>void refresh()} disabled={loading}>{loading?'Обновление…':'Обновить'}</button></div> : <WorkbenchMasthead title={page==='objects' && siteId!=='all'?siteName(siteId):pageTitle} index="" subtitle={page==='reports'?'Отчёты по выбранным условиям':page==='money'?'Денежные операции':page==='analytics'?'Итоги по отчётам':page==='objects'?'Работы и отчёты по объектам':page==='ai'?'Анализ отчётов':'Пользователи и доступ'} onRefresh={()=>void refresh()} refreshing={loading} />}
          {error && <div className="error" role="alert">Ошибка: {error}</div>}
         {(page!=='admin' && page!=='overview') && <><div className="owner-filter-bar"><button type="button" className="secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'}</button><span>{siteId==='all'?'Все объекты':siteName(siteId)} · {authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}{page==='money'?' · даты операций':' · даты смен'}</span>{(siteId!=='all'||authorId!=='all'||startDate||endDate)&&<button type="button" className="link-button" onClick={()=>{setSiteId('all');setAuthorId('all');setStartDate('');setEndDate('');}}>Сбросить</button>}</div><div id="report-filters" className="filters filters-open" hidden={!filtersOpen}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
-          <CrCombobox label="Автор" value={authorId} onChange={setAuthorId} options={[{value:'all',label:'Все авторы'},...authors.map(a=>({value:a.id,label:displayAuthor(a.login)}))]}/>
+          <CrCombobox label="Автор" value={authorId} onChange={setAuthorId} options={[{value:'all',label:'Все авторы'},...authors.filter(a=>!a.imported_only).map(a=>({value:a.id,label:displayAuthor(a.login)}))]}/>
           <CrDateField label="С" value={startDate} onChange={setStartDate}/><CrDateField label="По" value={endDate} onChange={setEndDate}/></div></>}
-        {page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> :
+        {page === 'catalog' || page==='labor' ? <OwnerOperations key={page} mode={page==='catalog'?'catalog':'labor'} token={token} sites={sites} isOwner={!!profile?.is_owner}/> : page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> :
          page === 'ai' && (startDate.startsWith('!') || endDate.startsWith('!') || (!!startDate && !!endDate && startDate>endDate)) ? <p className="error">Исправьте период перед формированием анализа.</p> :
-         page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={openById} siteName={siteName}/> : <>
+         page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={openById} siteName={siteName} onChanged={refresh}/> : <>
           {page==='overview' && <section className="owner-home" aria-label="Объекты и отчёты">
             <div className="owner-snapshot" aria-label="Сводка по доступным данным">
               <div className="owner-snapshot-item"><span className="owner-snapshot-icon"><OwnerIcon name="building"/></span><span><small>Объекты</small><strong>{dataCurrent?sites.length:'—'}</strong></span></div>
@@ -224,7 +242,7 @@ export default function App() {
               {dataCurrent && <ReportsJournal reports={overviewReports} token={token} siteName={siteName} authorName={displayAuthor} title="Последние отчёты" intro="Сначала отчёты, ожидающие проверки" archive={false} compact onOpen={openReport} />}
             </div><aside className="owner-home-aside">
               {dataCurrent ? <OwnerActivity reports={received} siteName={siteName} onOpen={openReport}/> : <div className="owner-widget-loading">{error?'Данные графика не загружены.':'Загрузка графика…'}</div>}
-              <div className="owner-home-links"><button onClick={()=>navigate('analytics')}><span className="owner-link-icon"><OwnerIcon name="chart"/></span><span><strong>Работы и аналитика</strong><small>Объёмы и исходные отчёты</small></span><OwnerIcon name="arrow"/></button><button onClick={()=>navigate('money')}><span className="owner-link-icon"><OwnerIcon name="money"/></span><span><strong>Деньги</strong><small>Расходы, поступления и авансы</small></span><OwnerIcon name="arrow"/></button></div>
+              <div className="owner-home-links"><button onClick={()=>navigate('analytics')}><span className="owner-link-icon"><OwnerIcon name="chart"/></span><span><strong>Работы и аналитика</strong><small>Объёмы работ</small></span><OwnerIcon name="arrow"/></button><button onClick={()=>navigate('money')}><span className="owner-link-icon"><OwnerIcon name="money"/></span><span><strong>Деньги</strong><small>Расходы, поступления и авансы</small></span><OwnerIcon name="arrow"/></button></div>
             </aside></div>
           </section>}
            {(page==='reports') && <div className="journal-workspace wb-journal-workspace">
@@ -241,34 +259,33 @@ export default function App() {
               onShowAll={()=>setPage('reports')}
             /> : <section className="report-panel"><h2>{page==='reports'?'Журнал отчётов':'Отчёты'}</h2><p className="empty">{error?'Данные не загружены.':'Загрузка отчётов…'}</p></section>)}
           </div>}
-          {page==='analytics' && <div className="owner-analytics-totals" aria-label="Сводка отчётов"><span>Получено отчётов: <strong>{dataCurrent?received.length:'—'}</strong></span><span>На проверке: <strong>{dataCurrent?needsReview:'—'}</strong></span><span>Указано событий: <strong>{currentSummary?.incident_count??'—'}</strong></span></div>}
-          {page==='analytics' && <p className="owner-analytics-note">Аналитика работ и график учитывают доставленные и проверенные отчёты. Отчёты, возвращённые на исправление, временно исключены; в счётчике полученных они остаются.</p>}
+          {page==='analytics' && <AnalyticsOverview summary={currentSummary} reports={visible} ready={dataCurrent} siteName={siteName} onOpen={openById} onSources={(title,ids)=>setDrill({title,ids})}/>}
           {(page==='analytics') && <WorkbenchSection number="01" title="Данные производства" detail="Количественные объёмы и описанные работы" />}
+           {(page==='analytics') && <AnalyticsProduction production={dataCurrent?production:null} ready={dataCurrent} error={!!error || dataCurrent&&!production} siteName={siteName} onOpen={openById} onSources={(title,ids)=>setDrill({title,ids})}/>}
            {(page==='analytics') && <section className="work-volume">
-            <div className="card"><h2>Выполненные объёмы</h2><p className="muted">По видам работ и отдельным единицам измерения. Длина полосы сравнивается только внутри одной единицы.</p>
-              {volumes.length ? <div className="volume-list">{volumes.map((v,i) => <button type="button" className="volume-row" key={i} onClick={()=>setDrill({title:`${v.work_type}: ${v.quantity} ${v.unit}`,ids:v.source_report_ids??[]})}><div className="owner-volume-main"><strong>{v.work_type}</strong><small>{siteName(v.site_id)} · {v.unit}{v.confirmed_zero?' · подтверждённый ноль':''}</small>{Number.isFinite(Number(v.quantity)) && maxVolumeForUnit(v.unit)>0 && <span className="owner-volume-track" aria-hidden="true"><span style={{width:`${Math.min(100,Math.max(0,Number(v.quantity)/maxVolumeForUnit(v.unit)*100))}%`}}/></span>}</div><b>{v.quantity} {v.unit}</b></button>)}</div> : <p className="empty">{dataCurrent?'Нет подтверждённых количественных работ. Это не ноль.':error?'Данные не загружены.':'Загрузка сводки…'}</p>}
-              {new Set(volumes.map(v=>v.work_type)).size>0 && [...new Set(volumes.map(v=>v.work_type))].some(type=>new Set(volumes.filter(v=>v.work_type===type).map(v=>v.unit)).size>1) && <p className="footnote">У одного вида работ разные единицы. Они показаны отдельно и не складываются.</p>}
-              <p className="footnote">Объёмы считаются по дате смены. Каждая строка открывает исходные отчёты.</p></div>
+            <div className="card"><h2>Выполненные объёмы</h2><p className="muted">По видам работ</p>
+              {volumes.length ? <div className="volume-list">{volumes.map((v,i) => <button type="button" className="volume-row" key={i} onClick={()=>setDrill({title:`${v.work_type}: ${v.quantity} ${v.unit}`,ids:v.source_report_ids??[]})}><div className="owner-volume-main"><strong>{v.work_type}</strong><small>{siteName(v.site_id)} · {v.unit}</small>{Number.isFinite(Number(v.quantity)) && maxVolumeForUnit(v.unit)>0 && <span className="owner-volume-track" aria-hidden="true"><span style={{width:`${Math.min(100,Math.max(0,Number(v.quantity)/maxVolumeForUnit(v.unit)*100))}%`}}/></span>}</div><b>{v.quantity} {v.unit}</b></button>)}</div> : <p className="empty">{dataCurrent?'Объёмы работ не указаны.':error?'Данные не загружены.':'Загрузка сводки…'}</p>}
+              </div>
           </section>}
-          {(page==='analytics') && !!currentSummary?.qualitative_works?.length && <section className="card"><h2>Описанные работы</h2><p className="muted">Сколько отчётов содержит каждую формулировку. Это не объём выполненных работ.</p><div className="crs-qualitative-list">{currentSummary.qualitative_works.map((item,i)=><details className="crs-work-disclosure" key={`${item.site_id}-${item.work_type}-${i}`}><summary><strong>{item.work_type}</strong><span>{item.report_count} отч.</span></summary><div className="source-links">{item.source_report_ids.map((id,j)=><button className="quiet" key={id} onClick={()=>openById(id)}>Отчёт {j+1}</button>)}</div></details>)}</div><p className="footnote">Каждый счётчик раскрывает исходные отчёты; фильтры объекта, автора и периода применяются ко всем строкам.</p></section>}
           {page==='analytics' && <WorkbenchSection number="02" title="Отчёты по периодам" detail="По данным сводки" />}
            {page==='analytics' && <section className="analytics-lead wb-analytics-lead">
-            <div className="card"><h2>Полученные отчёты</h2><p className="muted">Количество отчётов, не объём и не готовность работ</p>
+            <div className="card"><h2>Полученные отчёты</h2><p className="muted">По дням, месяцам и годам</p>
               <label className="chart-period">Группировка<select value={interval} onChange={e=>setInterval(e.target.value as Interval)}><option value="day">По дням</option><option value="month">По месяцам</option><option value="year">По годам</option></select></label>
               <CrReportChart periods={reportPeriods} ready={dataCurrent} total={currentSummary?.report_count} onOpen={period=>setDrill({title:`Отчёты за ${period.label}`,ids:period.ids})} />
-              <p className="footnote">Просрочки пока не рассчитываются: график ожидаемых отчётов не согласован.</p></div>
+              </div>
           </section>}
           {(page==='analytics') && <section className="dashboard-grid" aria-label="Деньги и спецтехника">
-            <div className="card"><h2>Денежные операции</h2><p className="muted">Только зарегистрированные операции по дате операции.</p>
-              {currentSummary&&Object.keys(currentSummary.financial_totals_kopecks).length?<div className="volume-list">{(['funding_received','expense','advance_issued'] as const).filter(kind=>currentSummary.financial_totals_kopecks[kind]!=null).map(kind=>{const ids=[...new Set(currentSummary.financial_entries.filter(entry=>entry.kind===kind).map(entry=>entry.report_id))];return <button type="button" className="volume-row" key={kind} onClick={()=>setDrill({title:moneyLabels[kind],ids})}><strong>{moneyLabels[kind]}</strong><b>{new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format((currentSummary.financial_totals_kopecks[kind]||0)/100)}</b></button>;})}</div>:<p className="empty">{dataCurrent?'Подтверждённых структурированных операций нет. Упоминания расходов в исходниках требуют сверки и не становятся суммой.':'Загрузка сводки…'}</p>}
-              <p className="footnote">Три вида не складываются и не образуют остаток: начальный остаток не задан.</p></div>
+            <div className="card"><h2>Денежные операции</h2><p className="muted">По датам операций</p>
+              {currentSummary&&Object.keys(currentSummary.financial_totals_kopecks).length?<div className="volume-list">{(['funding_received','expense','advance_issued'] as const).filter(kind=>currentSummary.financial_totals_kopecks[kind]!=null).map(kind=>{const ids=[...new Set(currentSummary.financial_entries.filter(entry=>entry.kind===kind).map(entry=>entry.report_id))];return <button type="button" className="volume-row" key={kind} onClick={()=>setDrill({title:moneyLabels[kind],ids})}><strong>{moneyLabels[kind]}</strong><b>{new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format((currentSummary.financial_totals_kopecks[kind]||0)/100)}</b></button>;})}</div>:<p className="empty">{dataCurrent?'Денежные операции не указаны.':'Загрузка сводки…'}</p>}
+              </div>
             <div className="card"><h2>Спецтехника</h2><p className="muted">Заявленные часы по виду и принадлежности</p>
               {currentSummary?.equipment_hours.length?<div className="volume-list">{currentSummary.equipment_hours.map((entry,i)=><div className="volume-row" key={i}><div><strong>{entry.type}</strong><small>{equipmentOwnership(entry.hired)}</small></div><b>{entry.hours} ч</b></div>)}</div>:<p className="empty">{dataCurrent?'Часы работы техники не указаны.':'Загрузка сводки…'}</p>}
-              <p className="footnote">Стоимость без тарифа не рассчитывается.</p></div>
+              </div>
           </section>}
-          {(page==='analytics') && drill && <section className="card" aria-label="Исходные записи"><div className="section-heading"><h2>{drill.title}</h2><button type="button" className="link-button" onClick={()=>setDrill(null)}>Закрыть</button></div>{drill.ids.length?drill.ids.map(id=>{const report=reports.find(item=>item.id===id);return <button type="button" className="volume-row" key={id} onClick={()=>openById(id)}><span>{report?`${dateText(report.data.work_date)} · ${siteName(report.site_id)}`:'Открыть отчёт'}</span><b>К записи</b></button>;}):<p className="empty">Записей нет. Это не подтверждённый ноль.</p>}</section>}
-          {page==='analytics' && <details className="card"><summary>Ограничения данных</summary><p>План и факт, процент готовности и просрочка не показаны: нет утверждённого плана и графика смен. Остаток денег не показан: нет начального остатка. Показатели рассчитываются по зарегистрированным данным отчётов.</p></details>}
-          {page==='analytics' && ['manager','admin'].includes(profile?.role||'') && <ImportData token={token} reports={visible} onOpen={openById}/>}
+          {(page==='analytics') && drill && <section ref={sourceList} tabIndex={-1} className="card control-source-disclosure" aria-label="Отчёты"><div className="section-heading"><h2>{drill.title}</h2><button type="button" className="link-button" onClick={()=>setDrill(null)}>Закрыть</button></div>{drill.ids.length?drill.ids.map(id=>{const report=reports.find(item=>item.id===id);return <button type="button" className="volume-row" key={id} onClick={()=>openById(id)}><span>{report?`${dateText(report.data.work_date)} · ${siteName(report.site_id)}`:'Открыть отчёт'}</span><b>Открыть отчёт</b></button>;}):<p className="empty">Нет записей.</p>}</section>}
+
+
+          {page==='analytics' && ['manager','admin'].includes(profile?.role||'') && <details className="card"><summary>Архив документов</summary><ImportData token={token} reports={visible} onOpen={openById}/></details>}
           {page==='objects' && siteId==='all' && <WorkbenchSection number="01" title="Объекты" detail="Ход работ" />}
            {page==='objects' && (siteId==='all' ? <SiteList sites={sites} latestReport={latestReport} authorName={displayAuthor} onOpen={id=>setSiteId(id)}/> : <SiteCard site={sites.find(s=>s.id===siteId) || {id:siteId,name:siteName(siteId)}} reports={visible} ready={dataCurrent} token={token} authorName={displayAuthor} onOpen={openReport} onBack={()=>setSiteId('all')} onMoney={()=>navigate('money')}/>)}
            {page==='money' && <MoneyPage token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} sites={sites} siteName={siteName} onOpen={openReport}/>}
@@ -276,7 +293,11 @@ export default function App() {
         </div>
         {reportId && (selected?.id===reportId ? <ReportDetails key={selected.id} report={selected} token={token} role={profile?.role||''} siteName={siteName(selected.site_id)} authorName={displayAuthor(selected.author_login)} onClose={closeReport} onChange={r=>{setSelected(r);void refresh();}}/> : <section className="report-load" aria-live="polite"><button className="quiet" onClick={closeReport}>← Назад</button>{reportError?<><h1>Не удалось открыть отчёт</h1><p role="alert">{reportError}</p><button className="secondary" onClick={()=>setReportRetry(n=>n+1)}>Попробовать снова</button></>:<p>Загрузка отчёта…</p>}</section>)}
       </main>
-      <footer>СтройКонтроль · данные сервера заказчика</footer>
+      <footer>СтройКонтроль
+        {token && ['manager','admin'].includes(profile?.role||'') && <HostAddress token={token}/>}
+      </footer>
+      <button type="button" className="conversation-toggle" aria-expanded={chatOpen} onClick={()=>setChatOpen(v=>!v)}>Переписка / ИИ</button>
+      {chatOpen&&<ConversationDock key={filterKey} token={token} reports={visible} reportId={visible.some(r=>r.id===chatReport)?chatReport:null} onClose={()=>setChatOpen(false)} onReport={openById} siteName={siteName} onChanged={refresh} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate}/>}
       <nav className="bottom-nav crs-bottom-nav" aria-label="Мобильная навигация">
         {(['overview','objects','reports','money'] as Page[]).map(key=>(
           <button key={key} type="button" className={page===key?'active':''}
@@ -291,7 +312,7 @@ export default function App() {
           <span aria-hidden="true" style={{fontSize:22,lineHeight:1}}>⋯</span><span>Ещё</span>
         </button>
         {mobileMoreOpen && <div id="crs-more-menu" className="crs-more-menu" role="menu" aria-label="Дополнительные разделы">
-          {(['analytics','ai',...(profile?.role==='admin'?['admin']:[])] as Page[]).map(key=>(
+          {(['analytics','ai','catalog',...(profile?.is_owner?['labor']:[]),...(profile?.role==='admin'?['admin']:[])] as Page[]).map(key=>(
             <button type="button" key={key} role="menuitem" aria-current={page===key?'page':undefined}
               onClick={()=>{navigate(key);setMobileMoreOpen(false);}}>
               <NavIcon page={key}/><span>{labels[key]}</span>

@@ -1,0 +1,16 @@
+import {test,expect} from '@playwright/test';
+async function enter(page:import('@playwright/test').Page){await page.goto('/');await page.getByLabel('Логин',{exact:true}).fill('manager');await page.getByLabel('Пароль',{exact:true}).fill('SyntheticPassword123');await page.getByRole('button',{name:'Войти',exact:true}).click();await expect(page.locator('.topbar-right')).toContainText('manager');}
+test('owner archives a work type preserving history',async({page})=>{
+ await enter(page);await page.locator('.sidebar').getByRole('button',{name:'Виды работ',exact:true}).click();const section=page.getByRole('region',{name:'Виды работ',exact:true});
+ const name='Synthetic catalog '+crypto.randomUUID();await section.getByLabel('Название',{exact:true}).fill(name);await section.getByRole('button',{name:'Сохранить вид работы'}).click();const row=section.locator('.ops-row').filter({hasText:name});await expect(row).toBeVisible();await row.getByRole('button',{name:'Убрать из выбора'}).click();await expect(row).toContainText('В архиве');
+ for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();}
+});
+test('owner records a day, trip and explicit adjustments',async({page})=>{
+ await enter(page);await page.locator('.sidebar').getByRole('button',{name:'Табель',exact:true}).click();const section=page.getByRole('region',{name:'Табель владельца'});const name='Synthetic worker '+crypto.randomUUID();await section.getByLabel('Имя работника').fill(name);await section.getByRole('button',{name:'Добавить человека',exact:true}).click();await expect(section.getByRole('button',{name:'Добавить день'})).toBeEnabled();await section.getByRole('button',{name:'Добавить день'}).click();await section.getByRole('combobox',{name:'Работник',exact:true}).selectOption({label:name});await section.getByLabel('Командировочный день').check();await section.getByLabel('Доплата, ₽').fill('100');await section.getByLabel('Штраф, ₽').fill('20');await section.getByLabel('Причина доплаты / штрафа').fill('Synthetic adjustment');await section.getByRole('button',{name:'Сохранить день'}).click();const row=section.getByRole('row').filter({hasText:name});await expect(row).toContainText('командировка');await expect(row).toContainText(/5\s080/);
+ for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();}
+});
+test('conversation dock shows saved source without page overflow',async({page})=>{
+ await enter(page);await page.getByRole('button',{name:'Переписка / ИИ'}).click();const dock=page.getByRole('complementary',{name:'Переписка и помощник'});await expect(dock).toBeVisible();await dock.getByLabel('Отчёт и дата').selectOption({label:'2026-10-24 · Synthetic site A'});await expect(dock.locator('.conversation-message')).toContainText('Synthetic');
+ for(const width of [320,390,1440]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();}
+ await dock.getByRole('button',{name:'Закрыть панель'}).click();await expect(dock).toHaveCount(0);
+});

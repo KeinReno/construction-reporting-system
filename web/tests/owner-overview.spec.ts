@@ -11,7 +11,7 @@ async function signIn(page:Page) {
 test('monthly chart opens the actual received reports and preserves its selection',async({page})=>{
   await signIn(page);
   const chart=page.getByRole('region',{name:'Отчёты по месяцам'});
-  await expect(chart).toContainText('не объём и не готовность работ');
+  await expect(chart).toContainText('Последние 6 месяцев');
   const month=chart.getByRole('button',{name:/полученных отчётов 2/});
   await month.click();
   await expect(month).toHaveAttribute('aria-pressed','true');
@@ -62,9 +62,9 @@ test('one cabinet keeps imported and Android reports with no source-specific mod
   await imported.click();
   const detail=page.getByRole('region',{name:'Просмотр отчёта'});
   await expect(detail.getByRole('heading',{name:'Проверка',exact:true})).toHaveCount(0);
-  await detail.getByText('Первичная запись',{exact:true}).click();
+  await detail.getByText('Текст отчёта',{exact:true}).click();
   await expect(detail.getByText('Synthetic historical source',{exact:true})).toBeVisible();
-  await expect(detail.getByText(/Указанный автор: Synthetic author/)).toBeVisible();
+  await expect(detail.getByText(/Автор: Synthetic author/)).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/MAX|Сводка архива|Анализ архива|Архив MAX/);
   expect(oldRequests).toEqual([]);
 });
@@ -76,8 +76,10 @@ test('object overview and date filters keep the common history reachable',async(
   await home.getByRole('button',{name:/^Synthetic site A Последний отчёт:/}).click();
   await page.getByRole('button',{name:'Фильтры',exact:true}).click();
   await page.getByLabel('С',{exact:true}).fill('26/10/2026');
-  await expect(page.getByRole('article',{name:'Карточка объекта Synthetic site A'})).toContainText('За выбранные условия отчётов нет');
-  await expect(page.getByRole('combobox',{name:'Автор',exact:true}).locator('option').filter({hasText:'Оператор переноса'})).toHaveCount(1);
+  await expect(page.getByRole('article',{name:'Карточка объекта Synthetic site A'})).toContainText('Нет отчётов за выбранный период.');
+  const authorOptions=page.getByRole('combobox',{name:'Автор',exact:true}).locator('option');
+  await expect(authorOptions).toHaveCount(2);
+  await expect(authorOptions.filter({hasText:'foreman'})).toHaveCount(0);
   await page.getByLabel('С',{exact:true}).fill('');
   const site=page.getByRole('article',{name:'Карточка объекта Synthetic site A'});
   await site.getByRole('button',{name:'Работы и отчёты',exact:true}).click();
@@ -96,7 +98,7 @@ test('object overview connects dated events and separate money totals to the sou
   await expect(money).toContainText('125,50');
   await expect(money).toContainText('Поступление');
   await expect(money).toContainText('Не указано');
-  await expect(money).toContainText('Остаток не рассчитан');
+  await expect(money).not.toContainText('Остаток');
   const events=site.getByRole('region',{name:'События из отчётов'});
   const event=events.getByRole('button',{name:/Synthetic incident/});
   await expect(event).toContainText('25/10/2026');

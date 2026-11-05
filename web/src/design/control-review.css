@@ -1,0 +1,52 @@
+/* Owner report review: explicit gaps keep icons separate from their labels. */
+.owner-simple .control-heading,.owner-simple .control-label,.owner-simple .control-open{display:flex;align-items:center;gap:10px;min-width:0}
+.owner-simple .control-heading .owner-icon,.owner-simple .control-label .owner-icon,.owner-simple .control-open .owner-icon{flex:0 0 19px;margin:0}
+.owner-simple .control-heading h2{margin:0}
+.owner-simple .control-heading{margin-bottom:12px}
+.owner-simple .control-site-title{margin:0 0 12px;overflow-wrap:anywhere}
+.owner-simple .control-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0 0 24px}
+.owner-simple .control-stats>div{padding:20px;border:1px solid var(--owner-edge);border-radius:10px;background:var(--owner-surface);min-width:0}
+.owner-simple .control-stats strong{display:block;font-size:30px;margin:8px 0;font-variant-numeric:tabular-nums}
+.owner-simple .control-stats small{display:block;color:var(--owner-muted);font-size:12px}
+.owner-simple .control-label{font-size:13px;color:var(--owner-muted)}
+.owner-simple .control-stats .owner-icon,.owner-simple .control-attention .control-heading .owner-icon{color:var(--owner-accent)}
+.owner-simple .crs-control-overview{display:grid;gap:18px;margin-bottom:24px}
+.owner-simple .crs-control-overview>.card{margin:0;padding:24px;border-radius:10px}
+.owner-simple .control-incident{border-top:1px solid var(--owner-edge);padding:18px 0;margin-top:14px;min-width:0;overflow-wrap:anywhere}
+.owner-simple .control-incident>p{margin:0 0 8px;font-weight:500}
+.owner-simple .control-incident small{color:var(--owner-muted)}
+.owner-simple .control-action{display:grid;gap:5px;background:#39362c;border-left:2px solid var(--owner-accent);padding:12px 14px;margin:14px 0;font-size:13px;color:var(--owner-muted)}
+.owner-simple .control-incident .quiet{display:inline-flex;align-items:center;gap:10px;white-space:normal;text-align:left}
+.owner-simple .control-note{font-size:12px;margin:14px 0 0;line-height:1.6}
+.owner-simple .control-quality .volume-row:disabled{opacity:1;color:var(--owner-muted);cursor:default}
+.owner-simple .control-categories .volume-row{gap:24px;align-items:center}
+.owner-simple .control-category{display:grid;gap:5px;flex:1;min-width:0}
+.owner-simple .control-category small{color:var(--owner-muted)}
+.owner-simple .control-categories b{display:flex;align-items:center;gap:10px;flex:none}
+.owner-simple .control-track{display:block;height:6px;border-radius:3px;background:#122125;margin:5px 0}
+.owner-simple .control-track>span{display:block;height:100%;background:var(--owner-accent);border-radius:3px}
+.owner-simple .report-cards{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+.owner-simple .report-card{display:flex;flex-direction:column;border:1px solid var(--owner-edge);border-radius:10px;overflow:hidden;text-align:left;background:var(--owner-surface);min-width:0;height:auto}
+.owner-simple .report-card-body{padding:20px;display:block;min-width:0}
+.owner-simple .report-card-media{height:150px;min-height:0;width:100%;position:relative}
+.owner-simple .control-card-works{margin:16px 0}
+.owner-simple .control-card-work{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;padding:12px 0;border-bottom:1px solid var(--owner-edge);font-size:14px;overflow-wrap:anywhere}
+.owner-simple .control-card-work b{font-size:12px;color:var(--owner-accent);font-weight:500;max-width:160px}
+.owner-simple .control-card-issue{padding:14px;background:#39362c;border-left:2px solid var(--owner-accent);margin-bottom:15px}
+.owner-simple .control-card-issue .control-label{color:var(--owner-accent);margin-bottom:8px}
+.owner-simple .control-card-issue p{margin:0 0 8px;font-size:14px}
+.owner-simple .control-card-issue small{font-size:12px;color:var(--owner-muted)}
+.owner-simple .control-card-check{display:flex;align-items:flex-start;gap:9px;font-size:12px;color:var(--owner-muted);margin:10px 0}
+.owner-simple .control-card-check .owner-icon{width:16px;height:16px;flex:none;margin-top:2px}
+.owner-simple .control-open{color:var(--owner-accent);font-size:12px;flex:none}
+.owner-simple .report-card-footer{margin-top:16px;padding-top:14px;flex-wrap:wrap;gap:12px}
+.owner-simple .control-detail-check{display:flex;align-items:flex-start;gap:10px;background:var(--owner-raised);color:var(--owner-muted);padding:14px;border-radius:7px;margin:14px 0;font-size:13px}
+.owner-simple .control-detail-check .owner-icon{flex:none}
+.owner-simple .control-detail-attention{border-left:3px solid var(--owner-accent);padding:16px;background:var(--owner-raised)}
+.owner-simple .report-row .control-site-title{font-size:inherit;line-height:1.4;align-items:flex-start}
+.owner-simple .report-meta .control-heading{margin:0}
+.owner-simple .owner-report-source summary .control-label{display:inline-flex}
+.owner-simple .control-source-disclosure{margin:0 0 24px}
+.owner-simple .control-source-disclosure .volume-row{overflow-wrap:anywhere;white-space:normal;gap:14px}
+@media(max-width:1000px){.owner-simple .report-cards{grid-template-columns:1fr}}
+@media(max-width:650px){.owner-simple .control-stats{grid-template-columns:1fr;gap:9px}.owner-simple .control-stats>div{padding:15px}.owner-simple .crs-control-overview>.card{padding:16px}.owner-simple .control-card-work{grid-template-columns:1fr;gap:5px}.owner-simple .control-card-work b{max-width:none}.owner-simple .control-categories .volume-row{gap:12px}.owner-simple .control-categories b{font-size:12px}.owner-simple .control-quality .volume-row{flex-wrap:wrap;gap:8px}.owner-simple .report-card-body{padding:16px}}

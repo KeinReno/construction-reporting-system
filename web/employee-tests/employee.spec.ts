@@ -74,7 +74,7 @@ test('slow local transaction cannot let pending autosave invalidate the next for
 
 test('equipment requires an explicit owner and decimal money is sent as integer kopecks',async({page,request})=>{
   await enter(page);const text='Synthetic equipment '+crypto.randomUUID();await fillWork(page,text);
-  await page.getByText('Добавить сведения: материалы, деньги, техника',{exact:true}).click();await page.getByText('Техника',{exact:true}).click();await page.getByRole('button',{name:'Добавить технику',exact:true}).click();
+  await page.getByText('Добавить сведения: условия смены, материалы, деньги, техника',{exact:true}).click();await page.getByText('Техника',{exact:true}).click();await page.getByRole('button',{name:'Добавить технику',exact:true}).click();
   await page.getByRole('textbox',{name:'Вид техники',exact:true}).fill('Synthetic crane');await page.getByRole('textbox',{name:'Отработано часов',exact:true}).fill('02.50');
   await page.getByRole('button',{name:'Отправить отчёт',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Укажите принадлежность техники');
   await page.getByRole('combobox',{name:'Принадлежность',exact:true}).selectOption('hired');
@@ -82,4 +82,13 @@ test('equipment requires an explicit owner and decimal money is sent as integer 
   await page.getByRole('button',{name:'Отправить отчёт',exact:true}).click();
   await expect.poll(async()=>(await rows(request)).find(r=>r.data.work_entries.some((w:any)=>w.description===text))?.status,{timeout:25000}).toBe('submitted');
   const report=(await rows(request)).find(r=>r.data.work_entries.some((w:any)=>w.description===text))!;expect(report.data.equipment[0]).toEqual({type:'Synthetic crane',hours:'2.50',hired:true});expect(report.data.financial_entries[0].amount_kopecks).toBe(150);
+});
+
+
+test('shift conditions survive local reload and reach the server',async({page,request})=>{
+ await enter(page);const text='Synthetic conditions '+crypto.randomUUID();await fillWork(page,text);
+ await page.getByText('Добавить сведения: условия смены, материалы, деньги, техника',{exact:true}).click();
+ await page.getByRole('combobox',{name:'Трансформатор',exact:true}).selectOption('Т1/Т2');await page.getByRole('combobox',{name:'Погода',exact:true}).selectOption('Облачно');await expect(page.getByText('Черновик сохранён',{exact:true})).toBeVisible();await page.reload();
+ await page.getByText('Добавить сведения: условия смены, материалы, деньги, техника',{exact:true}).click();await expect(page.getByRole('combobox',{name:'Трансформатор',exact:true})).toHaveValue('Т1/Т2');await expect(page.getByRole('combobox',{name:'Погода',exact:true})).toHaveValue('Облачно');
+ await page.getByRole('button',{name:'Отправить отчёт',exact:true}).click();await expect.poll(async()=>{const reports=await rows(request);const r=reports.find(r=>r.data.work_entries.some((w:any)=>w.description===text));return r&&[r.status,r.data.work_area,r.data.weather];},{timeout:25000}).toEqual(['submitted','Т1/Т2','Облачно']);
 });

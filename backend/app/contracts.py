@@ -86,6 +86,8 @@ class ReportData(Input):
     financial_entries:list[FinancialEntry]|None=Field(default=None,max_length=100)
     equipment:list[EquipmentEntry]|None=Field(default=None,max_length=50)
     next_shift_plans:list[str]|None=Field(default=None,max_length=30)
+    work_area:Literal['Т1','Т2','Т1/Т2']|None=None
+    weather:Literal['Ясно','Облачно','Дождь','Снег','Ветер','Мороз и гололёд','Жара']|None=None
     @model_validator(mode='after')
     def valid(self):
         if self.kind=='work' and not self.work_entries: raise ValueError('work_entries required')
@@ -101,6 +103,6 @@ class ReportData(Input):
 
 def report_payload(data:ReportData):
     payload=data.model_dump(mode='json')
-    for key in ('crew','materials','incidents','financial_entries','equipment','next_shift_plans'):
+    for key in ('crew','materials','incidents','financial_entries','equipment','next_shift_plans','work_area','weather'):
         if payload[key] is None:payload.pop(key)
     return payload

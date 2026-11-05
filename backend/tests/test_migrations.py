@@ -20,6 +20,11 @@ def test_upgrade_preserves_legacy_rows_and_roundtrip(tmp_path,monkeypatch):
         assert row==(1,None)
     assert 'submitted_at' in {x['name'] for x in inspect(engine).get_columns('reports')}
     assert inspect(engine).has_table('report_sources')
+    from app.production_analytics import MAIN_GROUPS
+    with engine.connect() as db:
+        seeded=set(db.execute(text("SELECT name FROM work_types WHERE kind='main'")).scalars())
+    assert seeded=={label for _,label in MAIN_GROUPS}
+    assert inspect(engine).has_table('labor_days')
     command.downgrade(cfg,'base')
     command.upgrade(cfg,'head')
     assert inspect(engine).has_table('reports')

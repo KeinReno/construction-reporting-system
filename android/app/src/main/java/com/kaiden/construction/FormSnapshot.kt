@@ -12,10 +12,10 @@ data class FormSnapshot(
     val materialsJson:String="[]",val incidentText:String="",val incidentsJson:String="[]",
     val financeKind:String="expense",val financeAmount:String="",val financeCategory:String="",val financeDate:String="",val financeDescription:String="",val financeReceiptPhotoId:String="",val financialJson:String="[]",
     val equipmentType:String="",val equipmentHours:String="",val equipmentHired:Boolean=false,val equipmentJson:String="[]",
-    val planText:String="",val plansJson:String="[]"
+    val planText:String="",val plansJson:String="[]",val workArea:String="",val weather:String=""
 ) {
     fun encode():String=JSONObject().apply {
-        put("version",1);put("siteId",siteId);put("workDate",workDate);put("kind",kind);put("workType",workType)
+        put("workArea",workArea);put("weather",weather);put("version",1);put("siteId",siteId);put("workDate",workDate);put("kind",kind);put("workType",workType)
         put("quantity",quantity);put("unit",unit);put("description",description)
         put("workEntries",JSONArray(workEntriesJson));put("noWorkReason",noWorkReason);put("comment",comment);put("photos",JSONArray(photosJson));put("editReason",editReason)
         put("crew",crew);put("materialName",materialName);put("materialQuantity",materialQuantity);put("materialUnit",materialUnit);put("materialDirection",materialDirection);put("materials",JSONArray(materialsJson));put("incidentText",incidentText);put("incidents",JSONArray(incidentsJson))
@@ -42,7 +42,7 @@ data class FormSnapshot(
                     status=it.getString("status"),serverId=it.nullable("serverId"),receiptId=it.nullable("receiptId"),lastError=it.nullable("lastError"),createdAt=it.getLong("createdAt"),
                     serverRevision=it.getInt("serverRevision"),editRequested=it.getBoolean("editRequested"),editReason=it.getString("editReason"),businessStatus=it.nullable("businessStatus"),extrasJson=it.optString("extrasJson","{}"),reviewReason=it.nullable("reviewReason"))
             }
-            return FormSnapshot(siteId=o.optString("siteId",""),workDate=o.optString("workDate",java.time.LocalDate.now().toString()),kind=o.optString("kind","work"),
+            return FormSnapshot(workArea=o.optString("workArea",""),weather=o.optString("weather",""),siteId=o.optString("siteId",""),workDate=o.optString("workDate",java.time.LocalDate.now().toString()),kind=o.optString("kind","work"),
                 workType=o.optString("workType","Сварка металлоконструкций"),quantity=o.optString("quantity",""),unit=o.optString("unit","шт"),description=o.optString("description",""),
                 workEntriesJson=(o.optJSONArray("workEntries")?:JSONArray()).toString(),noWorkReason=o.optString("noWorkReason",""),comment=o.optString("comment",""),photosJson=(o.optJSONArray("photos")?:JSONArray()).toString(),editing=editing,editReason=o.optString("editReason",""),
                 crew=o.optString("crew",""),materialName=o.optString("materialName",""),materialQuantity=o.optString("materialQuantity",""),materialUnit=o.optString("materialUnit",""),materialDirection=o.optString("materialDirection","mentioned"),materialsJson=(o.optJSONArray("materials")?:JSONArray()).toString(),incidentText=o.optString("incidentText",""),incidentsJson=(o.optJSONArray("incidents")?:JSONArray()).toString(),

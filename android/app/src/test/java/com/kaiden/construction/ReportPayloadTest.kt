@@ -3,6 +3,12 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 class ReportPayloadTest {
+    @Test fun shiftConditionsCannotBeLostBeforeSubmit() {
+        val local=payload().put("work_area","Т1/Т2").put("weather","Облачно")
+        assertTrue(ReportPayload.equivalent(local,org.json.JSONObject(local.toString())))
+        assertFalse(ReportPayload.equivalent(local,payload()))
+        assertFalse(ReportPayload.equivalent(local,org.json.JSONObject(local.toString()).put("weather","Дождь")))
+    }
     private fun payload(quantity:String="2") = JSONObject("""{"client_report_id":"c","site_id":"s","work_date":"2026-10-25","kind":"work","work_entries":[{"type":"Test","quantity":"$quantity","unit":"m"}],"required_photo_ids":[]}""")
     @Test fun decimalAndDefaultFieldsMatchServer() {
         val remote=payload("2.000").put("comment",JSONObject.NULL).put("no_work_reason",JSONObject.NULL)

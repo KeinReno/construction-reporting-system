@@ -53,3 +53,6 @@ android/.kotlin/
 /.cursor/
 /tmp/
 /web/tmp/
+/outputs/
+/web/playwright.local*.config.ts
+/test-results/

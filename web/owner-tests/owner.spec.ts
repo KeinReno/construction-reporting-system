@@ -10,7 +10,7 @@ async function signIn(page:Page) {
   await page.getByLabel('Логин',{exact:true}).fill(credentials.manager_login);
   await page.getByLabel('Пароль',{exact:true}).fill(credentials.manager_password);
   await page.getByRole('button',{name:'Войти',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Главная',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Объекты и отчёты',exact:true})).toBeVisible();
   return credentials;
 }
 
@@ -44,6 +44,6 @@ test('imported evidence uses ordinary protected attachments',async({page,request
   const id=imported.evidence.photos.find((p:any)=>p.relation==='same_message').id;
   expect((await request.get(`/api/v1/attachments/${id}`)).status()).toBe(401);
   expect((await request.get(`/api/v1/attachments/${id}`,{headers})).ok()).toBeTruthy();
-  await detail.getByText('Первичная запись',{exact:true}).click();
+  await detail.getByText('Текст отчёта',{exact:true}).click();
   await expect(detail.locator('.owner-source-text')).toBeVisible();
 });

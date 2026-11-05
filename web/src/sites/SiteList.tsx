@@ -21,7 +21,7 @@ export function SiteList({
           <h2>Список объектов</h2>
         </div>
       </div>
-      <p className="muted">Последняя смена показана внутри выбранного фильтра периода и автора.</p>
+
       <div className="site-list-grid site-grid">
         {sites.map(site => {
           const latest = latestReport(site.id);

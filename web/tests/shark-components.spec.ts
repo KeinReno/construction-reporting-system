@@ -28,7 +28,9 @@ test('native filter selectors, calendar fields and observed KPI progress', async
   await page.getByRole('button',{name:'Фильтры',exact:true}).click();
   await expect(page.getByRole('combobox',{name:'Объект',exact:true})).toBeVisible();
   await page.getByRole('combobox',{name:'Автор',exact:true}).selectOption({label:'manager'});
-  await expect(page.getByLabel('Сводка отчётов')).toContainText('Получено отчётов: 1');
+  const stats=page.getByLabel('Сводка отчётов');
+  await expect(stats.getByText('Отчётов в выборке')).toBeVisible();
+  await expect(stats.locator('div').filter({hasText:'Отчётов в выборке'}).locator('strong')).toHaveText('1');
   await expect(page.getByRole('textbox',{name:'С',exact:true})).toBeVisible();
   await expect(page.getByLabel('Выбрать дату: С')).toHaveAttribute('type','date');
 });

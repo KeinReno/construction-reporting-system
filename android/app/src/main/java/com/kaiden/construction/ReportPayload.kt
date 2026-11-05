@@ -18,7 +18,7 @@ object ReportPayload {
         }))
         val ids=data.optJSONArray("required_photo_ids")?:JSONArray()
         put("required_photo_ids",JSONArray((0 until ids.length()).map{ids.getString(it)}.sorted()))
-        for(key in listOf("crew","incidents")) {
+        for(key in listOf("crew","incidents","work_area","weather")) {
             if(!data.isNull(key))put(key,data.get(key))
         }
         if(!data.isNull("materials")) {

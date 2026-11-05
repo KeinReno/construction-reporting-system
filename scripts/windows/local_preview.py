@@ -66,6 +66,7 @@ def run(root:Path,local_only=False):
     def gateway_state(status,public_url=None):
         with state_lock:
             state.update(status=status,public_url=public_url)
+            api.state.public_url=public_url
             write_json(state_path,state)
             message=(public_url+'\n\nИспользуйте выданные учётные данные.\n'
                 'Адрес временный и может измениться. При ошибке проверьте этот файл снова.\n') if public_url else (
@@ -74,14 +75,29 @@ def run(root:Path,local_only=False):
             (root/'ССЫЛКА.txt').write_text(message,encoding='utf-8-sig')
     write_json(state_path,state)
     os.environ['WEB_DIR']=str(web)
+    os.environ['CRS_OWNER_USER_ID']=str(cfg.get('owner_user_id') or '')
     os.environ.pop('CRS_IMPORT_USER_IDS',None)  # Imports require admin in this public-facing runtime.
+    assistant=cfg.get('codex',{})
+    os.environ['CRS_CODEX_ENABLED']='1' if assistant.get('enabled') else '0'
+    if assistant.get('enabled'):
+        os.environ['CRS_CODEX_ENABLED']='1'
+        os.environ['CRS_CODEX_EXE']=assistant['executable']
+        os.environ['CRS_CODEX_WORK']=str(root/'assistant')
+    bridge=cfg.get('qoder_bridge',{})
+    if bridge.get('enabled'):
+        os.environ['CRS_AI_PROVIDER']='qoder'
+        os.environ['CRS_QODER_BRIDGE']=str(Path(bridge['dir']).resolve())
+    else:
+        os.environ['CRS_AI_PROVIDER']='codex' if assistant.get('enabled') else 'builtin'
+        os.environ.pop('CRS_QODER_BRIDGE',None)
     api=create_app(database_url=cfg['database_url'],storage=str(uploads))
+    api.state.public_url=None
     @api.middleware('http')
     async def identify_ready(request,call_next):
         response=await call_next(request)
         if request.url.path=='/ready':response.headers['X-CRS-Instance']=instance_id
         return response
-    server=uvicorn.Server(uvicorn.Config(api,host='127.0.0.1',port=int(cfg['port']),workers=1,
+    server=uvicorn.Server(uvicorn.Config(api,host=cfg.get('host','127.0.0.1'),port=int(cfg['port']),workers=1,
         proxy_headers=False,access_log=False,log_level='warning'))
     thread=threading.Thread(target=server.run,daemon=True)
     thread.start()

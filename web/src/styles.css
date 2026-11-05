@@ -185,3 +185,13 @@ button.volume-row{display:flex;justify-content:space-between;align-items:center;
 .owner-report-preview-no-photo{grid-template-columns:1fr;min-height:0}.owner-report-preview-no-photo .owner-report-preview-content{min-height:140px}
 @media(max-width:650px){.owner-site-overview-card{padding:15px}.owner-site-overview-head{align-items:start}.owner-site-actions{gap:16px}}
 @media(prefers-reduced-motion:no-preference){.owner-site-overview-card{transition:border-color 180ms ease,background-color 180ms ease}.owner-site-overview-card:hover{border-color:#937e55;background:#1c2b2f}}
+
+/* Quiet host address in the authenticated owner's footer. */
+.host-address{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:5px 10px;margin:8px auto 0;max-width:720px;font-size:11px;color:#9cabad}
+.host-address input{flex:0 1 355px;min-width:0;max-width:100%;width:100%;padding:4px 6px!important;font:inherit!important;color:inherit!important;background:transparent!important;border:1px solid #46545a!important;border-radius:3px;text-align:center}
+.host-address button{padding:5px 3px;border:0;background:transparent;color:inherit;font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.host-address button:hover{color:#e9efec}.host-address button:focus-visible,.host-address input:focus-visible{outline:2px solid #ffd284;outline-offset:2px}
+.host-address-message{flex-basis:100%;min-height:14px}
+@media(max-width:780px){footer:has(.host-address){padding-bottom:90px}.host-address input{flex-basis:100%}}
+
+.assistant-actions{margin:20px 0;padding:18px;border:1px solid #576465;border-radius:6px}.assistant-action{padding:15px 0;border-top:1px solid #3e4d50}.assistant-action:first-of-type{border-top:0}.assistant-action dl{display:grid;gap:8px;grid-template-columns:1fr 1fr}.assistant-action dl>div{min-width:0;padding:12px;background:#101a1e;border-radius:4px}.assistant-action dt{font-size:11px;color:#acbabc}.assistant-action dd{margin:6px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}.assistant-action p{white-space:pre-wrap;overflow-wrap:anywhere}@media(max-width:600px){.assistant-action dl{grid-template-columns:1fr}.assistant-actions{padding:12px}}

@@ -1,5 +1,5 @@
 """Execute actual PowerShell install/migration/start on a disposable Windows runner."""
-import json,os,subprocess,sys,time,zipfile
+import json,os,socket,subprocess,sys,time,zipfile
 from pathlib import Path
 import pytest
 import httpx,re
@@ -17,7 +17,11 @@ def test_windows_release_lifecycle(tmp_path):
     assert installed.returncode==0,installed.stdout+installed.stderr
     data=tmp_path/'private данные';data.mkdir();database=tmp_path/'runtime.db';config=data/'config.local.json'
     config.write_text(json.dumps({'database_url':'sqlite:///'+database.as_posix(),'data_dir':str(data)},ensure_ascii=False),encoding='utf-8')
-    args=['-ConfigPath',str(config),'-AllowSqliteForTests','-Port','8043']
+    with socket.socket() as listener:
+        listener.bind(('127.0.0.1', 0))
+        port = listener.getsockname()[1]
+    base_url = f'http://127.0.0.1:{port}'
+    args=['-ConfigPath',str(config),'-AllowSqliteForTests','-Port',str(port)]
     # Normal production mode rejects SQLite before any mutation; credentials are never printed.
     denied=run('Run.ps1','-ConfigPath',config,'-ValidateOnly')
     assert denied.returncode!=0 and 'sqlite:///' not in denied.stdout+denied.stderr
@@ -37,15 +41,15 @@ def test_windows_release_lifecycle(tmp_path):
         deadline=time.monotonic()+45
         while time.monotonic()<deadline:
             try:
-                if httpx.get('http://127.0.0.1:8043/ready').status_code==200:break
+                if httpx.get(base_url+'/ready').status_code==200:break
             except httpx.HTTPError:pass
             time.sleep(.25)
         else:pytest.fail('Windows server did not become ready')
-        index=httpx.get('http://127.0.0.1:8043/');assert index.status_code==200
+        index=httpx.get(base_url+'/');assert index.status_code==200
         assets=re.findall(r'(?:src|href)="([^"]+)"',index.text);assert len(assets)>=2
         for path in assets:
-            asset=httpx.get('http://127.0.0.1:8043'+path);assert asset.status_code==200 and len(asset.content)>100
-        assert httpx.get('http://127.0.0.1:8043/api/v1/sites').status_code==401
+            asset=httpx.get(base_url+path);assert asset.status_code==200 and len(asset.content)>100
+        assert httpx.get(base_url+'/api/v1/sites').status_code==401
         duplicate=run('Run.ps1',*args,timeout=30)
         assert duplicate.returncode!=0 and 'Another server' in duplicate.stderr
     finally:

@@ -21,9 +21,9 @@ def test_normalization_never_invents_volumes_ownership_or_expenses():
     assert [w['quantity'] for w in fields['work_entries']]==[None,None,None,'3']
     assert len(fields['incidents'])==1
     assert [e['hired'] for e in fields['equipment']]==[None,True]
-    assert len(fields['financial_entries'])==1
-    assert fields['financial_entries'][0]['amount_kopecks']==123456
-    assert fields['financial_entries'][0]['date_basis']=='report_date'
+    totals={kind:sum(e['amount_kopecks'] for e in fields['financial_entries'] if e['kind']==kind) for kind in ('expense','advance_issued')}
+    assert totals=={'expense':123456,'advance_issued':500000}
+    assert all(e['date_basis']=='report_date' for e in fields['financial_entries'])
     assert result['pending']
     for item in result['facts']:assert text[item['start']:item['end']]==item['text']
     source={'text':text,'_normalization':result}
@@ -50,9 +50,40 @@ def test_partial_compound_expense_and_quantity_keep_exact_source_spans():
         'work_entries':[{'type':text.splitlines()[0],'description':text.splitlines()[0]}]}
     result=normalize(payload,text)
     assert result['fields']['work_entries'][0]['quantity']=='3'
-    assert sum(e['amount_kopecks'] for e in result['fields']['financial_entries'])==7000000
+    totals={kind:sum(e['amount_kopecks'] for e in result['fields']['financial_entries'] if e['kind']==kind) for kind in ('expense','advance_issued')}
+    assert totals=={'expense':7000000,'advance_issued':500000}
     assert len(result['pending'])==1
     for item in result['facts']:assert text[item['start']:item['end']]==item['text']
+
+
+def test_preparation_and_reflexive_verbs_are_not_the_activity_themselves():
+    lines=['разобрались с водой,качать с пруда','полная подготовка под заливку','разобрали опалубку']
+    payload={'client_report_id':str(uuid.uuid4()),'work_date':'2026-10-25',
+        'work_entries':[{'type':s,'description':s} for s in lines]}
+    types=[w['type'] for w in normalize(payload,'\n'.join(lines))['fields']['work_entries']]
+    assert types==['Организация и подготовка работ','Организация и подготовка работ','Демонтаж']
+
+
+def test_equipment_hours_declared_on_the_section_title_are_queued_not_dropped():
+    text='Работа спецтехники: 9 часов\nПланы на завтра:\nМонтаж блоков'
+    payload={'client_report_id':str(uuid.uuid4()),'work_date':'2026-10-25','work_entries':[]}
+    result=normalize(payload,text)
+    assert result['fields']['equipment']==[]
+    queued=[x for x in result['pending'] if x['kind']=='equipment']
+    assert len(queued)==1 and queued[0]['value']=={'hours':'9','type':None}
+    assert 'вида техники' in queued[0]['reason']
+    for item in result['facts']:assert text[item['start']:item['end']]==item['text']
+    ambiguous=normalize({**payload,'client_report_id':str(uuid.uuid4())},'Работа спецтехники: 2 часа(?)')
+    assert 'спорное' in ambiguous['pending'][0]['reason']
+
+
+def test_advance_handouts_are_separated_from_expenses_and_period_dates_are_ignored():
+    lines=['выдача командировочных по 14.07 11800р','Выдача аванса 5000р','Нужно выдать аванс 1000р']
+    payload={'client_report_id':str(uuid.uuid4()),'work_date':'2026-10-25','work_entries':[]}
+    result=normalize(payload,'Расходы:\n'+'\n'.join(lines))
+    assert [(e['kind'],e['amount_kopecks']) for e in result['fields']['financial_entries']]==[
+        ('advance_issued',1180000),('advance_issued',500000)]
+    assert [x['text'] for x in result['pending'] if x['kind']=='finance']==['Нужно выдать аванс 1000р']
 
 
 @pytest.mark.parametrize('line',['Праймер 239руб за лист','Кран 500руб/час','Планируем потратить 500руб','Рабочим по 500руб','Нужно 500руб','Около 500руб','Жилье 70000р 5000р командировочные нужно оплатить','Жилье 500руб за 1 сутки, аванс 1000руб','Будет жилье 500руб, аванс 1000руб'])
@@ -74,8 +105,8 @@ def test_duplicate_money_line_is_not_counted_twice():
 def test_duplicate_compound_fragment_is_not_counted_twice():
     payload={'client_report_id':str(uuid.uuid4()),'work_date':'2026-10-25','work_entries':[]}
     result=normalize(payload,'Расходы:\nЖилье 500руб, жилье 500руб, аванс 1000руб')
-    assert sum(e['amount_kopecks'] for e in result['fields']['financial_entries'])==50000
-    assert len(result['fields']['financial_entries'])==1
+    entries=[(e['kind'],e['amount_kopecks']) for e in result['fields']['financial_entries']]
+    assert entries==[('expense',50000),('advance_issued',100000)]
 
 
 def test_missing_work_description_is_not_explicit_no_work():

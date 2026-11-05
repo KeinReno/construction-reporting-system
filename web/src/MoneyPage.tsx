@@ -102,7 +102,7 @@ export function MoneyPage({
               <small>
                 {counts[item]
                   ? `${counts[item]} записей · по выбранным условиям`
-                  : 'Нет операций этого вида. Это не ноль и не остаток.'}
+                  : 'Нет операций'}
               </small>
             </div>
           ))}
@@ -111,19 +111,14 @@ export function MoneyPage({
       {reports && !invalid && expenseBars.length>0 && <section className="owner-expense-breakdown" aria-label="Расходы по категориям">
         <div className="owner-section-heading"><h3>Расходы по категориям</h3><span>Нажмите на категорию, чтобы отфильтровать операции</span></div>
         {expenseBars.map(([name,amount])=><button key={name} type="button" className="owner-expense-row" aria-pressed={category===name} onClick={()=>setCategory(category===name?'':name)}><span>{name}</span><span className="owner-expense-track" aria-hidden="true"><span style={{width:`${Number(amount*100n/maximumExpense)}%`}}/></span><strong>{formatKopecks(amount)}</strong></button>)}
-        <p className="footnote">Даты отдельных операций могут быть датой отчёта, если дата оплаты не указана.</p>
+
       </section>}
       <div className="filters money-filters">
         <CrCombobox label="Вид операции" value={kind} onChange={value=>setKind(value as typeof kind)} options={[{value:'',label:'Все виды'},...kinds.map(item=>({value:item,label:kindLabel[item]}))]}/>
         <CrCombobox label="Категория" value={category} onChange={setCategory} options={[{value:'',label:'Все категории'},...categories.map(item=>({value:item,label:item}))]}/>
       </div>
-      <details className="owner-money-explain"><summary>Как посчитаны суммы</summary><p>Указаны зарегистрированные операции, включая операции возвращённых отчётов. Если дата оплаты не указана, используется дата отчёта с отдельной пометкой. Расход, поступление и аванс не складываются.</p></details>
-      {reports && (
-        <p className="footnote">
-          Начальный остаток не задан, поэтому баланс не показывается. Включены структурированные операции и
-          однозначно разобранные заявленные расходы. Непроверенные суммы, цены и планы не включены.
-        </p>
-      )}
+
+
       {reports && !list.length && (
         <div className="crs-money-empty" role="status">
           <span className="crs-money-empty-icon" aria-hidden="true">∅</span>
@@ -131,7 +126,7 @@ export function MoneyPage({
             <strong>{invalid ? 'Проверьте период' : 'Нет зарегистрированных операций'}</strong>
             <p className="empty">{invalid
               ? 'Исправьте даты фильтра.'
-              : 'Нет операций по выбранным условиям. Это не подтверждённый ноль.'}</p>
+              : 'Нет операций по выбранным условиям.'}</p>
           </div>
         </div>
       )}

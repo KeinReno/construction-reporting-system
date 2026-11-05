@@ -3,6 +3,8 @@ export function ExtraFields({form:f,onChange}:{form:Form;onChange:(f:Form)=>void
   const update=(next:Partial<Form>)=>onChange({...f,...next});
   const photos=[...f.retainedPhotos.map((id,i)=>({id,name:`Сохранённое фото ${i+1}`})),...f.photos];
   return <div className="employee-extras">
+    <label>Трансформатор<select value={f.work_area||''} onChange={e=>update({work_area:(e.target.value||null) as Form['work_area']})}><option value="">Не указан</option>{['Т1','Т2','Т1/Т2'].map(v=><option key={v}>{v}</option>)}</select></label>
+    <label>Погода<select value={f.weather||''} onChange={e=>update({weather:(e.target.value||null) as Form['weather']})}><option value="">Не указана</option>{['Ясно','Облачно','Дождь','Снег','Ветер','Мороз и гололёд','Жара'].map(v=><option key={v}>{v}</option>)}</select></label>
     <details open={!!f.crew||undefined}><summary>Бригада</summary><label>Кто работал<textarea value={f.crew} maxLength={1000} onChange={e=>update({crew:e.target.value})}/></label></details>
     <details open={!!f.materials.length||undefined}><summary>Материалы{f.materials.length?` · ${f.materials.length}`:''}</summary>
       {f.materials.map((m,i)=><fieldset key={m.id}><legend>Материал {i+1}</legend>

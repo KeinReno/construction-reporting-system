@@ -14,7 +14,7 @@ try { $key=([BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.Get
 $mutex=New-Object Threading.Mutex($false,('Global\ConstructionReporting-'+$key))
 $owned=$false
 $before=@{}
-foreach($name in @('DATABASE_URL','UPLOAD_DIR','WEB_DIR','AUTO_CREATE_SCHEMA')) { $before[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
+foreach($name in @('DATABASE_URL','UPLOAD_DIR','WEB_DIR','AUTO_CREATE_SCHEMA','CRS_OWNER_USER_ID')) { $before[$name]=[Environment]::GetEnvironmentVariable($name,'Process') }
 $previous=Get-Location
 try {
     $owned=$mutex.WaitOne(0)
@@ -23,6 +23,7 @@ try {
     $env:UPLOAD_DIR=Join-Path $settings.DataDir 'uploads'
     $env:WEB_DIR=$settings.WebDir
     $env:AUTO_CREATE_SCHEMA='0'
+    $env:CRS_OWNER_USER_ID=$settings.OwnerUserId
     Set-Location -LiteralPath (Join-Path $settings.Root 'backend')
     & $runtime -m alembic upgrade head
     if ($LASTEXITCODE -ne 0) { throw 'Database migration failed; inspect private server logs' }

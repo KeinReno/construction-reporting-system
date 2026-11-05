@@ -1,3 +1,4 @@
+import { OwnerIcon } from './ui/OwnerIcon';
 import { formatDate, formatTimestamp } from './date';
 import { useEffect, useRef, useState } from 'react';
 import { http, reportStatusLabels, reportViewData, reportWorkState, equipmentOwnership, type Report } from './api';
@@ -120,8 +121,10 @@ export function ReportDetails({
         <div className="report-page-body">
           <div className="report-page-main">
             <CrDataList className="report-meta report-page-meta" items={[
-              {label:'Объект',value:siteName},
-              {label:imported?'Добавил в систему':'Автор в системе',value:authorName},
+              {label:'Объект',value:<span className="control-heading"><OwnerIcon name="building"/>{siteName}</span>},
+              ...(!imported?[{label:'Автор',value:authorName}]:[]),
+              {label:'Дата работ',value:formatDate(r.data.work_date)},
+              {label:'Отправлен',value:r.submitted_at?formatTimestamp(r.submitted_at):'Дата не указана'},
               {label:'Статус',value:`${statusLabel} · ревизия ${r.revision}`},
             ]}/>
 
@@ -153,8 +156,10 @@ export function ReportDetails({
               </p>
             )}
 
+            <div className="control-detail-check"><OwnerIcon name="review"/>{!imported&&r.status==='reviewed'?'Отчёт проверен':'Проверка отчёта не подтверждена'}. Приёмка работ отдельно не подтверждена.</div>
+            {!!r.data.incidents?.length&&<section className="control-detail-attention"><h3 className="control-heading"><OwnerIcon name="event"/>Требует внимания</h3>{r.data.incidents.map((e,i)=><p className="report-comment" key={i}>{e.description}</p>)}<div className="control-action"><span>Действие, ответственный и срок: не указаны</span><span>Состояние решения: неизвестно</span></div></section>}
             <section>
-              <h3>Описанные работы</h3>
+              <h3 className="control-heading"><OwnerIcon name="work"/>Выполненные работы</h3>
               {reportWorkState(r) === 'no_work' ? (
                 <p>Работ не было: {r.data.no_work_reason}</p>
               ) : describedWorks.length ? (
@@ -166,6 +171,7 @@ export function ReportDetails({
                         {w.quantity} {w.unit || ''}
                       </span>
                     )}
+                    {(w.quantity===null||!w.unit)&&<small className="muted">{w.quantity===null?'Объём не указан':'Единица не указана'}</small>}
                     {w.description && w.description !== w.type && <p>{w.description}</p>}
                   </div>
                 ))
@@ -181,10 +187,10 @@ export function ReportDetails({
               </section>
             )}
             <section>
-              <h3>Фотографии ({directPhotos.length})</h3>
-              {directPhotos.length ? <ReportGallery ids={directPhotos} token={token} /> : <p className="muted">Фото с подтверждённой связью не найдены.</p>}
+              <h3 className="control-heading"><OwnerIcon name="photo"/>Фотографии ({directPhotos.length})</h3>{directPhotos.length>0&&<p className="muted">Связаны с отчётом. Привязка к отдельным работам не указана.</p>}
+              {directPhotos.length ? <ReportGallery ids={directPhotos} token={token} /> : <p className="muted">Фотографии не приложены.</p>}
               {!!datePhotos.length && <details className="owner-date-photos">
-                <summary>Дополнительные фотографии за дату · {datePhotos.length} — связь с отчётом требует проверки</summary>
+                <summary>Другие фото за ту же дату · {datePhotos.length}</summary>
                 <ReportGallery ids={datePhotos.map(photo => photo.id)} token={token} />
               </details>}
             </section>
@@ -218,20 +224,10 @@ export function ReportDetails({
                 ))}
               </section>
             )}
-            {!!r.data.incidents?.length && (
-              <section>
-                <h3>События и проблемы</h3>
-                {r.data.incidents.map((event, i) => (
-                  <p className="report-comment" key={i}>
-                    {event.description}
-                  </p>
-                ))}
-              </section>
-            )}
             {!!r.data.financial_entries?.length && (
               <section>
                 <h3>Денежные операции</h3>
-                <p className="muted">Поступления, расходы и авансы показаны отдельно; суммы не образуют остаток.</p>
+
                 {r.data.financial_entries.map(entry => (
                   <div className="report-work" key={entry.id}>
                     <strong>
@@ -246,6 +242,7 @@ export function ReportDetails({
                 ))}
               </section>
             )}
+            {(r.data.work_area || r.data.weather) && <section><h3>Условия смены</h3>{r.data.work_area && <p>Трансформатор: {r.data.work_area}</p>}{r.data.weather && <p>Погода: {r.data.weather}</p>}</section>}
             {!!r.data.equipment?.length && (
               <section>
                 <h3>Спецтехника</h3>
@@ -269,7 +266,7 @@ export function ReportDetails({
                 </ul>
               </section>
             )}
-            {!!r.normalization?.pending.length && <section><h3>Требует сверки</h3>{r.normalization.pending.map((item,i)=><div key={i} className="report-work"><strong>{item.text}</strong><p>{item.reason}</p></div>)}</section>}
+            {!!r.normalization?.pending.length && <section><h3>Дополнительно</h3>{r.normalization.pending.map((item,i)=><div key={i} className="report-work"><p>{item.text}</p></div>)}</section>}
             {!!r.normalization?.shift_context.length && <section><h3>Время и условия смены</h3>{r.normalization.shift_context.map((item,i)=><p key={i}>{item.text}</p>)}</section>}
             {r.data.comment && (
               <section>
@@ -280,22 +277,16 @@ export function ReportDetails({
 
             {source && (
               <details className="owner-report-source">
-                <summary>Первичная запись</summary>
+                <summary><span className="control-label"><OwnerIcon name="reports"/>Текст отчёта</span></summary>
                 <p className="muted">
                   {source.message_date && `Дата записи: ${formatDate(source.message_date)}`}
-                  {source.reported_author && ` · Указанный автор: ${source.reported_author}`}
+                  {source.reported_author && ` · Автор: ${source.reported_author}`}
                 </p>
                 <p className="report-comment owner-source-text">{source.text}</p>
               </details>
             )}
-            {r.evidence?.requires_site_confirmation && <p className="footnote">Принадлежность записи объекту требует подтверждения.</p>}
-            {!!r.evidence?.decisions?.length && <section>
-              <h3>Проверка принадлежности записи</h3>
-              <ol>{r.evidence.decisions.map(decision=><li key={decision.id}>
-                Версия {decision.revision}: {({fakel:'Сохранено положительное решение по принадлежности; назначение объекта требует проверки',not_fakel:'Указан другой объект — требуется исправление',insufficient:'Недостаточно данных'} as Record<string,string>)[decision.decision] || 'Сохранено решение'} — {decision.reason}
-                <small>{formatTimestamp(decision.created_at)}</small>
-              </li>)}</ol>
-            </section>}
+
+
 
 
 
@@ -315,6 +306,13 @@ export function ReportDetails({
 
 
 
+              {!!r.evidence?.decisions?.length && <section>
+                <h3>История объекта</h3>
+                <ol>{r.evidence.decisions.map(decision=><li key={decision.id}>
+                  Версия {decision.revision}: {({fakel:'Объект принят',not_fakel:'Другой объект',insufficient:'Объект не указан'} as Record<string,string>)[decision.decision] || 'Решение сохранено'} — {decision.reason}
+                  <small>{formatTimestamp(decision.created_at)}</small>
+                </li>)}</ol>
+              </section>}
               <section>
                 <h3>История</h3>
                 <ol>

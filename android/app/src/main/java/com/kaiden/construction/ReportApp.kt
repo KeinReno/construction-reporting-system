@@ -106,6 +106,19 @@ fun ReportApp() {
     val drafts by remember(ownerId) { dao.observeAll(ownerId) }.collectAsState(initial=emptyList())
     val siteCache=remember { context.getSharedPreferences("site-cache",Context.MODE_PRIVATE) }
     var sites by remember(ownerId) { mutableStateOf<List<Pair<String,String>>>(emptyList()) }
+    var workTypes by remember(ownerId,serverUrl) {mutableStateOf<List<String>>(emptyList())}
+    LaunchedEffect(token,serverUrl) {
+        val currentToken=token
+        if(currentToken!=null) {
+            val cacheKey="work-types:$serverUrl:$ownerId"
+            val cached=siteCache.getString(cacheKey,null)
+            if(cached!=null){val rows=JSONArray(cached);workTypes=(0 until rows.length()).map{rows.getString(it)}}
+            try {
+                workTypes=withContext(Dispatchers.IO){api.workTypes(currentToken)}
+                siteCache.edit().putString(cacheKey,JSONArray(workTypes).toString()).apply()
+            }catch(e:CancellationException){throw e}catch(_:Exception){/* Keep offline catalog. */}
+        }
+    }
     LaunchedEffect(token) {
         val identity=session.snapshot()
         if(token != null && identity!=null) {
@@ -174,6 +187,8 @@ fun ReportApp() {
     val workEntries = remember(ownerId) { mutableStateListOf<JSONObject>() }
     var reason by remember(ownerId) { mutableStateOf("") }
     var comment by remember(ownerId) { mutableStateOf("") }
+    var workArea by remember(ownerId) {mutableStateOf("")}
+    var weather by remember(ownerId) {mutableStateOf("")}
     var crew by remember(ownerId) {mutableStateOf("")}
     var materialName by remember(ownerId) {mutableStateOf("")}
     var materialQuantity by remember(ownerId) {mutableStateOf("")}
@@ -208,12 +223,14 @@ fun ReportApp() {
     var restoreError by remember(ownerId) {mutableStateOf("")}
     var autosaveStatus by remember(ownerId) {mutableStateOf("Восстановление формы…")}
     var pendingReplacement by remember(ownerId) {mutableStateOf<(() -> Unit)?>(null)}
-    fun currentForm()=FormSnapshot(siteId=selectedSite,workDate=workDate,kind=kind,workType=workType,quantity=quantity,unit=unit,description=description,
+    fun currentForm()=FormSnapshot(workArea=workArea,weather=weather,siteId=selectedSite,workDate=workDate,kind=kind,workType=workType,quantity=quantity,unit=unit,description=description,
         workEntriesJson=JSONArray(workEntries.toList()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),editing=editing,editReason=editReason,
         crew=crew,materialName=materialName,materialQuantity=materialQuantity,materialUnit=materialUnit,materialDirection=materialDirection,materialsJson=JSONArray(materials.toList()).toString(),incidentText=incidentText,incidentsJson=JSONArray(incidents.toList()).toString(),
         financeKind=financeKind,financeAmount=financeAmount,financeCategory=financeCategory,financeDate=financeDate,financeDescription=financeDescription,financeReceiptPhotoId=financeReceiptPhotoId,financialJson=JSONArray(financialEntries.toList()).toString(),
         equipmentType=equipmentType,equipmentHours=equipmentHours,equipmentHired=equipmentHired,equipmentJson=JSONArray(equipment.toList()).toString(),planText=planText,plansJson=JSONArray(nextShiftPlans.toList()).toString())
     fun loadExtras(extras:JSONObject) {
+        workArea=if(extras.isNull("work_area"))"" else extras.optString("work_area","")
+        weather=if(extras.isNull("weather"))"" else extras.optString("weather","")
         crew=if(extras.isNull("crew"))"" else extras.optString("crew","")
         materials.clear();val m=extras.optJSONArray("materials")?:JSONArray();for(i in 0 until m.length())materials.add(m.getJSONObject(i))
         incidents.clear();val events=extras.optJSONArray("incidents")?:JSONArray();for(i in 0 until events.length())incidents.add(events.getJSONObject(i))
@@ -224,7 +241,7 @@ fun ReportApp() {
         financeKind="expense";financeAmount="";financeCategory="";financeDate="";financeDescription="";financeReceiptPhotoId="";equipmentType="";equipmentHours="";equipmentHired=false;planText=""
     }
     fun replaceForm(action:()->Unit) {
-        val hasInput=workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned" || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || financialEntries.isNotEmpty() || financeKind!="expense" || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || financeReceiptPhotoId.isNotBlank() || equipment.isNotEmpty() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || equipmentHired || nextShiftPlans.isNotEmpty() || planText.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!=WorkCatalog.DEFAULT || unit!=WorkCatalog.unitFor(WorkCatalog.DEFAULT)
+        val hasInput=workArea.isNotBlank() || weather.isNotBlank() || workEntries.isNotEmpty() || photos.isNotEmpty() || quantity.isNotBlank() || description.isNotBlank() || reason.isNotBlank() || comment.isNotBlank() || crew.isNotBlank() || materialName.isNotBlank() || materialQuantity.isNotBlank() || materialUnit.isNotBlank() || materialDirection!="mentioned" || materials.isNotEmpty() || incidentText.isNotBlank() || incidents.isNotEmpty() || financialEntries.isNotEmpty() || financeKind!="expense" || financeAmount.isNotBlank() || financeCategory.isNotBlank() || financeDate.isNotBlank() || financeDescription.isNotBlank() || financeReceiptPhotoId.isNotBlank() || equipment.isNotEmpty() || equipmentType.isNotBlank() || equipmentHours.isNotBlank() || equipmentHired || nextShiftPlans.isNotEmpty() || planText.isNotBlank() || editing!=null || editReason.isNotBlank() || kind!="work" || workDate!=LocalDate.now().toString() || workType!=WorkCatalog.DEFAULT || unit!=WorkCatalog.unitFor(WorkCatalog.DEFAULT)
         val replacement={quantity="";description="";workType=WorkCatalog.DEFAULT;unit=WorkCatalog.unitFor(WorkCatalog.DEFAULT);editReason="";action()}
         if(hasInput)pendingReplacement=replacement else replacement()
     }
@@ -243,7 +260,7 @@ fun ReportApp() {
         try {
             val record=withContext(Dispatchers.IO){formRepository.open(ownerId)}
             val saved=FormSnapshot.decode(record.payload,ownerId)
-            selectedSite=saved.siteId;workDate=saved.workDate;kind=saved.kind;workType=saved.workType
+            workArea=saved.workArea;weather=saved.weather;selectedSite=saved.siteId;workDate=saved.workDate;kind=saved.kind;workType=saved.workType
             quantity=saved.quantity;unit=saved.unit;description=saved.description;reason=saved.noWorkReason;comment=saved.comment
             crew=saved.crew;materialName=saved.materialName;materialQuantity=saved.materialQuantity;materialUnit=saved.materialUnit;materialDirection=saved.materialDirection;incidentText=saved.incidentText
             materials.clear();val savedMaterials=JSONArray(saved.materialsJson);for(i in 0 until savedMaterials.length())materials.add(savedMaterials.getJSONObject(i))
@@ -360,12 +377,14 @@ fun ReportApp() {
         CompactSelection("Объект *",selectedSite,sites,enabled=editing==null,onSelect={selectedSite=it})
         if(sites.isEmpty())Text("Нет доступных объектов. Проверьте подключение.")
         WorkDateField(workDate){workDate=it}
+        CompactSelection("Трансформатор",workArea,listOf("" to "Не указан","Т1" to "Т1","Т2" to "Т2","Т1/Т2" to "Т1 и Т2"),onSelect={workArea=it})
+        CompactSelection("Погода",weather,listOf("" to "Не указана")+listOf("Ясно","Облачно","Дождь","Снег","Ветер","Мороз и гололёд","Жара").map{it to it},onSelect={weather=it})
         Spacer(Modifier.height(12.dp))
         HorizontalDivider(Modifier.padding(top=8.dp))
         Text("02  РАБОТЫ",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
         Row { FilterChip(selected=kind=="work",onClick={kind="work"},label={Text("Работы выполнены")});Spacer(Modifier.width(8.dp));FilterChip(selected=kind=="no_work",onClick={kind="no_work"},label={Text("Работ не было")}) }
         if(kind=="work") {
-            CompactSelection("Вид работы *",workType,WorkCatalog.names.map { it to it },onSelect={ next ->
+            CompactSelection("Вид работы *",workType,(workTypes.ifEmpty{WorkCatalog.names}+workType).distinct().map { it to it },onSelect={ next ->
                 val applied=WorkCatalog.applyType(workType,next,quantity)
                 workType=next;unit=applied.first;quantity=applied.second
             })
@@ -394,8 +413,8 @@ fun ReportApp() {
         }
         if(showMaterials) {
         Text("Движение материала",style=MaterialTheme.typography.titleSmall)
-        listOf("received" to "Поступило","consumed" to "Израсходовано").forEach { (direction,label) ->
-            FilterChip(selected=materialDirection==direction,onClick={materialDirection=if(materialDirection==direction)"mentioned" else direction},label={Text(label)},modifier=Modifier.fillMaxWidth())
+        listOf("mentioned" to "Упоминание","received" to "Поступило","consumed" to "Израсходовано").forEach { (direction,label) ->
+            FilterChip(selected=materialDirection==direction,onClick={materialDirection=direction},label={Text(label)},modifier=Modifier.fillMaxWidth())
         }
         OutlinedTextField(materialName,{materialName=it},label={Text("Название материала")},modifier=Modifier.fillMaxWidth())
         OutlinedTextField(materialQuantity,{materialQuantity=it},label={Text("Количество материала (необязательно)")},modifier=Modifier.fillMaxWidth(),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
@@ -406,7 +425,7 @@ fun ReportApp() {
             if(materialName.isBlank() || materialName.length>200 || materialUnit.length>50 || materials.size>=100 || (materialDirection!="mentioned" && (n==null || n<=java.math.BigDecimal.ZERO)) || (materialQuantity.isNotBlank() && (n==null || n<java.math.BigDecimal.ZERO || n.stripTrailingZeros().scale()>6 || n.precision()-n.scale()>14 || materialUnit.isBlank())))formError="Проверьте название, направление, количество и единицу материала"
             else {materials.add(JSONObject().put("name",materialName.trim()).put("quantity",n?.toPlainString()?:JSONObject.NULL).put("unit",materialUnit.ifBlank { null }?:JSONObject.NULL).put("direction",materialDirection));materialName="";materialQuantity="";materialUnit="";materialDirection="mentioned";formError=""}
         }){Text("+ Добавить материал")}
-        materials.forEachIndexed { i,m -> Row {Text("${m.getString("name")}${when(m.optString("direction","mentioned")){"received"->" · поступило";"consumed"->" · израсходовано";else->""}}${if(m.isNull("quantity"))"" else " · ${m.getString("quantity")} ${m.optString("unit")}"}",Modifier.weight(1f));TextButton(onClick={materials.removeAt(i)}){Text("Удалить")}} }
+        materials.forEachIndexed { i,m -> Row {Text("${m.getString("name")} · ${when(m.optString("direction","mentioned")){"received"->"поступило";"consumed"->"израсходовано";else->"упомянуто"}}${if(m.isNull("quantity"))"" else " · ${m.getString("quantity")} ${m.optString("unit")}"}",Modifier.weight(1f));TextButton(onClick={materials.removeAt(i)}){Text("Удалить")}} }
         }
         TextButton(onClick={showIncidents=!showIncidents},modifier=Modifier.fillMaxWidth()) {
             Text("События и проблемы (${incidents.size})${if(incidentText.isNotBlank()) " · не завершено" else ""} ${if(showIncidents) "▴" else "▾"}",modifier=Modifier.weight(1f))
@@ -513,7 +532,7 @@ fun ReportApp() {
                 val saved=Draft(ownerId=ownerId,id=editing?.id?:UUID.randomUUID().toString(),siteId=selectedSite,siteName=sites.first{it.first==selectedSite}.second,workDate=workDate,kind=kind,
                     workEntriesJson=JSONArray(if(kind=="work")workEntries.toList() else emptyList<JSONObject>()).toString(),noWorkReason=reason,comment=comment,photosJson=JSONArray(photos.toList()).toString(),serverId=editing?.serverId,
                     serverRevision=editing?.serverRevision?:1,editRequested=editing!=null,editReason=editReason,createdAt=editing?.createdAt?:System.currentTimeMillis(),
-                    extrasJson=JSONObject().put("crew",crew.ifBlank { null }?:JSONObject.NULL).put("materials",if(materials.isEmpty())JSONObject.NULL else JSONArray(materials.toList())).put("incidents",if(incidents.isEmpty())JSONObject.NULL else JSONArray(incidents.toList()))
+                    extrasJson=JSONObject().put("work_area",workArea.ifBlank{null}?:JSONObject.NULL).put("weather",weather.ifBlank{null}?:JSONObject.NULL).put("crew",crew.ifBlank { null }?:JSONObject.NULL).put("materials",if(materials.isEmpty())JSONObject.NULL else JSONArray(materials.toList())).put("incidents",if(incidents.isEmpty())JSONObject.NULL else JSONArray(incidents.toList()))
                         .put("financial_entries",if(financialEntries.isEmpty())JSONObject.NULL else JSONArray(financialEntries.toList()))
                         .put("equipment",if(equipment.isEmpty())JSONObject.NULL else JSONArray(equipment.toList()))
                         .put("next_shift_plans",if(nextShiftPlans.isEmpty())JSONObject.NULL else JSONArray(nextShiftPlans.toList())).toString())

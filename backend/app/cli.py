@@ -5,6 +5,7 @@ Usage: python -m app.cli init-db
        python -m app.cli create-user LOGIN ROLE
        python -m app.cli create-site NAME
        python -m app.cli grant LOGIN SITE_UUID
+       python -m app.cli owner-id LOGIN
 """
 import getpass, os, sys
 from sqlalchemy import create_engine, select
@@ -19,6 +20,10 @@ def main():
         print('Development schema created. Production: python -m alembic upgrade head')
         return
     with Session(engine) as db:
+        if len(args)==2 and args[0]=='owner-id':
+            user=db.scalar(select(User).where(User.login==args[1],User.role=='manager',User.active==True))
+            if not user:raise SystemExit('Active manager not found')
+            print(user.id);return
         if (len(args)==2 and args[0]=='create-admin') or (len(args)==3 and args[0]=='create-user'):
             if db.scalar(select(User).where(User.login==args[1])):raise SystemExit('User already exists')
             role='admin' if args[0]=='create-admin' else args[2]

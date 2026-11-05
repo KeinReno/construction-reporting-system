@@ -21,7 +21,7 @@ function SourcePhoto({path,token}:{path:string;token:string}) {
       .catch(e=>{if(active)setError(e instanceof Error?e.message:'Ошибка фотографии');});
     return()=>{active=false;controller.abort();if(objectUrl)URL.revokeObjectURL(objectUrl);};
   },[open,path,token]);
-  return <div><button className="quiet" type="button" onClick={()=>setOpen(!open)}>{open?'Скрыть фото':'Открыть фото'}</button>{open&&(error?<p role="alert">{error}</p>:url?<img src={url} alt="Фотография исходной записи; связь с выполненной работой отдельно не подтверждена" style={{maxWidth:'100%',height:'auto'}}/>:<p>Загрузка фото…</p>)}</div>;
+  return <div><button className="quiet" type="button" onClick={()=>setOpen(!open)}>{open?'Скрыть фото':'Открыть фото'}</button>{open&&(error?<p role="alert">{error}</p>:url?<img src={url} alt="Фотография" style={{maxWidth:'100%',height:'auto'}}/>:<p>Загрузка фото…</p>)}</div>;
 }
 
 export function ImportData({token,reports,onOpen}:{token:string;reports:Report[];onOpen:(id:string)=>void}) {
@@ -43,20 +43,20 @@ export function ImportData({token,reports,onOpen}:{token:string;reports:Report[]
   },[browse,corpus,search,kind,page,token,retry]);
   const pending=reports.flatMap(report=>(report.normalization?.pending||[]).map(item=>({...item,report})));
   if(!coverage.length&&!error)return null;
-  return <section className="card import-data" aria-label="Полнота данных">
-    <h2>Полнота данных и сверка</h2>
-    <p className="muted">Реестр исходных записей охватывает всю импортированную историю. Список уточнений ниже относится к выбранным отчётам.</p>
+  return <section className="card import-data" aria-label="Архив документов">
+    <h2>Документы и записи</h2>
+
     {error&&<div role="alert"><p>{error}</p><button className="quiet" onClick={()=>setRetry(n=>n+1)}>Повторить загрузку</button></div>}
-    {coverage.map(c=><div key={c.id}><p><strong>{c.messages} исходных записей · {c.reports} отчётов · {c.photos} фото</strong></p><p>{c.duplicates} повторов сохранено отдельно и не добавлено как новые отчёты. Недоступных медиа: {c.unavailable_media}.</p>
-      <details><summary>Документы: {c.documents.length}; недоступно: {c.documents.filter(d=>!d.available).length}</summary><ul>{c.documents.map(d=><li key={d.id}>{d.name} — {d.available?'Файл имеется':'Файл не получен; в расчётах не используется'}</li>)}</ul></details></div>)}
-    <details><summary>Требует сверки: {pending.length}</summary><p className="muted">Неразобранные суммы и часы не включены в соответствующие итоги. Планы и цены за единицу не считаются фактом расхода.</p>{pending.map((item,i)=><div className="report-work" key={`${item.report.id}-${i}`}><button className="quiet" onClick={()=>onOpen(item.report.id)}>{formatDate(item.report.data.work_date)} · открыть отчёт</button><p>{item.text}</p><small>{item.reason}</small></div>)}</details>
-    <button className="secondary" onClick={()=>setBrowse(!browse)}>{browse?'Скрыть исходные записи':'Просмотреть все исходные записи'}</button>
+    {coverage.map(c=><div key={c.id}><p><strong>{c.messages} записей · {c.reports} отчётов · {c.photos} фото</strong></p>
+      <details><summary>Документы: {c.documents.length}; недоступно: {c.documents.filter(d=>!d.available).length}</summary><ul>{c.documents.map(d=><li key={d.id}>{d.name} — {d.available?'Файл имеется':'Файл недоступен'}</li>)}</ul></details></div>)}
+    <details><summary>Дополнительно · {pending.length}</summary>{pending.map((item,i)=><div className="report-work" key={`${item.report.id}-${i}`}><button className="quiet" onClick={()=>onOpen(item.report.id)}>{formatDate(item.report.data.work_date)} · открыть отчёт</button><p>{item.text}</p></div>)}</details>
+    <button className="secondary" onClick={()=>setBrowse(!browse)}>{browse?'Скрыть записи':'Просмотреть все записи'}</button>
     {browse&&<div>
       {coverage.length>1&&<label>Набор данных<select value={corpus} onChange={e=>{setCorpus(e.target.value);setPage(1);}}>{coverage.map((c,i)=><option key={c.id} value={c.id}>Набор {i+1}</option>)}</select></label>}
-      <form className="crs-import-search" onSubmit={e=>{e.preventDefault();setSearch(query);setPage(1);}}><CrSearchField label="Поиск в исходных записях" value={query} onChange={value=>setQuery(value.slice(0,200))} placeholder="Найти сообщения и документы"/><button className="secondary">Найти</button></form>
+      <form className="crs-import-search" onSubmit={e=>{e.preventDefault();setSearch(query);setPage(1);}}><CrSearchField label="Поиск в архиве" value={query} onChange={value=>setQuery(value.slice(0,200))} placeholder="Найти сообщения и документы"/><button className="secondary">Найти</button></form>
       <label>Тип записи<select value={kind} onChange={e=>{setKind(e.target.value);setPage(1);}}><option value="all">Все</option><option value="report">Отчёты</option><option value="context">Дополнительные сведения</option><option value="duplicate">Повторы</option><option value="document">Документы</option></select></label>
-      {!records&&!error&&<CrSkeleton rows={4} label="Загрузка исходных записей"/>}
-      {records&&<><p>Найдено: {records.total}. Страница {records.page}.</p>{records.items.map(record=><details key={`${corpus}-${record.id}`}><summary>{formatDate(record.date)} · {record.report_id?'Отчёт':record.duplicate?'Повтор':'Исходная запись'}{!record.text?' · медиа':''}</summary>
+      {!records&&!error&&<CrSkeleton rows={4} label="Загрузка записей"/>}
+      {records&&<><p>Найдено: {records.total}. Страница {records.page}.</p>{records.items.map(record=><details key={`${corpus}-${record.id}`}><summary>{formatDate(record.date)} · {record.report_id?'Отчёт':record.duplicate?'Повтор':'Запись'}{!record.text?' · медиа':''}</summary>
         <p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{record.text||'Текст отсутствует'}</p>
         {record.report_id&&<button className="quiet" onClick={()=>onOpen(record.report_id!)}>Открыть отчёт</button>}
         {record.documents.map(d=><p key={d.id}>{d.name} · {d.available?'Доступен':'Файл не получен'}</p>)}

@@ -1,13 +1,13 @@
 import {ApiError,BASE,http,type Profile,type Report} from '../api';
 import {type Payload,type Pending} from './model';
 import {queueFor,savePending} from './store';
-export const CAPABILITIES={'X-Report-Capabilities':'report-extras-v2'};
+export const CAPABILITIES={'X-Report-Capabilities':'report-extras-v3'};
 type Identity={token:string;profile:Profile};
 class Conflict extends Error {}
 export function samePayload(a:unknown,b:unknown):boolean {
   function normalize(value:unknown):unknown {
     if(Array.isArray(value))return value.map(normalize);
-    if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).filter(([key,v])=>v!==undefined&&!(v===null&&['crew','materials','incidents','financial_entries','equipment','next_shift_plans'].includes(key))).sort(([a],[b])=>a.localeCompare(b)).map(([key,v])=>[key,key==='required_photo_ids'&&Array.isArray(v)?[...v].sort():['quantity','hours'].includes(key)&&typeof v==='string'?v.replace(/^0+(?=\d)/,'').replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,''):normalize(v)]));
+    if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).filter(([key,v])=>v!==undefined&&!(v===null&&['crew','materials','incidents','financial_entries','equipment','next_shift_plans','work_area','weather'].includes(key))).sort(([a],[b])=>a.localeCompare(b)).map(([key,v])=>[key,key==='required_photo_ids'&&Array.isArray(v)?[...v].sort():['quantity','hours'].includes(key)&&typeof v==='string'?v.replace(/^0+(?=\d)/,'').replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,''):normalize(v)]));
     return value;
   }
   return JSON.stringify(normalize(a))===JSON.stringify(normalize(b));

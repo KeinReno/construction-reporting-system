@@ -14,7 +14,12 @@ function Read-AppSettings([string]$ConfigPath,[switch]$AllowSqliteForTests) {
     if ($data.Equals($web,[StringComparison]::OrdinalIgnoreCase) -or $data.StartsWith($web+'\',[StringComparison]::OrdinalIgnoreCase) -or $web.StartsWith($data+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Private data and public Web directories must be separate' }
     $configFull=[IO.Path]::GetFullPath($ConfigPath)
     if ($configFull.StartsWith($web+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Private configuration must not be in public Web directory' }
-    return @{ Root=$root; DatabaseUrl=[string]$cfg.database_url; DataDir=$data; WebDir=$web }
+    $owner=''
+    if ($cfg.PSObject.Properties.Name -contains 'owner_user_id') {
+        $owner=[string]$cfg.owner_user_id
+        if ($owner -and -not [Guid]::TryParse($owner,[ref]([Guid]::Empty))) { throw 'owner_user_id must be a UUID' }
+    }
+    return @{ Root=$root; DatabaseUrl=[string]$cfg.database_url; DataDir=$data; WebDir=$web; OwnerUserId=$owner }
 }
 function Get-ReleaseHash([string]$Path) {
     $algorithm=[Security.Cryptography.SHA256]::Create()

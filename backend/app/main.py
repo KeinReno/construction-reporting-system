@@ -10,6 +10,7 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 from app.contracts import Input, Work, ReportData, HistoricalSource, report_payload
 from app.normalize_import import current_normalization, analysis_payload
+from app.production_analytics import production_metrics
 from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer, UniqueConstraint, delete, text, update
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session, relationship, selectinload
 from sqlalchemy.orm.exc import StaleDataError
@@ -20,6 +21,31 @@ def new_id(): return str(uuid.uuid4())
 def utcnow(): return datetime.now(timezone.utc)
 
 class Base(DeclarativeBase): pass
+class WorkType(Base):
+    __tablename__='work_types'
+    id:Mapped[str]=mapped_column(String(36),primary_key=True,default=new_id)
+    name:Mapped[str]=mapped_column(String(200),unique=True)
+    kind:Mapped[str]=mapped_column(String(16))
+    parent_id:Mapped[str|None]=mapped_column(ForeignKey('work_types.id'),nullable=True)
+    active:Mapped[bool]=mapped_column(default=True)
+    revision:Mapped[int]=mapped_column(default=1)
+    aliases:Mapped[list]=mapped_column(JSON,default=list)
+    __mapper_args__={'version_id_col':revision}
+class Worker(Base):
+    __tablename__='workers'
+    id:Mapped[str]=mapped_column(String(36),primary_key=True,default=new_id)
+    name:Mapped[str]=mapped_column(String(200))
+    active:Mapped[bool]=mapped_column(default=True)
+class LaborDay(Base):
+    __tablename__='labor_days'
+    __table_args__=(UniqueConstraint('worker_id','work_date',name='uq_worker_day'),)
+    id:Mapped[str]=mapped_column(String(36),primary_key=True)
+    worker_id:Mapped[str]=mapped_column(ForeignKey('workers.id'))
+    site_id:Mapped[str]=mapped_column(ForeignKey('sites.id'))
+    work_date:Mapped[str]=mapped_column(String(10))
+    payload:Mapped[dict]=mapped_column(JSON)
+    revision:Mapped[int]=mapped_column(default=1)
+    __mapper_args__={'version_id_col':revision}
 class User(Base):
     __tablename__='users'
     id:Mapped[str]=mapped_column(String(36),primary_key=True,default=new_id)
@@ -152,7 +178,13 @@ class Ask(Input):
     intent:Literal["auto","summary","work_volume","no_work","site_timeline","incidents","materials","finance","equipment"]="summary"
     filters:AnalyticsFilters=Field(default_factory=AnalyticsFilters)
 
+class ChatMessage(Input):
+    role:Literal['user','assistant']
+    text:str=Field(max_length=4000)
+class AIAction(Input):
+    token:str=Field(min_length=20,max_length=128)
 class AIChat(Input):
+    history:list[ChatMessage]=Field(default_factory=list,max_length=8)
     question:str=Field(min_length=1,max_length=800)
     filters:AnalyticsFilters=Field(default_factory=AnalyticsFilters)
 
@@ -170,11 +202,13 @@ def present(r):
                 normalization=current_normalization(r.payload,source.payload) if source else None)
 
 def require_report_capabilities(payload,header):
-    if any(item.get('direction','mentioned')!='mentioned' for item in payload.get('materials') or []) and header!='report-extras-v2':
-        raise HTTPException(409,'Client update required for material movements')
-    if any(key in payload for key in ('financial_entries','equipment','next_shift_plans')) and header!='report-extras-v2':
+    if any(key in payload for key in ('work_area','weather')) and header!='report-extras-v3':
         raise HTTPException(409,'Client update required for extended report')
-    if any(key in payload for key in ('crew','materials','incidents')) and header not in ('report-extras-v1','report-extras-v2'):
+    if any(item.get('direction','mentioned')!='mentioned' for item in payload.get('materials') or []) and header not in ('report-extras-v2','report-extras-v3'):
+        raise HTTPException(409,'Client update required for material movements')
+    if any(key in payload for key in ('financial_entries','equipment','next_shift_plans')) and header not in ('report-extras-v2','report-extras-v3'):
+        raise HTTPException(409,'Client update required for extended report')
+    if any(key in payload for key in ('crew','materials','incidents')) and header not in ('report-extras-v1','report-extras-v2','report-extras-v3'):
         raise HTTPException(409,'Client update required for extended report')
 
 def create_app(database_url=None, storage=None, initialize=False):
@@ -185,6 +219,7 @@ def create_app(database_url=None, storage=None, initialize=False):
     if initialize or os.environ.get('AUTO_CREATE_SCHEMA')=='1': Base.metadata.create_all(engine)
     api=FastAPI(title='Construction Reporting API',version='0.1.0')
     api.state.db=SessionLocal
+    api.state.owner_user_id=os.environ.get('CRS_OWNER_USER_ID','')
     api.state.import_user_ids={value.strip() for value in os.environ.get('CRS_IMPORT_USER_IDS','').split(',') if value.strip()}
     from fastapi.exceptions import RequestValidationError
     @api.exception_handler(RequestValidationError)
@@ -198,6 +233,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         return JSONResponse(status_code=409,content={'detail':'Concurrent or duplicate write; retry with same UUID'})
     # Single-process bound for the intended small deployment. Multi-worker needs a shared limiter.
     attempts={}; attempts_lock=threading.Lock()
+    ai_proposals={}; ai_action_lock=threading.Lock()
 
     def dbdep():
         with SessionLocal() as db: yield db
@@ -229,6 +265,8 @@ def create_app(database_url=None, storage=None, initialize=False):
     def admin_log(db,u,action,target,details):
         db.add(AdminEvent(actor_id=u.id,action=action,target_id=target,details=details))
     def user_view(u):return {'id':u.id,'login':u.login,'role':u.role,'active':u.active}
+    from app.owner_operations import install as install_owner_operations
+    install_owner_operations(api,dbdep,current,allowed,admin_log,WorkType,Worker,LaborDay)
     @api.get('/api/v1/admin/users')
     def admin_users(db:Session=Depends(dbdep),u:User=Depends(admin_only)):
         return [user_view(x) for x in db.scalars(select(User).order_by(User.login))]
@@ -320,7 +358,11 @@ def create_app(database_url=None, storage=None, initialize=False):
         db.delete(db.get(Token,digest));db.commit()
         return {'revoked':True}
     @api.get('/api/v1/me')
-    def me(u:User=Depends(current)): return {'id':u.id,'login':u.login,'role':u.role}
+    def me(u:User=Depends(current)): return {'id':u.id,'login':u.login,'role':u.role,'is_owner':u.id==api.state.owner_user_id and u.role=='manager'}
+    @api.get('/api/v1/host-address')
+    def host_address(u:User=Depends(current)):
+        if u.role not in ('manager','admin'):raise HTTPException(403,'Manager role required')
+        return JSONResponse({'public_url':getattr(api.state,'public_url',None)},headers={'Cache-Control':'no-store'})
     @api.get('/api/v1/sites')
     def sites(db:Session=Depends(dbdep),u:User=Depends(current)):
         q=select(Site)
@@ -412,7 +454,7 @@ def create_app(database_url=None, storage=None, initialize=False):
     def edit(rid:uuid.UUID,data:Edit,db:Session=Depends(dbdep),u:User=Depends(current)):
         r=fetch(db,u,str(rid))
         if r.status not in ('draft','needs_revision') or r.revision!=data.expected_revision: raise HTTPException(409,'Revision conflict')
-        for key in ('crew','materials','incidents','financial_entries','equipment','next_shift_plans'):
+        for key in ('crew','materials','incidents','financial_entries','equipment','next_shift_plans','work_area','weather'):
             if key in r.payload and key not in data.data.model_fields_set:
                 raise HTTPException(409,'Client cannot preserve extended report fields')
         payload=report_payload(data.data)
@@ -569,6 +611,8 @@ def create_app(database_url=None, storage=None, initialize=False):
                                'Материалы без указанного движения не входят в суммы прихода и расхода; остаток не рассчитывается.',
                                'Деньги — только зарегистрированные операции по дате операции. Упоминания в переписке не входят. Поступления, расходы и авансы не смешиваются. Баланс не рассчитывается: нет начального остатка.',
                                'Часы техники заявлены отправителем и не превращаются в стоимость без тарифа.',
+                               'Объём показан только там, где количество указано явно: одна измеренная запись не описывает готовность объекта.',
+                               'Суммы, часы и виды работ, не разобранные с достаточной уверенностью, остаются в очереди сверки и в итоги не входят.',
                                'Нет утверждённых планов и расписаний: план-факт, процент готовности и просрочки не рассчитаны.',
                                'Разобранные исторические сведения связаны с первичными строками. Неразобранные суммы и объёмы не входят в итоги. Дата исторического расхода может быть датой отчёта, если дата оплаты не указана отдельно.']}
     @api.get('/api/v1/analytics/summary')
@@ -576,6 +620,10 @@ def create_app(database_url=None, storage=None, initialize=False):
         work=analytic_rows(db,u,site_id,from_date,to_date,author_id)
         money=analytic_rows(db,u,site_id,from_date,to_date,author_id,by_work_date=False)
         return metrics(work,from_date,to_date,money)
+    @api.get('/api/v1/analytics/production')
+    def production(site_id:uuid.UUID|None=None,author_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None,
+                   calendar_days:int=Query(default=400,ge=1,le=800),db:Session=Depends(dbdep),u:User=Depends(current)):
+        return production_metrics(analytic_rows(db,u,site_id,from_date,to_date,author_id),from_date,to_date,calendar_days,list(db.scalars(select(WorkType))))
 
     def accessible_corpora(db,u):
         if u.role not in ('manager','admin'):raise HTTPException(403,'Manager role required')
@@ -586,6 +634,27 @@ def create_app(database_url=None, storage=None, initialize=False):
         corpus=next((c for c in accessible_corpora(db,u) if c.id==str(cid)),None)
         if not corpus:raise HTTPException(404,'Unknown import')
         return corpus.payload
+    @api.get('/api/v1/reports/{rid}/conversation')
+    def report_conversation(rid:uuid.UUID,db:Session=Depends(dbdep),u:User=Depends(current)):
+        if u.role not in ('manager','admin'):raise HTTPException(403,'Manager role required')
+        r=fetch(db,u,str(rid));items=[]
+        for corpus in accessible_corpora(db,u):
+            payload=corpus.payload
+            for message in payload.get('messages',[]):
+                linked=payload.get('report_links',{}).get(message['id'])
+                if linked!=r.id and str(message.get('message_date',''))[:10]!=r.work_date:continue
+                if linked:fetch(db,u,linked)
+                items.append({'id':corpus.id+':'+message['id'],'date':message.get('message_date'),
+                              'text':message.get('text',''),'report_id':linked,
+                              'relation':'same_report' if linked==r.id else 'same_date'})
+        if not any(item['report_id']==r.id for item in items):
+            source=db.get(ReportSource,r.id)
+            if source and source.payload.get('text'):
+                items.append({'id':r.id,'date':source.payload.get('message_date') or r.work_date,
+                              'text':source.payload['text'],'report_id':r.id,'relation':'same_report'})
+        return {'report_id':r.id,'work_date':r.work_date,'items':sorted(items,key=lambda m:(str(m['date']),m['id'])),
+                'limitations':['Показана сохранённая переписка; новые сообщения MAX автоматически не загружаются.',
+                                'Совпадение даты не подтверждает принадлежность сообщения отчёту.']}
     @api.get('/api/v1/imports/coverage')
     def import_coverage(db:Session=Depends(dbdep),u:User=Depends(current)):
         results=[]
@@ -629,8 +698,76 @@ def create_app(database_url=None, storage=None, initialize=False):
     def get_ai_status(u:User=Depends(current)):
         if u.role not in ('manager','admin'):
             raise HTTPException(403,'Manager role required')
-        from app.ai_provider import status
+        if ai_provider()=='qoder':
+            from app.qoder_bridge import status
+        elif os.getenv('CRS_CODEX_ENABLED')=='1':
+            from app.codex_provider import status
+        else:
+            from app.ai_provider import status
         return status()
+
+    def ai_provider():
+        provider=os.getenv('CRS_AI_PROVIDER')
+        if provider:
+            return provider
+        return 'codex' if os.getenv('CRS_CODEX_ENABLED')=='1' else 'builtin'
+
+    def provider_context(db,u,f):
+        """Same bounded catalog Codex receives: handles only, no documents or credentials."""
+        site_rows=sites(db,u)
+        site_map={'S'+hashlib.sha256(x['id'].encode()).hexdigest()[:12]:x for x in site_rows}
+        q=select(Report).options(selectinload(Report.source_record)).order_by(Report.work_date.desc(),Report.id)
+        if u.role!='admin':q=q.join(Assignment,Assignment.site_id==Report.site_id).where(Assignment.user_id==u.id)
+        if f.site_id:q=q.where(Report.site_id==str(f.site_id))
+        if f.author_id:q=q.where(Report.author_id==str(f.author_id))
+        if f.from_date:q=q.where(Report.work_date>=str(f.from_date))
+        if f.to_date:q=q.where(Report.work_date<=str(f.to_date))
+        entries=db.scalars(q.limit(201)).unique().all()
+        report_map={'R'+hashlib.sha256(r.id.encode()).hexdigest()[:12]:r for r in entries[:200]}
+        site_handles={x['id']:key for key,x in site_map.items()}
+        def site_label(name):return 'Без объекта' if name.startswith('Объект требует сверки') else name.replace(' · по истории чата','')
+        catalog={'sites':[{'ref':key,'name':site_label(x['name'])} for key,x in site_map.items()],
+            'reports':[{'ref':key,'site':site_handles[r.site_id],'date':r.work_date,'revision':r.revision,
+                'status':r.status,'historical':bool(r.source_record and imported_origin(r.source_record.payload)),
+                'works':[w['type'][:150] for w in analysis_payload(r.payload,r.source_record.payload if r.source_record else None).get('work_entries',[])][:8]}
+                for key,r in report_map.items()], 'truncated':len(entries)>200}
+        return {'site_rows':site_rows,'site_map':site_map,'report_map':report_map,
+            'site_handles':site_handles,'site_label':site_label,'catalog':catalog}
+
+    def provider_answer(generated,ctx,result,u):
+        """Shared proposal assembly. Every action stays a server-validated, one-time suggestion."""
+        site_map,report_map,site_rows=ctx['site_map'],ctx['report_map'],ctx['site_rows']
+        site_label=ctx['site_label']
+        actions=[]
+        for raw in generated.get('actions',[]):
+            if not isinstance(raw,dict) or set(raw)!={'kind','target','value','reason'}:continue
+            kind,target,value,reason=(raw[k] for k in ('kind','target','value','reason'))
+            if not all(isinstance(x,str) for x in (kind,target,value,reason)) or len(reason)>500 or len(value)>2000:continue
+            proposal={'owner':u.id,'expires':time.monotonic()+600,'kind':kind,'value':value,'reason':reason,'result':None}
+            if kind=='rename_site' and target in site_map and 1<=len(value.strip())<=200:
+                item=site_map[target];proposal.update(id=item['id'],before=item['name'])
+                label='Переименовать объект';before=item['name'];after=value.strip();proposal['value']=after
+            elif kind in ('review_report','return_report','set_comment') and target in report_map and u.role=='manager':
+                item=report_map[target]
+                if item.source_record and imported_origin(item.source_record.payload):continue
+                if kind in ('review_report','return_report') and item.status!='submitted':continue
+                if kind=='set_comment' and item.status not in ('draft','needs_revision'):continue
+                if kind=='return_report' and not reason.strip():continue
+                if kind=='set_comment' and len(reason.strip())<2:continue
+                proposal.update(id=item.id,revision=item.revision,status=item.status,version=item.lock_version)
+                label={'review_report':'Проверить отчёт','return_report':'Вернуть на уточнение','set_comment':'Изменить комментарий'}[kind]+' · '+site_label(next(x['name'] for x in site_rows if x['id']==item.site_id))+' · '+item.work_date
+                before=(item.payload.get('comment') or '—') if kind=='set_comment' else item.status
+                after=value if kind=='set_comment' else ('reviewed' if kind=='review_report' else 'needs_revision')
+            else:continue
+            with ai_action_lock:
+                for key in tuple(ai_proposals):
+                    if ai_proposals[key]['expires']<time.monotonic():del ai_proposals[key]
+                if len(ai_proposals)>=128:raise AIUnavailable('Слишком много ожидающих действий. Повторите позже.')
+                token=secrets.token_urlsafe(32);ai_proposals[token]=proposal
+            actions.append({'token':token,'title':label,'before':before,'after':after,'reason':reason,'report_id':proposal['id'] if kind!='rename_site' else None})
+        return {'answer':generated['answer'],'mode':None,'intent':'gpt','supported':True,'period':result['period'],
+            'metrics':None,'source_report_ids':list(dict.fromkeys(report_map[key].id for key in generated.get('sources',[]) if isinstance(key,str) and key in report_map)),
+            'limitations':[],'actions':actions}
 
     @api.post('/api/v1/ai/chat')
     def chat_ai(data:AIChat,db:Session=Depends(dbdep),u:User=Depends(current)):
@@ -641,10 +778,52 @@ def create_app(database_url=None, storage=None, initialize=False):
         work=analytic_rows(db,u,f.site_id,f.from_date,f.to_date,f.author_id)
         money=analytic_rows(db,u,f.site_id,f.from_date,f.to_date,f.author_id,by_work_date=False)
         result=metrics(work,f.from_date,f.to_date,money)
+        provider=ai_provider()
         try:
+            if provider in ('codex','qoder'):
+                ctx=provider_context(db,u,f)
+                if provider=='qoder':
+                    from app.qoder_bridge import run
+                    generated=run(data.question,result,ctx['catalog'],[m.model_dump() for m in data.history],u.id)
+                    response=provider_answer(generated,ctx,result,u)
+                    response.update(mode='qoder_bridge',request_id=generated['request_id'])
+                    return response
+                from app.codex_provider import run
+                generated=run(data.question,result,ctx['catalog'],[m.model_dump() for m in data.history],u.id)
+                response=provider_answer(generated,ctx,result,u)
+                response['mode']='codex_cli'
+                return response
             return answer(data.question,result,u.id)
         except AIUnavailable as exc:
             raise HTTPException(status_code=503,detail=str(exc)) from None
+
+    @api.post('/api/v1/ai/actions')
+    def apply_ai_action(data:AIAction,db:Session=Depends(dbdep),u:User=Depends(current)):
+        if ai_provider()=='qoder':pass
+        elif os.getenv('CRS_CODEX_ENABLED')!='1':raise HTTPException(503,'Помощник отключён.')
+        if u.role not in ('manager','admin'):raise HTTPException(403,'Manager role required')
+        with ai_action_lock:
+            p=ai_proposals.get(data.token)
+            if not p or p['owner']!=u.id or p['expires']<time.monotonic():raise HTTPException(410,'Предложение устарело. Повторите запрос.')
+            if p['kind']=='rename_site':
+                allowed(db,u,p['id'])
+            else:
+                if u.role!='manager':raise HTTPException(403,'Manager role required')
+                r=fetch(db,u,p['id'])
+            if p['result'] is not None:return p['result']
+            if p['kind']=='rename_site':
+                changed=db.execute(update(Site).where(Site.id==p['id'],Site.name==p['before']).values(name=p['value']))
+                if changed.rowcount!=1:raise HTTPException(409,'Объект уже изменён. Повторите запрос.')
+                admin_log(db,u,'site_renamed',p['id'],{'before':p['before'],'after':p['value']});db.commit()
+            else:
+                if r.revision!=p['revision'] or r.status!=p['status'] or r.lock_version!=p['version']:raise HTTPException(409,'Отчёт уже изменён. Повторите запрос.')
+                if p['kind']=='set_comment':
+                    payload={**r.payload,'comment':p['value']}
+                    edit(uuid.UUID(r.id),Edit(expected_revision=p['revision'],data=ReportData.model_validate(payload),reason=p['reason']),db,u)
+                else:
+                    review(uuid.UUID(r.id),Review(expected_revision=p['revision'],decision='reviewed' if p['kind']=='review_report' else 'needs_revision',reason=p['reason'] or None),db,u)
+            p['result']={'applied':True,'message':'Изменение сохранено.'}
+            return p['result']
 
     @api.post('/api/v1/analytics/ask')
     def ask(data:Ask,db:Session=Depends(dbdep),u:User=Depends(current)):

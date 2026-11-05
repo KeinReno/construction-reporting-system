@@ -1,6 +1,6 @@
 export type Site = { id: string; name: string }
 export type WorkEntry = { type: string; quantity: string | null; unit: string | null; description?: string }
-export type FinancialEntry = { id:string;kind:'expense'|'funding_received'|'advance_issued';operation_date:string;amount_kopecks:number;category:string;description?:string|null;receipt_photo_id?:string|null;date_basis?:'report_date';evidence_basis?:'declared_expense' }
+export type FinancialEntry = { id:string;kind:'expense'|'funding_received'|'advance_issued';operation_date:string;amount_kopecks:number;category:string;description?:string|null;receipt_photo_id?:string|null;date_basis?:'report_date';evidence_basis?:'declared_expense'|'declared_advance' }
 export type Report = {
   normalization?: {version:number;work_state:'work'|'no_work'|'not_stated';fields:Partial<Report['data']>;pending:Array<{kind:string;text:string;reason:string}>;shift_context:Array<{text:string}>} | null;
   origin?: 'direct' | 'imported';
@@ -9,7 +9,7 @@ export type Report = {
   author_id?:string; author_login?:string|null;
   status: "draft" | "submitted" | "reviewed" | "needs_revision";
   receipt_id: string | null; submitted_at: string | null;
-  data: { work_date: string; kind: "work" | "no_work"; work_entries: WorkEntry[]; comment?: string | null; no_work_reason?: string | null; required_photo_ids?: string[]; crew?:string|null; materials?:Array<{name:string;quantity:string|null;unit:string|null;direction?:'mentioned'|'received'|'consumed'}>|null; incidents?:Array<{description:string}>|null; financial_entries?:FinancialEntry[]|null;equipment?:Array<{type:string;hours:string;hired:boolean|null}>|null;next_shift_plans?:string[]|null }
+  data: { work_area?:'Т1'|'Т2'|'Т1/Т2'|null; weather?:'Ясно'|'Облачно'|'Дождь'|'Снег'|'Ветер'|'Мороз и гололёд'|'Жара'|null; work_date: string; kind: "work" | "no_work"; work_entries: WorkEntry[]; comment?: string | null; no_work_reason?: string | null; required_photo_ids?: string[]; crew?:string|null; materials?:Array<{name:string;quantity:string|null;unit:string|null;direction?:'mentioned'|'received'|'consumed'}>|null; incidents?:Array<{description:string}>|null; financial_entries?:FinancialEntry[]|null;equipment?:Array<{type:string;hours:string;hired:boolean|null}>|null;next_shift_plans?:string[]|null }
 }
 export function reportViewData(report:Report):Report['data'] {
   return report.normalization ? {...report.data,...report.normalization.fields} : report.data;
@@ -31,7 +31,37 @@ export type Summary = {
   equipment:Array<{report_id:string;date:string;type:string;hours:string;hired:boolean|null}>;equipment_hours:Array<{type:string;hours:string;hired:boolean|null}>;
   limitations: string[]; source_report_ids: string[]; daily: Array<{date:string; report_count:number; source_report_ids?: string[]}>; period: {from_date:string|null;to_date:string|null};
 }
-export type Profile = { id: string; login: string; role: string }
+export type ProductionCalendarDay = {
+  date: string; weekday: number; is_weekend: boolean;
+  state: 'work' | 'rest' | 'no_report';
+  kinds: string[]; kind_labels: string[]; aux: string[]; other: string[]; areas: string[];
+  equipment: string[]; hours: string; weather: string[]; people: string[];
+  report_ids: string[]; reason: string | null;
+}
+export type Production = {
+  period: { from_date: string | null; to_date: string | null; calendar_truncated: boolean };
+  workday_count: number; rest_day_count: number; calendar: ProductionCalendarDay[];
+  work_kinds: Array<{ key: string; label: string; day_count: number; report_count: number;
+    days_by_label: Array<{ label: string; day_count: number }>;
+    areas: Array<{ area: string; label: string; day_count: number }>;
+    sites: Array<{ site_id: string; day_count: number }>;
+    aux: Array<{ label: string; day_count: number; report_count: number }>;
+    source_report_ids: string[] }>;
+  other_kinds: Array<{ key: string; label: string; day_count: number; report_count: number;
+    works: Array<{ label: string; day_count: number }> }>;
+  uncategorized: Array<{ text: string; day_count: number; report_count: number; samples: string[] }>;
+  sites: Array<{ site_id: string; work_days: number; rest_days: number; equipment_hours: string }>;
+  equipment: { day_count: number; total_hours: string; unassigned_hours: string;
+    hours_by_type: Array<{ type: string; hours: string; day_count: number; report_count: number;
+      hired_days: number; own_days: number; ownership_not_stated_days: number }>;
+    avg_hours_per_equipment_day: string | null; avg_hours_per_workday: string | null };
+  people: Array<{ person: string; name: string; day_count: number; hours: string | null; is_group: boolean; is_temporary: boolean;
+    first_date: string; last_date: string; site_count: number; source_report_ids: string[] }>;
+  people_requires_check: Array<{ names: string[]; days: number[] }>;
+  weather: Array<{ condition: string; label: string; days: string[] }>;
+  limitations: string[];
+}
+export type Profile = { is_owner?:boolean; id: string; login: string; role: string }
 export type ReportAuthor = {id:string;login:string;imported_only?:boolean}
 
 // During development Vite proxies /api to FastAPI; in deployment reverse proxy does the same.
@@ -39,6 +69,17 @@ export type ReportAuthor = {id:string;login:string;imported_only?:boolean}
 export const BASE = "/api/v1";
 function apiMessage(status:number,detail:unknown):string {
   const messages:Record<string,string>={
+    'Codex не подключён. Проверьте вход в Codex CLI на ноутбуке.':'Codex не подключён. Проверьте вход в Codex CLI на ноутбуке.',
+    'Codex отвечает на другой запрос. Повторите через минуту.':'Codex отвечает на другой запрос. Повторите через минуту.',
+    'Codex не завершил ответ. Повторите запрос.':'Codex не завершил ответ. Повторите запрос.',
+    'Время ожидания Codex истекло. Данные не изменены.':'Время ожидания Codex истекло. Данные не изменены.',
+    'Не удалось получить ответ Codex. Проверьте соединение ноутбука.':'Не удалось получить ответ Codex. Проверьте соединение ноутбука.',
+    'Предложение устарело. Повторите запрос.':'Предложение устарело. Повторите запрос.',
+    'Объект уже изменён. Повторите запрос.':'Объект уже изменён. Повторите запрос.',
+    'Отчёт уже изменён. Повторите запрос.':'Отчёт уже изменён. Повторите запрос.',
+    'Помощник отключён.':'Помощник отключён.',
+    'Слишком много ожидающих действий. Повторите позже.':'Слишком много ожидающих действий. Повторите позже.',
+
     'Revision conflict':'Отчёт изменился. Обновите данные перед повтором.',
     'Revision/status conflict':'Версия или статус отчёта изменились. Обновите данные.',
     'Reason required':'Укажите причину возврата.',

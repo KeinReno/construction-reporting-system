@@ -1,5 +1,5 @@
 import { type Report, reportStatusLabels,reportViewData,reportWorkState } from '../api';
-import { formatDate } from '../date';
+import { formatTimestamp, formatDate } from '../date';
 
 export type ReportView = {
   id: string;
@@ -24,6 +24,10 @@ export type ReportView = {
   isNoWork: boolean;
   crew: string | null;
   searchDetails?: string;
+  imported?:boolean;
+  works?: Array<{name:string;quantity:string|null;unit:string|null}>;
+  submittedLabel?:string|null;
+  noWorkReason?:string|null;
 };
 
 const isShiftContext = (text: string) => /^(допуск на площад|дождь$)/i.test(text.trim());
@@ -57,6 +61,10 @@ export function buildReportView(
   const incident = data.incidents?.[0] || null;
   const photoIds = [...new Set([...(report.data.required_photo_ids || []), ...(report.evidence?.photos || []).filter(p=>p.relation==='same_message').map(p=>p.id)])];
   return {
+    imported:report.origin==='imported',
+    works:works.map(w=>({name:w.description||w.type,quantity:w.quantity,unit:w.unit})),
+    submittedLabel:report.submitted_at?formatTimestamp(report.submitted_at):null,
+    noWorkReason:isNoWork?report.data.no_work_reason:null,
     id: report.id,
     workDate: report.data.work_date,
     workDateLabel: formatDate(report.data.work_date),

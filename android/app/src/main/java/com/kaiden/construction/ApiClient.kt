@@ -51,7 +51,7 @@ class ApiClient(endpoint:String=BuildConfig.API_BASE_URL,private val demo:DemoBa
             connection.connectTimeout=15000
             connection.readTimeout=30000
             connection.setRequestProperty("Accept","application/json")
-            connection.setRequestProperty("X-Report-Capabilities","report-extras-v2")
+            connection.setRequestProperty("X-Report-Capabilities","report-extras-v3")
             if(token!=null) connection.setRequestProperty("Authorization","Bearer $token")
             if(sha!=null) connection.setRequestProperty("X-Content-SHA256",sha)
             if(body!=null) {
@@ -88,6 +88,11 @@ class ApiClient(endpoint:String=BuildConfig.API_BASE_URL,private val demo:DemoBa
                 item.getString("id") to item.getString("name")
             }
         }finally{connection.disconnect()}
+    }
+    fun workTypes(token:String):List<String> {
+        if(demo!=null)return emptyList()
+        val rows=JSONArray(requestText("/reference/work-types","GET",token))
+        return (0 until rows.length()).map{rows.getJSONObject(it)}.filter{it.getBoolean("active")}.map{it.getString("name")}
     }
     fun draft(token:String, data:JSONObject):String = request("/reports","POST",token,data.toString().toByteArray()).getString("id")
     fun existingByClient(token:String,id:String):JSONObject = request("/reports/by-client/$id",token=token)

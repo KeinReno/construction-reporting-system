@@ -17,6 +17,7 @@ with api.state.db() as db:
     db.add_all([admin,manager,other,foreman,site,site_b]);db.flush()
     db.add_all([Assignment(user_id=manager.id,site_id=site.id),Assignment(user_id=foreman.id,site_id=site.id),Assignment(user_id=other.id,site_id=site_b.id)])
     db.commit();sid=site.id
+api.state.owner_user_id=manager.id  # Explicit synthetic owner.
 client=TestClient(api)
 api.state.import_user_ids={foreman.id}
 token=client.post('/api/v1/auth/login',json={'login':'manager','password':'SyntheticPassword123'}).json()['access_token']

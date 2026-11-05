@@ -22,7 +22,7 @@ export function CrReportChart({
         {periods.map(period => (
           <li key={period.key}>
             <button type="button" className="crs-report-chart-bar" onClick={() => onOpen(period)}
-              aria-label={`${period.label}: ${period.count} отчётов. Открыть источники`}>
+              aria-label={`${period.label}: ${period.count} отчётов. Открыть отчёты`}>
               <span className="crs-report-chart-label">{period.label}</span>
               <span className="crs-report-chart-track">
                 <span className="crs-report-chart-fill" style={{height: `${period.count ? Math.max(6, period.count/max*100) : 0}%`}} />
@@ -31,7 +31,7 @@ export function CrReportChart({
             </button>
           </li>
         ))}
-      </ul> : <p className="empty">{ready ? 'За выбранный период данных для графика нет. Это не подтверждённый ноль работ.' : 'Загрузка показателей…'}</p>}
+      </ul> : <p className="empty">{ready ? 'Нет отчётов за выбранный период.' : 'Загрузка показателей…'}</p>}
     </div>
   );
 }

@@ -15,7 +15,7 @@ import re
 import shutil
 import uuid
 
-VERSION=1
+VERSION=2
 NAMESPACE=uuid.UUID('bc111c78-323d-4ae2-a262-8920b0811053')
 
 
@@ -39,7 +39,7 @@ def analysis_payload(payload,source):
 # Ordered categories describe the stated activity, never a percentage of readiness.
 CATEGORIES=[
     (r'покрас|покраск','Покраска'),(r'свар|обвар','Сварочные работы'),
-    (r'демонтаж|разбор|разобрал|срезк|срезал','Демонтаж'),(r'опалуб','Опалубочные работы'),
+    (r'демонтаж|разбор(?!ались|ался|алась|алось|ается|аемся)|разобрал(?![исьао]?сь)|срезк|срезал','Демонтаж'),(r'опалуб','Опалубочные работы'),
     (r'арматур','Арматурные работы'),(r'праймер|рубероид|монтаж [12] слоя|закатали','Гидроизоляция'),
     (r'залив|залили|бетономешал','Бетонирование'),(r'пролив|пролил|накрыли.*бетон','Уход за бетоном'),
     (r'монтаж.*блок|пристрелка.*ряда|монтаж \d.*ряд','Монтаж блоков'),
@@ -54,9 +54,25 @@ CATEGORIES=[
     (r'подготов|обустрой|вод|инструмент|недоч[её]т|совещан|знакомство|распил|заделк','Организация и подготовка работ'),
 ]
 CONTEXT=re.compile(r'^(?:допуск|выезд|забрали допускающего|дали отключения)\b',re.I)
+# Work named in the genitive after "под" is the target of a preparation, not a completed activity.
+PREP_FOR=re.compile(r'\bподготов\w*\s+под\b',re.I)
+# Money stated as a hand-out is an advance, never a cost of the object.
+ADVANCE=re.compile(r'\bаванс\w*|\bвыда[тч]\w*\b|\bкомандировочн\w*|\bкомандировочн\w*\s+(?:выдач|расход)',re.I)
+DATE_TOKEN=re.compile(r'\b\d{1,2}\.\d{1,2}(?:\.\d{2,4})?\b')
+# A period date keeps the "по" prefix from reading as a per-unit rate.
+def without_dates(text):return DATE_TOKEN.sub('Х',text)
 PROBLEM=re.compile(r'^(?:дождь\s*$|праймер не высох|сломался|пробная .*не получилось)',re.I)
 NON_EXPENSE=re.compile(r'командиров|аванс|выдач|итого|всего|остат|получ|перев[её]л|оплатить|счет|счёт|цен[аыу]|возврат|возмещ|долг|не\s|[-−–]\s*\d|план|предстои|буд[еу]|нужно|надо|необходим|пример|около|[~≈]|\bпо\s+\d|/\s*(?:час|ч\b|шт|м\b)|\bза\s+(?:час|ч\b|лист|шт|единиц|метр|кг|\d)',re.I)
 NON_ACTUAL_CONTEXT=re.compile(r'итого|всего|остат|цен|возврат|возмещ|не\s|[-−–]\s*\d|план|предстои|буд[еу]|нужно|надо|необходим|пример|около|[~≈]|\bпо\s+\d|/\s*(?:час|ч\b|шт|м\b|сут|день)|\bза\s+(?:час|ч\b|лист|шт|единиц|метр|кг|сут|день|ноч|\d)',re.I)
+AMOUNT=r'\d[\d \u00a0]*(?:[.,]\d{1,2})?'
+CURRENCY=r'(?:руб(?:лей|ля|ль)?\.?|р\.?|₽)(?!\w)'
+# A labelled fragment can be separated from an otherwise ambiguous expense line.
+# Label and amount must touch: proximity alone would move money to the wrong operation.
+LABELED=[
+    (re.compile(rf'\b(?:жиль[её]|проживание)\s+({AMOUNT})\s*{CURRENCY}',re.I),'Проживание','expense'),
+    (re.compile(rf'\b({AMOUNT})\s*{CURRENCY}\s*(?:командировочн\w*|аванс\w*)',re.I),'Командировочные','advance_issued'),
+    (re.compile(rf'\b(?:командировочн\w*|аванс\w*)\D{{0,12}}?({AMOUNT})\s*{CURRENCY}',re.I),'Командировочные','advance_issued'),
+]
 
 
 def normalize(payload,source_text):
@@ -74,13 +90,14 @@ def normalize(payload,source_text):
         item=evidence(kind,line)
         pending.append({**item,'reason':reason})
     accepted_expenses=set()
-    def expense(line,amount,category):
+    def expense(line,amount,category,kind='expense'):
         if line.casefold() in accepted_expenses:
             review('finance',line,'Повтор денежного фрагмента; повторно не учтён');return
         accepted_expenses.add(line.casefold())
-        item={'id':str(uuid.uuid5(NAMESPACE,str(payload['client_report_id'])+':expense:'+line)),
-            'kind':'expense','operation_date':str(payload['work_date']),'amount_kopecks':amount,
-            'category':category,'description':line,'date_basis':'report_date','evidence_basis':'declared_expense'}
+        item={'id':str(uuid.uuid5(NAMESPACE,str(payload['client_report_id'])+f':{kind}:'+line)),
+            'kind':kind,'operation_date':str(payload['work_date']),'amount_kopecks':amount,
+            'category':category,'description':line,'date_basis':'report_date',
+            'evidence_basis':'declared_expense' if kind=='expense' else 'declared_advance'}
         fields['financial_entries'].append(item);evidence('finance',line,item)
     for w in payload.get('work_entries',[]):
         line=w.get('description') or w['type']
@@ -90,7 +107,7 @@ def normalize(payload,source_text):
         if PROBLEM.search(line):
             if not any(e['description'].casefold()==line.casefold() for e in fields['incidents']):fields['incidents'].append({'description':line})
             evidence('incident',line);continue
-        category=next((name for pattern,name in CATEGORIES if re.search(pattern,line,re.I)),None)
+        category='Организация и подготовка работ' if PREP_FOR.search(line) else next((name for pattern,name in CATEGORIES if re.search(pattern,line,re.I)),None)
         categorized=category is not None
         if not category and w.get('quantity') is None:
             category='Прочие заявленные работы';review('work_category',line,'Нужна классификация вида работ')
@@ -110,7 +127,15 @@ def normalize(payload,source_text):
         if re.match(r'^расходы\b',line,re.I):
             section='finance';line=line.split(':',1)[1].strip() if ':' in line else ''
             if not line:continue
-        elif re.match(r'^работа спец\s*техники',line,re.I):section='equipment';continue
+        elif re.match(r'^работа спец\s*техники',line,re.I):
+            # Hours declared on the section title are real claims with no machine type attached.
+            declared=re.search(r'(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(?:часов|часа|час\b|ч\.?)\s*(.*)$',line,re.I)
+            if declared:
+                item=evidence('equipment',line,{'hours':str(Decimal(declared[1].replace(',','.'))),'type':None})
+                unresolved=(declared[2] or '').strip()
+                pending.append({**item,'reason':'Часы заявлены без указания вида техники; в итоги по технике не входят'
+                    + (f'; значение помечено как спорное ({unresolved})' if unresolved else '')})
+            section='equipment';continue
         elif re.match(r'^планы на завтра',line,re.I):section='plans';continue
         elif re.match(r'^(?:состав бригады|выполненные работы|работы|материалы|события|инциденты)\s*:',line,re.I):section=None;continue
         elif re.fullmatch(r'\d{1,2}\.\d{1,2}\.20\d{2}',line):section=None;continue
@@ -130,12 +155,21 @@ def normalize(payload,source_text):
                 review('finance',line,'Повтор денежной строки в одном отчёте; повторно не учтён');continue
             seen_expenses.add(line.casefold())
             amounts=list(re.finditer(r'(?<![\d.,])\d[\d \u00a0]*(?:[.,]\d{1,2})?\s*(?:руб(?:лей|ля|ль)?\.?|р\.?|₽)(?!\w)',line,re.I))
-            # An explicitly labelled accommodation amount can be separated from
-            # other ambiguous payments on the same expense line. Keep the rest for review.
+            # An explicitly labelled amount can be separated from other ambiguous
+            # payments on the same expense line. Keep the rest for review.
             if len(amounts)>1 and not NON_ACTUAL_CONTEXT.search(line):
-                for part in re.finditer(r'\b(?:жиль[её]|проживание)\s+(\d[\d \u00a0]*(?:[.,]\d{1,2})?)\s*(?:руб(?:лей|ля|ль)?\.?|р\.?|₽)(?!\w)',line,re.I):
-                    amount=int(Decimal(part[1].replace(' ','').replace('\u00a0','').replace(',','.'))*100)
-                    if 0<amount<=10_000_000_000:expense(part.group(),amount,'Проживание')
+                for pattern,category,kind in LABELED:
+                    for part in pattern.finditer(line):
+                        amount=int(Decimal(part[1].replace(' ','').replace('\u00a0','').replace(',','.'))*100)
+                        if 0<amount<=10_000_000_000:expense(part.group(),amount,category,kind)
+            # A hand-out is tracked as an advance, never as a cost of the object.
+            # "по 14.07" names the period, so a date is not an unexplained second number.
+            if amounts and len(amounts)==1 and ADVANCE.search(line):
+                single=re.match(r'[\d \u00a0]+(?:[.,]\d{1,2})?',amounts[0].group()).group()
+                if not NON_ACTUAL_CONTEXT.search(without_dates(line)) and not re.search(r'\d',without_dates(line[:amounts[0].start()]+line[amounts[0].end():])):
+                    amount=int(Decimal(single.replace(' ','').replace('\u00a0','').replace(',','.'))*100)
+                    if 0<amount<=10_000_000_000:
+                        expense(line,amount,'Командировочные' if re.search(r'командиров',line,re.I) else 'Аванс','advance_issued');continue
             # A single expense amount with an explicit currency and no other numbers.
             if len(amounts)!=1 or NON_EXPENSE.search(line) or NON_ACTUAL_CONTEXT.search(line) or (amounts and re.search(r'\d',line[:amounts[0].start()]+line[amounts[0].end():])):
                 review('finance',line,'Нужно подтвердить суммы, вид операции и дату; не включено в денежные итоги');continue

@@ -1,3 +1,4 @@
+import { OwnerIcon } from '../ui/OwnerIcon';
 import { AuthorBadge, ReportSignals } from './ReportSignals';
 import { ReportStatus } from './ReportStatus';
 import { useAttachmentPreview } from './ReportGallery';
@@ -30,7 +31,7 @@ export function ReportCard({
       type="button"
       className={`report-card crs-fade-in${view.photoIds.length === 0 ? ' report-card-no-media' : ''}`}
       onClick={onOpen}
-      aria-label={`Открыть отчёт за ${view.workDateLabel} · ${view.siteName} · Автор: ${view.authorLabel} · ${view.statusLabel} · ${view.workSummary} · Работ: ${view.workCount}, фото: ${view.photoCount}, событий: ${view.incidentCount}${view.possiblePhotoCount ? `, фото по дате: ${view.possiblePhotoCount}, связь требует проверки` : ''}`}
+      aria-label={`Открыть отчёт за ${view.workDateLabel} · ${view.siteName} · Автор: ${view.authorLabel} · ${view.statusLabel} · ${view.workSummary} · Работ: ${view.workCount}, фото: ${view.photoCount}, событий: ${view.incidentCount}${view.possiblePhotoCount ? `, фото по дате: ${view.possiblePhotoCount}` : ''}`}
     >
       {view.photoIds.length > 0 && <CardMedia id={view.photoIds[0]} token={token} count={view.photoCount} />}
       <div className="report-card-body">
@@ -38,14 +39,17 @@ export function ReportCard({
           <time dateTime={view.workDate}>{view.workDateLabel}</time>
           <ReportStatus status={view.status} label={view.statusLabel} archive={archive} />
         </div>
-        <strong>{view.siteName}</strong>
-        <p className="report-card-summary crs-truncate-2">{view.headline}{view.quantityHint ? ` · ${view.quantityHint}` : ''}</p>
-        {view.incidentHint && <p className="report-card-summary crs-truncate-2">Событие: {view.incidentHint}</p>}
+        <strong className="control-heading control-site-title"><OwnerIcon name="building"/>{view.siteName}</strong>
+        <div className="control-card-works"><span className="control-label"><OwnerIcon name="work"/>Что выполнено</span>{view.isNoWork?<p>Работ не было: {view.noWorkReason||'причина не указана'}</p>:(view.works?.length?view.works.slice(0,3).map((w,i)=><div className="control-card-work" key={i}><span>{w.name}</span><b>{w.quantity===null?'Объём не указан':`${w.quantity} ${w.unit||'· единица не указана'}`}</b></div>):<p>Описание работ не указано.</p>)}{(view.works?.length??0)>3&&<small>Ещё {(view.works?.length??0)-3} вида работ в отчёте</small>}</div>
+        {view.incidentHint && <div className="control-card-issue"><span className="control-label"><OwnerIcon name="event"/>Требует внимания</span><p>{view.incidentHint}</p><small>Действие, ответственный и срок не указаны. Состояние решения неизвестно.</small></div>}
+        <p className="control-card-check"><OwnerIcon name="review"/>{!view.imported&&!archive&&view.status==='reviewed'?'Отчёт проверен':'Проверка не подтверждена'} · приёмка работ отдельно не подтверждена</p>
+        {view.photoCount===0&&<p className="control-card-check"><OwnerIcon name="photo"/>Фото не приложены к отчёту</p>}
+        <p className="control-card-check"><OwnerIcon name="calendar"/>Отправлен: {view.submittedLabel||'дата не указана'}</p>
         <ReportSignals works={view.workCount} photos={view.photoCount} events={view.incidentCount} />
-        {view.possiblePhotoCount>0 && <small>Фото по дате: {view.possiblePhotoCount} · связь требует проверки</small>}
+        {view.possiblePhotoCount>0 && <small>Другие фото за дату: {view.possiblePhotoCount}</small>}
         <div className="report-card-footer">
-          <AuthorBadge id={view.authorId} label={view.authorLabel} />
-          <span>Версия {view.revision}</span>
+          {view.authorLabel && <AuthorBadge id={view.authorId} label={view.authorLabel} />}
+          <span className="control-open">Открыть отчёт <OwnerIcon name="arrow"/></span>
         </div>
       </div>
     </button>

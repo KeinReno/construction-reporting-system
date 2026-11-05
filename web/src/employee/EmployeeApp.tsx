@@ -34,6 +34,8 @@ export default function EmployeeApp(){
 }
 
 function Workspace({token,profile,onExpired,onLogout}:{token:string;profile:Profile;onExpired:(token:string)=>void;onLogout:()=>void}){
+  const [catalog,setCatalog]=useState<string[]>([]);
+  useEffect(()=>{let active=true;void http<Array<{name:string;active:boolean}>>('/reference/work-types',token).then(items=>{if(active)setCatalog(items.filter(w=>w.active).map(w=>w.name));}).catch(()=>{});return()=>{active=false;};},[token]);
   const [sites,setSites]=useState<Site[]>([]);const [form,setForm]=useState<Form|null>(null);const [page,setPage]=useState<'form'|'history'>('form');
   const [local,setLocal]=useState<Pending[]>([]);const [reports,setReports]=useState<Report[]>([]);const [error,setError]=useState('');const [notice,setNotice]=useState('');
   const [saving,setSaving]=useState('');const [busy,setBusy]=useState(false);const [online,setOnline]=useState(navigator.onLine);const [tick,setTick]=useState(0);
@@ -91,7 +93,7 @@ function Workspace({token,profile,onExpired,onLogout}:{token:string;profile:Prof
         <div className="employee-kind" role="group" aria-label="Работы на смене"><button type="button" aria-pressed={form.kind==='work'} onClick={()=>setForm({...form,kind:'work'})}>Работали</button><button type="button" aria-pressed={form.kind==='no_work'} onClick={()=>setForm({...form,kind:'no_work'})}>Работ не было</button></div>
         {form.kind==='no_work'?<label>Почему работ не было<textarea value={form.reason} maxLength={2000} onChange={e=>setForm({...form,reason:e.target.value})}/></label>:<section aria-label="Выполненные работы" className="employee-works">
           {form.works.map((w,i)=>{const change=(part:Partial<typeof w>)=>setForm({...form,works:form.works.map(row=>row.id===w.id?{...row,...part}:row)});return <fieldset key={w.id}><legend>{form.works.length>1?`Работа ${i+1}`:'Выполненная работа'}</legend>
-            <label>Вид работы<select value={w.type} onChange={e=>change({type:e.target.value})}><option value="">Выберите вид</option>{[...new Set(['Монтаж','Сварка','Бетонирование','Арматурные работы','Кладка','Электромонтаж','Покраска','Разгрузка','Уборка территории','Подготовка участка','Другое',w.type].filter(Boolean))].map(type=><option key={type}>{type}</option>)}</select></label>
+            <label>Вид работы<select value={w.type} onChange={e=>change({type:e.target.value})}><option value="">Выберите вид</option>{[...new Set([...catalog,'Монтаж','Сварка','Бетонирование','Арматурные работы','Кладка','Электромонтаж','Покраска','Разгрузка','Уборка территории','Подготовка участка','Другое',w.type].filter(Boolean))].map(type=><option key={type}>{type}</option>)}</select></label>
             <label>Что сделано<textarea value={w.description} placeholder="Коротко опишите результат смены" maxLength={2000} onChange={e=>change({description:e.target.value})}/></label>
             <details open={!!w.quantity||undefined}><summary>Указать объём, если известен</summary><div className="employee-pair"><label>Объём<input inputMode="decimal" value={w.quantity} onChange={e=>change({quantity:e.target.value})}/></label><label>Единица<input value={w.unit} maxLength={50} onChange={e=>change({unit:e.target.value})}/></label></div></details>
             {form.works.length>1&&<button type="button" className="employee-link" onClick={()=>setForm({...form,works:form.works.filter(row=>row.id!==w.id)})}>Удалить работу</button>}
@@ -101,7 +103,7 @@ function Workspace({token,profile,onExpired,onLogout}:{token:string;profile:Prof
           {!!form.retainedPhotos.length&&<p>{form.retainedPhotos.length} фото из отправленного отчёта сохранены</p>}
           <div className="employee-photo-grid">{form.photos.map(p=><div key={p.id}><PhotoPreview photo={p}/><button type="button" className="employee-link" disabled={busy||form.money.some(m=>m.receipt_photo_id===p.id)} onClick={()=>setForm({...form,photos:form.photos.filter(x=>x.id!==p.id)})}>{form.money.some(m=>m.receipt_photo_id===p.id)?'Используется как чек':'Убрать фото'}</button></div>)}</div>
         </section>
-        <details className="employee-additional" open={!!form.base||undefined}><summary>Добавить сведения: материалы, деньги, техника</summary><ExtraFields form={form} onChange={setForm}/></details>
+        <details className="employee-additional" open={!!form.base||undefined}><summary>Добавить сведения: условия смены, материалы, деньги, техника</summary><ExtraFields form={form} onChange={setForm}/></details>
         <div className="employee-submit"><button className="employee-primary" disabled={busy||!form.site||conflict}>{busy?'Подождите…':online?'Отправить отчёт':'Сохранить в очередь'}</button><span role="status">{saving}</span></div>
       </fieldset></form>)}
       {page==='history'&&<section className="employee-history" aria-label="История моих отчётов"><button type="button" className="employee-secondary" onClick={()=>{setError('');void refreshReports();refreshLocal();setTick(n=>n+1);}}>Обновить</button>

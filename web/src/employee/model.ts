@@ -4,7 +4,7 @@ export type Work={id:string;type:string;description:string;quantity:string;unit:
 export type Material={id:string;name:string;quantity:string;unit:string;direction:'mentioned'|'received'|'consumed'};
 export type Money={id:string;kind:'expense'|'funding_received'|'advance_issued';category:string;amount:string;date:string;description:string;receipt_photo_id:string|null};
 export type Machine={id:string;type:string;hours:string;hired:boolean|null};
-export type Form={id:string;nonce:string;version:number;site:string;date:string;kind:'work'|'no_work';reason:string;works:Work[];crew:string;materials:Material[];money:Money[];equipment:Machine[];incident:string;plans:string;comment:string;photos:Photo[];retainedPhotos:string[];base?:{id:string;revision:number;data:Report['data'];reason:string}};
+export type Form={work_area?:Report['data']['work_area'];weather?:Report['data']['weather'];id:string;nonce:string;version:number;site:string;date:string;kind:'work'|'no_work';reason:string;works:Work[];crew:string;materials:Material[];money:Money[];equipment:Machine[];incident:string;plans:string;comment:string;photos:Photo[];retainedPhotos:string[];base?:{id:string;revision:number;data:Report['data'];reason:string}};
 export type Payload=Report['data'] & {client_report_id:string;site_id:string};
 export type Pending={key:string;owner:string;id:string;form:Form;payload:Payload;state:'queued'|'delivered'|'failed';error?:string;receipt?:string;created:number};
 export const uid=()=>crypto.randomUUID();
@@ -56,12 +56,12 @@ export function toPayload(f:Form):Payload {
   if(incidents.length>100)throw new Error('В отчёте — до 100 событий');
   return {...f.base?.data,client_report_id:f.id,site_id:f.site,work_date:f.date,kind:f.kind,
     no_work_reason:f.kind==='no_work'?f.reason.trim():null,work_entries:works as Report['data']['work_entries'],
-    required_photo_ids:photos,crew:f.crew.trim()||null,materials,financial_entries,equipment,
+    work_area:f.work_area||null,weather:f.weather||null,required_photo_ids:photos,crew:f.crew.trim()||null,materials,financial_entries,equipment,
     incidents,next_shift_plans:plans,comment:f.comment.trim()||null};
 }
 export function fromReport(r:Report,reason:string):Form {
   const d=r.data;
-  return {...blankForm(),id:r.client_report_id,site:r.site_id,date:d.work_date,kind:d.kind,reason:d.no_work_reason||'',crew:d.crew||'',
+  return {...blankForm(),id:r.client_report_id,site:r.site_id,date:d.work_date,kind:d.kind,work_area:d.work_area,weather:d.weather,reason:d.no_work_reason||'',crew:d.crew||'',
     works:d.work_entries.map(w=>({id:uid(),type:w.type,description:w.description||'',quantity:w.quantity??'',unit:w.unit||'шт'})),
     materials:(d.materials||[]).map(m=>({id:uid(),name:m.name,quantity:m.quantity??'',unit:m.unit||'',direction:m.direction||'mentioned'})),
     money:(d.financial_entries||[]).map(m=>({id:m.id,kind:m.kind,category:m.category,amount:(m.amount_kopecks/100).toFixed(2),date:m.operation_date,description:m.description||'',receipt_photo_id:m.receipt_photo_id||null})),

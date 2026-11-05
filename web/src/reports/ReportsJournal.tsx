@@ -42,7 +42,7 @@ export function ReportsJournal({
     () =>
       reports.map(report =>
         buildReportView(report, siteName(report.site_id), authorName(report.author_login), {
-          archiveLabel: archive ? 'Архив MAX' : undefined,
+          archiveLabel: archive ? 'Сохранён' : undefined,
         })
       ),
     [reports, siteName, authorName, archive]
@@ -50,6 +50,7 @@ export function ReportsJournal({
   const authorGroups = useMemo(() => {
     const groups = new Map<string,{id:string|null;label:string;count:number}>();
     for (const view of views) {
+      if(!view.authorLabel) continue;
       const key=view.authorId || '__unknown__';
       const group=groups.get(key) || {id:view.authorId,label:view.authorLabel,count:0};
       group.count++; groups.set(key,group);
@@ -94,7 +95,7 @@ export function ReportsJournal({
 
       {!compact && <div className="owner-journal-status" role="group" aria-label="Статус отчётов">{([['all','Все'],['waiting','На проверке'],['needs_revision','На уточнении'],['reviewed','Проверены']] as const).map(([key,label])=><button type="button" key={key} aria-pressed={statusFilter===key} onClick={()=>setStatusFilter(key)}>{label}</button>)}<span>Найдено: {filtered.length}</span></div>}
       {!compact && !archive && authorGroups.length > 0 && <details className="journal-authors" aria-label="Отчёты по авторам"><summary>Отчёты по авторам</summary>
-        <div className="journal-authors-heading"><h3>Отчёты по авторам</h3><span>Все записи по выбранным фильтрам, включая черновики</span></div>
+        <div className="journal-authors-heading"><h3>Отчёты по авторам</h3></div>
         <div className="journal-author-chart">{authorGroups.map(([key,group])=><button type="button" className="journal-author-bar" key={key} aria-pressed={activeAuthor===key} onClick={()=>setAuthorFilter(activeAuthor===key?null:key)}>
           <AuthorBadge id={group.id} label={group.label}/><span className="journal-author-track" aria-hidden="true"><span style={{width:`${group.count / authorGroups[0][1].count * 100}%`}}/></span><strong>{group.count}</strong>
         </button>)}</div>

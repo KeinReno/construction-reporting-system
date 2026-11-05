@@ -13,7 +13,7 @@ test('downloaded demo opens six examples, protected images, review and analytics
  await expect(home.getByRole('button',{name:/Открыть отчёт за/})).toHaveCount(6);
  await expect(home.locator('.owner-snapshot-item').filter({hasText:'Получено отчётов'}).locator('strong')).toHaveText('6');
  await home.getByRole('button',{name:/^Открыть отчёт за 22\/05\/2026/}).click();
- await expect(page.getByRole('region',{name:'Просмотр отчёта'}).getByText('Автор в системе: Бригадир (демо)')).toBeVisible();
+ await expect(page.getByRole('region',{name:'Просмотр отчёта'}).getByText('Автор: Бригадир (демо)')).toBeVisible();
  await expect(page.getByRole('region',{name:'Просмотр отчёта'}).getByText('Учебная бригада №1')).toBeVisible();
  await expect(page.getByRole('region',{name:'Просмотр отчёта'}).getByText('Учебный материал')).toBeVisible();
  await expect(page.getByRole('region',{name:'Просмотр отчёта'}).getByText('Учебное событие: временная задержка доступа.')).toBeVisible();
@@ -25,10 +25,11 @@ test('downloaded demo opens six examples, protected images, review and analytics
  await expect(dialog.locator('img')).toHaveJSProperty('naturalWidth',800);
  await page.screenshot({path:'test-results/screenshots/web-02-report.png',animations:'disabled'});
  await dialog.getByRole('button',{name:'← Назад'}).click();
- await page.getByRole('button',{name:'Готовые сводки',exact:true}).first().click();
- await page.getByLabel('Вид анализа').selectOption('auto');
- await page.getByLabel('Вопрос (сохраняется только на экране)').fill('Какие простои повторяются?');
- await page.getByRole('button',{name:'Сформировать анализ'}).click();
+ await page.locator('.sidebar').getByRole('button',{name:'Помощник',exact:true}).click();
+ const ai=page.getByRole('region',{name:'Аналитический центр CRS'});
+ await ai.getByLabel('Вид анализа').selectOption('auto');
+ await ai.getByLabel('Вопрос',{exact:true}).fill('Какие простои повторяются?');
+ await ai.getByRole('button',{name:/Сформировать сводку/}).click();
  await expect(page.getByRole('button',{name:'Отчёт 3',exact:true})).toBeVisible();
  await page.screenshot({path:'test-results/screenshots/web-03-analytics.png',fullPage:true,animations:'disabled'});
  await page.getByRole('button',{name:'Отчёт 3',exact:true}).click();

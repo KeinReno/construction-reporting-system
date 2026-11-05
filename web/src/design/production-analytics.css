@@ -1,0 +1,86 @@
+/* Production analytics: shift calendar, kind day counts, machine hours, crew days. */
+.owner-simple .production-analytics{display:flex;flex-direction:column;gap:16px}
+.owner-simple .production-empty{color:var(--crs-text-secondary)}
+.owner-simple .production-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.owner-simple .production-head h2{margin:0 0 4px}
+.owner-simple .production-head p{margin:0;max-width:72ch}
+.owner-simple .production-month-nav{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.owner-simple .production-legend{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:12px;font-size:var(--crs-text-sm);color:var(--crs-text-secondary)}
+.owner-simple .production-legend span{display:flex;align-items:center;gap:7px;min-width:0}
+.owner-simple .production-legend i,.owner-simple .production-day-marks i{display:inline-block;width:10px;height:10px;flex:0 0 10px;border-radius:3px}
+.owner-simple .production-legend i.is-rest{background:var(--crs-status-revision-bg);border:1px solid var(--crs-status-revision)}
+.owner-simple .production-legend-rest i.is-rest,.owner-simple .production-legend-empty i.is-empty{border-radius:50%}
+.owner-simple .production-legend i.is-empty{background:var(--crs-surface-sunken);border:1px dashed var(--crs-line-strong)}
+.owner-simple .production-calendar{display:flex;flex-direction:column;gap:6px}
+.owner-simple .production-calendar-week,.owner-simple .production-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.owner-simple .production-calendar-week span{font-size:var(--crs-text-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--crs-muted);text-align:center}
+.owner-simple .production-calendar-week span.is-weekend{color:var(--crs-status-revision)}
+.owner-simple .production-calendar-blank{min-height:74px}
+.owner-simple .production-day{display:flex;flex-direction:column;gap:5px;min-height:74px;padding:7px 8px;text-align:left;background:var(--crs-surface-sunken);border:1px solid var(--crs-line);border-radius:var(--crs-radius-sm);color:var(--crs-text);cursor:pointer}
+.owner-simple .production-day b{font-size:var(--crs-text-sm);font-weight:600}
+.owner-simple .production-day.is-work{background:var(--crs-surface-raised);border-color:var(--crs-line-strong)}
+.owner-simple .production-day.is-rest{border-color:var(--crs-status-revision);background:var(--crs-status-revision-bg)}
+.owner-simple .production-day.is-no_report{background:var(--crs-surface-sunken);border-style:dashed;color:var(--crs-muted)}
+.owner-simple .production-day.is-weekend b{color:var(--crs-status-revision)}
+.owner-simple .production-day.is-open{outline:2px solid var(--crs-accent);outline-offset:1px}
+.owner-simple .production-day-marks{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:10px}
+.owner-simple .production-day-marks em{color:var(--crs-muted);font-style:normal;line-height:1}
+.owner-simple .production-day-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:auto}
+.owner-simple .production-day-badges small{font-size:var(--crs-text-xs);padding:1px 5px;border-radius:999px;background:var(--crs-surface);border:1px solid var(--crs-line);color:var(--crs-text-secondary)}
+.owner-simple .production-day-detail{margin-top:14px;padding:14px;border:1px solid var(--crs-line-strong);border-radius:var(--crs-radius-md);background:var(--crs-surface)}
+.owner-simple .production-day-detail-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.owner-simple .production-day-detail-head h3{margin:0}
+.owner-simple .production-state{font-size:var(--crs-text-xs);text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;border-radius:999px;border:1px solid var(--crs-line-strong);color:var(--crs-text-secondary)}
+.owner-simple .production-state.is-work{color:var(--crs-ok);border-color:var(--crs-ok)}
+.owner-simple .production-state.is-rest{color:var(--crs-status-revision);border-color:var(--crs-status-revision)}
+.owner-simple .production-day-line{margin:0 0 6px;font-size:var(--crs-text-sm);overflow-wrap:anywhere}
+.owner-simple .production-day-reports{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.owner-simple .production-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.owner-simple .production-stats>div{display:flex;flex-direction:column;gap:3px;padding:12px;border:1px solid var(--crs-line);border-radius:var(--crs-radius-sm);background:var(--crs-surface-sunken)}
+.owner-simple .production-stats strong{font-size:var(--crs-text-2xl);font-family:var(--crs-font-mono)}
+.owner-simple .production-stats small{font-size:var(--crs-text-xs);color:var(--crs-muted)}
+.owner-simple .production-table{width:100%;border-collapse:collapse;font-size:var(--crs-text-sm)}
+.owner-simple .production-table th,.owner-simple .production-table td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--crs-line);vertical-align:top}
+.owner-simple .production-table thead th{font-size:var(--crs-text-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--crs-muted);font-weight:600}
+.owner-simple .production-table tbody th{font-weight:600}
+.owner-simple .production-table-secondary{margin-top:18px}
+.owner-simple .production-table-secondary tbody th,.owner-simple .production-table-secondary td{color:var(--crs-text-secondary)}
+.owner-simple .production-kind,.owner-simple .production-person{display:flex;align-items:center;gap:8px;padding:0;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.owner-simple .production-kind:disabled{cursor:default;opacity:.6}
+.owner-simple .production-kind i{display:inline-block;width:10px;height:10px;flex:0 0 10px;border-radius:3px}
+.owner-simple .production-person em{font-style:normal;font-size:var(--crs-text-xs);color:var(--crs-status-revision)}
+.owner-simple .production-aux{display:flex;flex-wrap:wrap;gap:5px}
+.owner-simple .production-aux span{display:inline-flex;gap:5px;align-items:baseline;padding:2px 7px;border-radius:999px;background:var(--crs-surface-sunken);border:1px solid var(--crs-line);font-size:var(--crs-text-xs);color:var(--crs-text-secondary)}
+.owner-simple .production-aux b{font-family:var(--crs-font-mono);color:var(--crs-text)}
+.owner-simple .production-note{margin:12px 0 0;font-size:var(--crs-text-xs);overflow-wrap:anywhere}
+.owner-simple .production-weather{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.owner-simple .production-weather li{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--crs-line);border-radius:var(--crs-radius-sm);background:var(--crs-surface-sunken)}
+.owner-simple .production-weather strong{min-width:120px}
+.owner-simple .production-weather span{flex:1 1 240px;font-size:var(--crs-text-sm);color:var(--crs-text-secondary);overflow-wrap:anywhere}
+.owner-simple .production-weather small{font-family:var(--crs-font-mono);color:var(--crs-muted)}
+.owner-simple .production-limits{padding:12px 14px;border:1px solid var(--crs-line);border-radius:var(--crs-radius-md);background:var(--crs-surface-sunken);font-size:var(--crs-text-sm)}
+.owner-simple .production-limits summary{cursor:pointer;color:var(--crs-text-secondary)}
+.owner-simple .production-limits ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;color:var(--crs-text-secondary)}
+@media (max-width:900px){.owner-simple .production-stats{grid-template-columns:minmax(0,1fr)}.owner-simple .production-calendar-week span,.owner-simple .production-day b{font-size:var(--crs-text-xs)}.owner-simple .production-day{min-height:64px;padding:6px}.owner-simple .production-day-badges small{padding:1px 4px}}
+
+.owner-simple .production-analytics>section{min-width:0}
+.owner-simple .production-table-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+.owner-simple .production-table-scroll:focus-visible{outline:2px solid var(--crs-accent)}
+
+.owner-simple .ops-row{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 0;border-bottom:1px solid var(--crs-line)}
+.owner-simple .ops-row>span{flex:1;min-width:120px;overflow-wrap:anywhere}
+.owner-simple .ops-form{display:flex;flex-direction:column;gap:12px;max-width:720px;margin-top:16px}
+.owner-simple .owner-operations{display:flex;flex-direction:column;gap:16px;min-width:0}
+.owner-simple .ops-form input[type=checkbox]{width:auto}
+
+.owner-simple .conversation-toggle{position:fixed;right:20px;bottom:24px;z-index:25;padding:12px 16px;border:1px solid var(--crs-line-strong);border-radius:12px;background:var(--crs-surface-raised);color:var(--crs-text)}
+.owner-simple .conversation-dock{position:fixed;inset:0 0 0 auto;width:440px;max-width:100vw;background:var(--crs-surface);border-left:1px solid var(--crs-line-strong);z-index:35;display:flex;flex-direction:column;padding:16px;box-sizing:border-box}
+.owner-simple .conversation-dock header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.owner-simple .conversation-dock h2{font-size:18px}
+.owner-simple .conversation-dock nav{display:flex;gap:8px;margin-bottom:16px}
+.owner-simple .conversation-scroll{overflow:auto;min-height:0;overflow-wrap:anywhere}
+.owner-simple .conversation-message{padding:14px 0;border-bottom:1px solid var(--crs-line)}
+.owner-simple .conversation-message p{white-space:pre-wrap}
+.owner-simple .conversation-dock .ai-workspace{min-width:0;display:block}
+@media(min-width:1300px){.owner-simple.has-conversation>.workspace{margin-right:440px}}
+@media(max-width:900px){.owner-simple .conversation-toggle{bottom:80px;right:12px}.owner-simple .conversation-dock{bottom:70px}.owner-simple .conversation-dock .ai-workspace{display:block}}
