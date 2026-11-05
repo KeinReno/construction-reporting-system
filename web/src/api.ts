@@ -81,6 +81,11 @@ function apiMessage(status:number,detail:unknown):string {
     'Слишком много ожидающих действий. Повторите позже.':'Слишком много ожидающих действий. Повторите позже.',
 
     'Revision conflict':'Отчёт изменился. Обновите данные перед повтором.',
+    'Owner role required':'Это действие доступно только назначенному владельцу.',
+    'Active main parent required':'Выберите активный основной вид работы.',
+    'Archive auxiliary work first':'Сначала уберите из выбора связанные вспомогательные работы.',
+    'Work type name already used in history':'Это название уже используется или сохранено в истории другого вида работы.',
+    'Active worker required':'Выберите действующего работника.',
     'Revision/status conflict':'Версия или статус отчёта изменились. Обновите данные.',
     'Reason required':'Укажите причину возврата.',
     'Object access denied':'Нет доступа к объекту.',

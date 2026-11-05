@@ -8,9 +8,10 @@ import './design/production-analytics.css';
 const KIND_COLORS: Record<string, string> = {
   concrete: '#7fb2c9', blocks: '#c9a27f', belt: '#e0c46a', metal: '#9aa7c9', welding: '#b695c9', mesh: '#85c79a', logistics: '#c98f8f',
 };
+const kindColor = (key:string) => KIND_COLORS[key] ?? `hsl(${Array.from(key).reduce((n,c)=>(n*31+c.charCodeAt(0))%360,0)} 45% 70%)`;
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-const STATE_LABEL: Record<ProductionCalendarDay['state'], string> = { work: 'Отработан', rest: 'Выходной по отчёту', no_report: 'Отчёта нет' };
+const STATE_LABEL: Record<ProductionCalendarDay['state'], string> = { work: 'Отработан', rest: 'Работ не было', no_report: 'Отчёта нет' };
 
 const monthKey = (iso: string) => iso.slice(0, 7);
 const monthTitle = (key: string) => `${MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
@@ -57,8 +58,8 @@ export function AnalyticsProduction({ production, ready, error, siteName, onOpen
         </div>
       </div>
       <div className="production-legend" aria-label="Обозначения календаря">
-        {production?.work_kinds.filter(kind => kind.day_count).map(kind => <span key={kind.key}><i style={{ background: KIND_COLORS[kind.key] }} />{kind.label} · {kind.day_count} дн.</span>)}
-        <span className="production-legend-rest"><i className="is-rest" />Выходной по отчёту</span>
+        {production?.work_kinds.filter(kind => kind.day_count).map(kind => <span key={kind.key}><i style={{ background: kindColor(kind.key) }} />{kind.label} · {kind.day_count} дн.</span>)}
+        <span className="production-legend-rest"><i className="is-rest" />Работ не было</span>
         <span className="production-legend-empty"><i className="is-empty" />Нет отчёта</span>
       </div>
       {shown.length ? <div className="production-calendar">
@@ -71,7 +72,7 @@ export function AnalyticsProduction({ production, ready, error, siteName, onOpen
             onClick={() => setOpenDay(openDay === day.date ? null : day.date)}>
             <b>{Number(day.date.slice(8, 10))}</b>
             <span className="production-day-marks">
-              {day.kinds.map(key => <i key={key} style={{ background: KIND_COLORS[key] }} />)}
+              {day.kinds.map(key => <i key={key} style={{ background: kindColor(key) }} />)}
               {!day.kinds.length && day.state !== 'rest' && <em>·</em>}
             </span>
             <span className="production-day-badges">
@@ -108,7 +109,7 @@ export function AnalyticsProduction({ production, ready, error, siteName, onOpen
       <div className="production-head"><div><h2>Дни по основным видам работ</h2><p className="muted">Сколько смен дал каждый крупный показатель и что к нему относилось.</p></div></div>
       <div className="production-stats">
         <div><span className="control-label">Отработано дней</span><strong>{production?.workday_count ?? 0}</strong><small>По дням с отправленным отчётом о работах</small></div>
-        <div><span className="control-label">Подтверждённых выходных</span><strong>{production?.rest_day_count ?? 0}</strong><small>Отчёт «работ не было» или явная запись</small></div>
+        <div><span className="control-label">Дней без работ</span><strong>{production?.rest_day_count ?? 0}</strong><small>Отчёт «работ не было» или явная запись</small></div>
         <div><span className="control-label">Дней без отчёта</span><strong>{calendar.filter(d => d.state === 'no_report').length}</strong><small>Не равно «не работали»</small></div>
       </div>
       <div className="production-table-scroll" tabIndex={0} role="region" aria-label="Таблица производства"><table className="production-table">
@@ -118,7 +119,7 @@ export function AnalyticsProduction({ production, ready, error, siteName, onOpen
           return <tr key={kind.key}>
             <th scope="row"><button type="button" className="production-kind" disabled={!kind.day_count}
               onClick={() => onSources(kind.label, kind.source_report_ids)}>
-              <i style={{ background: KIND_COLORS[kind.key] }} /><span>{kind.label}</span></button></th>
+              <i style={{ background: kindColor(kind.key) }} /><span>{kind.label}</span></button></th>
             <td>{kind.day_count}</td><td>{kind.report_count}</td>
             <td>{area('Т1')}</td><td>{area('Т2')}</td><td>{area('не указано')}</td>
             <td className="production-aux">{kind.aux.length ? kind.aux.map(item => <span key={item.label}>{item.label} <b>{item.day_count}</b></span>) : '—'}</td>
@@ -136,9 +137,9 @@ export function AnalyticsProduction({ production, ready, error, siteName, onOpen
     </section>
 
     <section className="card production-days-card">
-      <div className="production-head"><div><h2>Дни на объектах</h2><p className="muted">Отработанные и подтверждённые выходные по каждому объекту, часы заявленной техники.</p></div></div>
+      <div className="production-head"><div><h2>Дни на объектах</h2><p className="muted">Дни с работами и без работ по каждому объекту, часы заявленной техники.</p></div></div>
       <div className="production-table-scroll" tabIndex={0} role="region" aria-label="Таблица производства"><table className="production-table">
-        <thead><tr><th>Объект</th><th>Отработано дней</th><th>Выходных</th><th>Часы техники</th></tr></thead>
+        <thead><tr><th>Объект</th><th>Отработано дней</th><th>Без работ</th><th>Часы техники</th></tr></thead>
         <tbody>{production?.sites.map(site => <tr key={site.site_id}>
           <th scope="row">{siteName(site.site_id)}</th><td>{site.work_days}</td><td>{site.rest_days}</td><td>{site.equipment_hours}</td>
         </tr>)}</tbody>
