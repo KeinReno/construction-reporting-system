@@ -28,6 +28,11 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.lock.txt
+      - name: Install matching PostgreSQL 16 client for the restore drill
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-16
+          echo "CRS_PG_BIN_DIR=/usr/lib/postgresql/16/bin" >> "$GITHUB_ENV"
       - name: SQLite regression and migration roundtrip
         run: python -m pytest -q
       - name: PostgreSQL schema migration
