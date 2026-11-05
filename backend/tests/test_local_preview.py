@@ -10,7 +10,7 @@ def test_gateway_banner_never_becomes_customer_url():
     assert public_tunnel_url('Documentation: https://localhost.run/docs') is None
     assert public_tunnel_url('https://not-the-app.example') is None
     assert public_tunnel_url('tunnel https://123abc.lhr.life forwarded')=='https://123abc.lhr.life'
-    assert public_tunnel_url('1: https://tm7yya7sjpqf7vxvfgbd2ryoju.srv.us/')=='https://tm7yya7sjpqf7vxvfgbd2ryoju.srv.us'
+    assert public_tunnel_url('1: https://abcdefghijklmnopqrstuvwxyz234567.srv.us/')=='https://abcdefghijklmnopqrstuvwxyz234567.srv.us'
     assert public_tunnel_url('https://abc.srv.us.attacker.example') is None
     assert public_tunnel_url('https://abc.lhr.life.attacker.example') is None
 
