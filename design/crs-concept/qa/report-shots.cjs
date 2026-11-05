@@ -1,0 +1,3 @@
+const {chromium}=require('../../../web/node_modules/@playwright/test');
+(async()=>{const b=await chromium.launch();const p=await b.newPage({reducedMotion:"reduce"});await p.goto('http://localhost:58515/#app/preview');await p.locator('#send').click();await p.waitForTimeout(5500);for(const w of [1440,390,320]){await p.setViewportSize({width:w,height:900});await p.goto('http://localhost:58515/#web/report');await p.waitForTimeout(5500);await p.screenshot({path:`design/crs-concept/qa/screenshots/${w}-web-report-submitted.png`,fullPage:true});console.log(w,await p.evaluate(()=>document.documentElement.scrollWidth));}await b.close()})()
+

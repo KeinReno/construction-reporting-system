@@ -1,0 +1,35 @@
+:root {
+  font-family: var(--crs-font-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 {
+  font-family: var(--crs-font-display);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--crs-text);
+}
+
+.crs-eyebrow {
+  display: block;
+  margin: 0 0 var(--crs-space-2);
+  color: var(--crs-accent);
+  font-size: var(--crs-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.crs-mono,
+.crs-metric-value {
+  font-family: var(--crs-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.crs-truncate-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}

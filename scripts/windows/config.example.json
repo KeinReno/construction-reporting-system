@@ -1,0 +1,4 @@
+{
+  "database_url": "postgresql+psycopg://crs:REPLACE_WITH_PRIVATE_PASSWORD@127.0.0.1:5432/construction",
+  "data_dir": "C:\\ProgramData\\ConstructionReporting"
+}
