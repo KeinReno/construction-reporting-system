@@ -46,18 +46,44 @@ function Invoke-Native {
 function Get-AlembicHead {
     param($Layout, [string]$Release)
     $runtime = Join-Path $Release '.venv\Scripts\python.exe'
-    $output = & $runtime -m alembic heads 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "Cannot read alembic head from $Release" }
-    return (($output | Select-Object -Last 1) -replace '\s+\(head\)$', '').Trim()
+    $backend = Join-Path $Release 'backend'
+    if (-not (Test-Path -LiteralPath (Join-Path $backend 'alembic.ini'))) { throw "Alembic configuration is missing in $backend" }
+    $previous = Get-Location
+    try {
+        Set-Location -LiteralPath $backend
+        $output = & $runtime -m alembic heads 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "Cannot read alembic head from $Release" }
+        return (($output | Select-Object -Last 1) -replace '\s+\(head\)$', '').Trim()
+    } finally {
+        Set-Location -LiteralPath $previous.Path
+    }
+}
+
+function Test-CrsCommand {
+    param([string]$Command, [string]$AllowedRoot)
+    if (-not $Command -or -not $Command.Contains($AllowedRoot)) { return $false }
+    return $Command.Contains('app.main:app') -or $Command.Contains('Run.ps1')
 }
 
 function Stop-Listener {
-    param([int]$Port)
+    param([int]$Port, [string]$AllowedRoot)
+    if (-not $AllowedRoot) { throw "Refusing to stop port $Port without a CRS root" }
     $lines = netstat -ano | findstr 'LISTENING' | findstr ":$Port "
     foreach ($line in $lines) {
         if ($line -notmatch ":$Port\s") { continue }
         $procId = [int](($line -split '\s+')[-1])
-        Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+        $ownsContour = $false
+        $cursor = $procId
+        $seen = @{}
+        while ($cursor -and -not $seen.ContainsKey($cursor)) {
+            $seen[$cursor] = $true
+            $process = Get-CimInstance Win32_Process -Filter "ProcessId=$cursor" -ErrorAction SilentlyContinue
+            if (-not $process) { break }
+            if (Test-CrsCommand -Command ([string]$process.CommandLine) -AllowedRoot $AllowedRoot) { $ownsContour = $true; break }
+            $cursor = [int]$process.ParentProcessId
+        }
+        if (-not $ownsContour) { throw "Port $Port is used by pid $procId, which is not a CRS API under $AllowedRoot. It was not stopped." }
+        Stop-Process -Id $procId -Force
     }
 }
 
@@ -93,6 +119,25 @@ function Read-State {
     return Get-Content -LiteralPath $Layout.stateFile -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 
+function Get-ReceiptPath {
+    param($Layout, [string]$Name)
+    return Join-Path (Split-Path -Parent $Layout.stateFile) $Name
+}
+
+function Write-JsonFile {
+    param([string]$Path, $Value)
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
+    ($Value | ConvertTo-Json) | Set-Content -LiteralPath $Path -Encoding UTF8
+}
+
+function Assert-StagingReceipt {
+    param($Layout, [string]$Sha)
+    $path = Get-ReceiptPath -Layout $Layout -Name 'last-staging.json'
+    if (-not (Test-Path -LiteralPath $path)) { throw 'Deploy refused: staging has not been checked for this package. Run StagingCheck first.' }
+    $receipt = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($receipt.sha -ne $Sha -or $receipt.ready -ne $true) { throw "Deploy refused: staging receipt is not a successful check of $Sha." }
+}
+
 $layout = Read-Layout
 $env:Path = "$(Split-Path -Parent $layout.python);$($layout.node);$($layout.pgBin);$env:Path"
 $env:CRS_PG_BIN_DIR = $layout.pgBin
@@ -126,15 +171,18 @@ switch ($Action) {
         $package = Join-Path $layout.productionRoot "crs-$sha.zip"
         if (-not (Test-Path -LiteralPath $package)) { throw "Build the package first: $package" }
         $dest = Join-Path $layout.stagingRoot $sha
-        if (Test-Path -LiteralPath $dest) { throw "Staging directory already exists: $dest" }
-        New-Item -ItemType Directory -Force -Path $dest | Out-Null
-        tar.exe -xf $package -C $dest
-        if ($LASTEXITCODE -ne 0) { throw 'Cannot extract staging package' }
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dest 'scripts\windows\Install-Runtime.ps1') -Python $layout.python
-        if ($LASTEXITCODE -ne 0) { throw 'Staging runtime installation failed' }
-        Stop-Listener -Port $layout.stagingPort
+        if (-not (Test-Path -LiteralPath (Join-Path $dest 'release-manifest.json'))) {
+            if (Test-Path -LiteralPath $dest) { throw "Staging directory exists but has no release manifest: $dest" }
+            New-Item -ItemType Directory -Force -Path $dest | Out-Null
+            tar.exe -xf $package -C $dest
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot extract staging package' }
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dest 'scripts\windows\Install-Runtime.ps1') -Python $layout.python
+            if ($LASTEXITCODE -ne 0) { throw 'Staging runtime installation failed' }
+        }
+        Stop-Listener -Port $layout.stagingPort -AllowedRoot $layout.stagingRoot
         Start-Api -Layout $layout -Release $dest -Config $layout.stagingConfig -Port $layout.stagingPort -LogDir (Split-Path -Parent $layout.stagingConfig)
         Wait-Ready -Port $layout.stagingPort
+        Write-JsonFile -Path (Get-ReceiptPath -Layout $layout -Name 'last-staging.json') -Value @{ sha = $sha; ready = $true; checkedAt = (Get-Date).ToString('o'); release = $dest }
         Write-Output "Staging ready from $sha"
     }
     'Backup' {
@@ -144,12 +192,14 @@ switch ($Action) {
         $config = Get-Content -LiteralPath $layout.productionConfig -Raw -Encoding UTF8 | ConvertFrom-Json
         $env:DATABASE_URL = [string]$config.database_url
         $env:UPLOAD_DIR = Join-Path ([string]$config.data_dir) 'uploads'
-        Stop-Listener -Port $layout.productionPort
+        $currentRelease = [string](Read-State $layout).current
+        Stop-Listener -Port $layout.productionPort -AllowedRoot $layout.productionRoot
         try {
-            $runtime = Join-Path (Read-State $layout).current '.venv\Scripts\python.exe'
+            $runtime = Join-Path $currentRelease '.venv\Scripts\python.exe'
             if (-not $runtime -or -not (Test-Path -LiteralPath $runtime)) { throw 'Current release is not recorded; backup from a deployed release' }
             Invoke-Native -File $runtime -Arguments @('-m', 'app.backup', 'backup', $snapshot, '--service-stopped') -WorkingDirectory (Join-Path (Read-State $layout).current 'backend')
-            Invoke-Native -File $runtime -Arguments @('-m', 'app.backup', 'verify', $snapshot) -WorkingDirectory (Join-Path (Read-State $layout).current 'backend')
+            Invoke-Native -File $runtime -Arguments @('-m', 'app.backup', 'verify', $snapshot) -WorkingDirectory (Join-Path $currentRelease 'backend')
+            Write-JsonFile -Path (Get-ReceiptPath -Layout $layout -Name 'last-backup.json') -Value @{ snapshot = $snapshot; verified = $true; createdAt = (Get-Date).ToString('o'); release = $currentRelease }
         } finally {
             Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
             Remove-Item Env:UPLOAD_DIR -ErrorAction SilentlyContinue
@@ -171,18 +221,26 @@ switch ($Action) {
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dest 'scripts\windows\Install-Runtime.ps1') -Python $layout.python
             if ($LASTEXITCODE -ne 0) { throw 'Production runtime installation failed' }
         }
+        Assert-StagingReceipt -Layout $layout -Sha $sha
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -Action Backup -LayoutPath $LayoutPath
+        if ($LASTEXITCODE -ne 0) { throw 'Deploy refused: a fresh verified backup was not created. Production was not switched.' }
+        $backupReceipt = Get-Content -LiteralPath (Get-ReceiptPath -Layout $layout -Name 'last-backup.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($backupReceipt.verified -ne $true -or -not (Test-Path -LiteralPath ([string]$backupReceipt.snapshot))) { throw 'Deploy refused: backup receipt is not valid. Production was not switched.' }
         $state = Read-State $layout
-        $record = @{ current = $dest; previous = $state.current; sha = $sha; deployedAt = (Get-Date).ToString('o'); notes = $Notes }
-        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $layout.stateFile) | Out-Null
-        Stop-Listener -Port $layout.productionPort
+        $previous = [string]$state.current
+        Stop-Listener -Port $layout.productionPort -AllowedRoot $layout.productionRoot
         Start-Api -Layout $layout -Release $dest -Config $layout.productionConfig -Port $layout.productionPort -LogDir (Split-Path -Parent $layout.productionConfig)
         try {
             Wait-Ready -Port $layout.productionPort
         } catch {
-            ($record | ConvertTo-Json) | Set-Content -LiteralPath $layout.stateFile -Encoding UTF8
-            throw
+            Stop-Listener -Port $layout.productionPort -AllowedRoot $layout.productionRoot
+            if ($previous) {
+                Start-Api -Layout $layout -Release $previous -Config $layout.productionConfig -Port $layout.productionPort -LogDir (Split-Path -Parent $layout.productionConfig)
+                Wait-Ready -Port $layout.productionPort
+            }
+            throw "New release did not become ready. Previous release was restarted and the state file was not changed. Snapshot: $($backupReceipt.snapshot)"
         }
-        ($record | ConvertTo-Json) | Set-Content -LiteralPath $layout.stateFile -Encoding UTF8
+        Write-JsonFile -Path $layout.stateFile -Value @{ current = $dest; previous = $previous; sha = $sha; deployedAt = (Get-Date).ToString('o'); notes = $Notes; backup = [string]$backupReceipt.snapshot }
         Write-Output "Deployed $sha"
     }
     'Rollback' {
@@ -194,7 +252,7 @@ switch ($Action) {
         if ($currentHead -ne $previousHead) {
             throw "Database rollback is not automatic: current release head $currentHead differs from previous head $previousHead. Restore a consistent backup into a new database and point the config at it. alembic downgrade was not run."
         }
-        Stop-Listener -Port $layout.productionPort
+        Stop-Listener -Port $layout.productionPort -AllowedRoot $layout.productionRoot
         Start-Api -Layout $layout -Release $state.previous -Config $layout.productionConfig -Port $layout.productionPort -LogDir (Split-Path -Parent $layout.productionConfig)
         Wait-Ready -Port $layout.productionPort
         $record = @{ current = $state.previous; previous = $state.current; sha = 'rolled-back'; deployedAt = (Get-Date).ToString('o'); notes = 'file rollback; schema head matched' }
