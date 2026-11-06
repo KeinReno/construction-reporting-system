@@ -82,6 +82,7 @@ function apiMessage(status:number,detail:unknown):string {
 
     'Revision conflict':'Отчёт изменился. Обновите данные перед повтором.',
     'Owner role required':'Это действие доступно только назначенному владельцу.',
+    'Staff tariff role required':'Тарифную сетку может менять администратор или владелец.',
     'Active main parent required':'Выберите активный основной вид работы.',
     'Archive auxiliary work first':'Сначала уберите из выбора связанные вспомогательные работы.',
     'Work type name already used in history':'Это название уже используется или сохранено в истории другого вида работы.',

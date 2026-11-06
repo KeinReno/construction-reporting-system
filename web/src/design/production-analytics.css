@@ -9,6 +9,13 @@
 .owner-simple .production-legend span{display:flex;align-items:center;gap:7px;min-width:0}
 .owner-simple .production-legend i,.owner-simple .production-day-marks i{display:inline-block;width:10px;height:10px;flex:0 0 10px;border-radius:3px}
 .owner-simple .production-legend i.is-rest{background:var(--crs-status-revision-bg);border:1px solid var(--crs-status-revision)}
+.owner-simple .production-legend i.is-work,.owner-simple .production-day-marks i.is-work{background:var(--crs-ok)}
+.owner-simple .site-calendar{margin:0 0 18px}
+.owner-simple .site-calendar h3{margin:0 0 4px}
+.owner-simple .production-day:disabled{cursor:default}
+.owner-simple .tariff-add{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:0 0 14px}
+.owner-simple .tariff-table input{width:8rem;max-width:100%}
+.owner-simple .shift-grid{margin:0 0 18px}
 .owner-simple .production-legend-rest i.is-rest,.owner-simple .production-legend-empty i.is-empty{border-radius:50%}
 .owner-simple .production-legend i.is-empty{background:var(--crs-surface-sunken);border:1px dashed var(--crs-line-strong)}
 .owner-simple .production-calendar{display:flex;flex-direction:column;gap:6px}

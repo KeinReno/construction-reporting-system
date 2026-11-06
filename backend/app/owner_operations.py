@@ -25,6 +25,12 @@ class WorkerData(Input):
     def valid(self):
         if not self.name.strip():raise ValueError('Name required')
         return self
+class TariffData(Input):
+    rate_kopecks:int=Field(ge=500_000,le=10_000_000_000,strict=True)
+    travel_kopecks:int=Field(ge=0,le=10_000_000_000,strict=True)
+    bonus_kopecks:int=Field(ge=0,le=10_000_000_000,strict=True)
+    fine_kopecks:int=Field(ge=0,le=10_000_000_000,strict=True)
+    expected_revision:int=Field(ge=1)
 class DayData(Input):
     id:uuid.UUID
     worker_id:uuid.UUID
@@ -45,6 +51,12 @@ def install(api, dbdep, current, allowed, admin_log, WorkType, Worker, LaborDay,
     def owner(u=Depends(current)):
         if u.role!='manager' or u.id!=api.state.owner_user_id:raise HTTPException(403,'Owner role required')
         return u
+    def staff(u=Depends(current)):
+        if u.role=='admin' or (u.role=='manager' and u.id==api.state.owner_user_id):return u
+        raise HTTPException(403,'Staff tariff role required')
+    def worker_view(w):
+        return {'id':w.id,'name':w.name,'active':w.active,'rate_kopecks':w.rate_kopecks,'travel_kopecks':w.travel_kopecks,
+                'bonus_kopecks':w.bonus_kopecks,'fine_kopecks':w.fine_kopecks,'revision':w.revision}
     def view(w):return {key:getattr(w,key) for key in ('id','name','kind','parent_id','active','revision')}
     @api.get('/api/v1/reference/work-types')
     def catalog(db:Session=Depends(dbdep),u=Depends(current)):
@@ -73,11 +85,22 @@ def install(api, dbdep, current, allowed, admin_log, WorkType, Worker, LaborDay,
         if data.expected_revision!=w.revision:raise HTTPException(409,'Revision conflict')
         return save_type(w,data,db,u)
     @api.get('/api/v1/owner/workers')
-    def workers(db:Session=Depends(dbdep),u=Depends(owner)):
-        return [{'id':w.id,'name':w.name,'active':w.active} for w in db.scalars(select(Worker).order_by(Worker.name,Worker.id))]
+    def workers(db:Session=Depends(dbdep),u=Depends(staff)):
+        return [worker_view(w) for w in db.scalars(select(Worker).order_by(Worker.name,Worker.id))]
     @api.post('/api/v1/owner/workers',status_code=201)
-    def create_worker(data:WorkerData,db:Session=Depends(dbdep),u=Depends(owner)):
-        w=Worker(name=data.name.strip());db.add(w);db.flush();admin_log(db,u,'worker_created',w.id,{'name':w.name});db.commit();return {'id':w.id,'name':w.name,'active':w.active}
+    def create_worker(data:WorkerData,db:Session=Depends(dbdep),u=Depends(staff)):
+        w=Worker(name=data.name.strip(),rate_kopecks=500_000,travel_kopecks=0,bonus_kopecks=0,fine_kopecks=0)
+        db.add(w);db.flush();admin_log(db,u,'worker_created',w.id,{'name':w.name});db.commit();return worker_view(w)
+    @api.patch('/api/v1/owner/workers/{wid}/tariff')
+    def edit_tariff(wid:uuid.UUID,data:TariffData,db:Session=Depends(dbdep),u=Depends(staff)):
+        w=db.get(Worker,str(wid))
+        if not w:raise HTTPException(404,'Unknown worker')
+        if data.expected_revision!=w.revision:raise HTTPException(409,'Revision conflict')
+        nxt=(data.rate_kopecks,data.travel_kopecks,data.bonus_kopecks,data.fine_kopecks)
+        if (w.rate_kopecks,w.travel_kopecks,w.bonus_kopecks,w.fine_kopecks)==nxt:return worker_view(w)
+        before=worker_view(w)
+        w.rate_kopecks,w.travel_kopecks,w.bonus_kopecks,w.fine_kopecks=nxt
+        db.flush();admin_log(db,u,'worker_tariff_saved',w.id,{'before':before,'after':worker_view(w)});db.commit();return worker_view(w)
     def day_view(d):return {'id':d.id,'worker_id':d.worker_id,'site_id':d.site_id,'work_date':d.work_date,'revision':d.revision,**d.payload}
     @api.get('/api/v1/owner/labor-days/{did}/history')
     def day_history(did:uuid.UUID,db:Session=Depends(dbdep),u=Depends(owner)):
@@ -145,8 +168,9 @@ def install(api, dbdep, current, allowed, admin_log, WorkType, Worker, LaborDay,
         allowed(db,u,str(data.site_id));worker=db.get(Worker,str(data.worker_id))
         if not worker or not worker.active:raise HTTPException(422,'Active worker required')
         payload=data.model_dump(mode='json',exclude={'id','worker_id','site_id','work_date','expected_revision'})
-        payload['day_rate_kopecks']=500000;payload['standard_hours']=8
-        payload['base_kopecks']=500000 if data.worked else 0
+        rate=worker.rate_kopecks if worker.rate_kopecks>=500_000 else 500_000
+        payload['day_rate_kopecks']=rate;payload['standard_hours']=8
+        payload['base_kopecks']=rate if data.worked else 0
         payload['total_kopecks']=payload['base_kopecks']+data.allowance_kopecks-data.fine_kopecks
         row=db.get(LaborDay,str(did));before=day_view(row) if row else None
         if row:

@@ -25,6 +25,34 @@ def test_catalog_owner_revision_archive_and_acl(env):
     assert c.patch('/api/v1/owner/work-types/'+w['id'],headers=m,json={**changed,'expected_revision':2,'active':False}).status_code==200
     assert len(c.get('/api/v1/reference/work-types',headers=f).json())==2
 
+def test_worker_tariff_floor_acl_and_snapshot(env):
+    c,f,m,sid,_=env
+    from app.main import User, hash_password
+    assert c.post('/api/v1/owner/workers',headers=m,json={'name':'Synthetic tariff'}).status_code==403
+    owner(c)
+    with c.api.state.db() as db:
+        db.add(User(login='tariff-admin',password_hash=hash_password('StrongPassword123'),role='admin'));db.commit()
+    admin={'Authorization':'Bearer '+c.post('/api/v1/auth/login',json={'login':'tariff-admin','password':'StrongPassword123'}).json()['access_token']}
+    assert c.get('/api/v1/owner/workers',headers=f).status_code==403
+    worker=c.post('/api/v1/owner/workers',headers=admin,json={'name':'Synthetic tariff'}).json()
+    assert worker['rate_kopecks']==500000 and worker['travel_kopecks']==0 and worker['bonus_kopecks']==0 and worker['fine_kopecks']==0 and worker['revision']==1
+    path='/api/v1/owner/workers/'+worker['id']+'/tariff'
+    body={'rate_kopecks':600000,'travel_kopecks':150000,'bonus_kopecks':100000,'fine_kopecks':5000,'expected_revision':1}
+    assert c.patch(path,headers=f,json=body).status_code==403
+    assert c.patch(path,headers=admin,json={**body,'rate_kopecks':499999}).status_code==422
+    updated=c.patch(path,headers=admin,json=body)
+    assert updated.status_code==200 and updated.json()['revision']==2 and updated.json()['rate_kopecks']==600000
+    assert c.patch(path,headers=admin,json=body).status_code==409
+    same=c.patch(path,headers=m,json={**body,'expected_revision':2})
+    assert same.status_code==200 and same.json()['revision']==2
+    did=str(uuid.uuid4())
+    day={'id':did,'worker_id':worker['id'],'site_id':sid,'work_date':'2026-11-06','worked':True,'business_trip':False,'allowance_kopecks':0,'fine_kopecks':0,'reason':''}
+    saved=c.put('/api/v1/owner/labor-days/'+did,headers=m,json=day)
+    assert saved.status_code==200 and saved.json()['day_rate_kopecks']==600000 and saved.json()['base_kopecks']==600000
+    raised=c.patch(path,headers=admin,json={**body,'rate_kopecks':700000,'expected_revision':2})
+    assert raised.status_code==200 and raised.json()['revision']==3
+    assert c.get('/api/v1/owner/labor-days',headers=m).json()[0]['day_rate_kopecks']==600000
+
 def test_labor_day_fixed_rate_idempotency_revision_audit_and_acl(env):
     c,f,m,sid,other=env;owner(c)
     worker=c.post('/api/v1/owner/workers',headers=m,json={'name':'Synthetic Worker'}).json()

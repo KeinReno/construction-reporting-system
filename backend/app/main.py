@@ -40,6 +40,12 @@ class Worker(Base):
     id:Mapped[str]=mapped_column(String(36),primary_key=True,default=new_id)
     name:Mapped[str]=mapped_column(String(200))
     active:Mapped[bool]=mapped_column(default=True)
+    rate_kopecks:Mapped[int]=mapped_column(Integer,default=500_000)
+    travel_kopecks:Mapped[int]=mapped_column(Integer,default=0)
+    bonus_kopecks:Mapped[int]=mapped_column(Integer,default=0)
+    fine_kopecks:Mapped[int]=mapped_column(Integer,default=0)
+    revision:Mapped[int]=mapped_column(Integer,default=1)
+    __mapper_args__={'version_id_col':revision}
 class LaborDay(Base):
     __tablename__='labor_days'
     __table_args__=(UniqueConstraint('worker_id','work_date',name='uq_worker_day'),)

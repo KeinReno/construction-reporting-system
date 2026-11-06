@@ -6,6 +6,7 @@ import { ReportGallery } from './reports/ReportGallery';
 import { ReportStatus } from './reports/ReportStatus';
 import { CrDataList } from './ui/CrDataList';
 import { primaryWorks } from './reports/reportView';
+import './design/production-analytics.css';
 
 type Event = { id: string; revision: number; event: string; reason: string | null; occurred_at: string | null };
 type HistoricalSource = { source_ref: string; text: string; reported_author: string | null; message_date: string | null };
@@ -156,6 +157,25 @@ export function ReportDetails({
               </p>
             )}
 
+            <section className="shift-grid" aria-label="Сетка смены">
+              <h3>Смена</h3>
+              <div className="production-table-scroll" tabIndex={0} role="region" aria-label="Сотрудники, техника и виды работ">
+                <table className="production-table">
+                  <thead><tr><th>Сотрудники</th><th>Техника</th><th>Виды работ</th></tr></thead>
+                  <tbody>{Array.from({length: Math.max((r.data.crew||'').split(/[;,\n]+/).map(item=>item.trim()).filter(Boolean).length, r.data.equipment?.length||0, reportWorkState(r)==='no_work'?1:describedWorks.length, 1)}, (_,index)=>{
+                    const people=(r.data.crew||'').split(/[;,\n]+/).map(item=>item.trim()).filter(Boolean);
+                    const machine=r.data.equipment?.[index];
+                    const work=describedWorks[index];
+                    const off=reportWorkState(r)==='no_work';
+                    return <tr key={index}>
+                      <td>{people[index]||(index===0&&!people.length?'Не указаны':'')}</td>
+                      <td>{machine?`${machine.type} · ${machine.hours} ч · ${equipmentOwnership(machine.hired)}`:index===0?'Не указана':''}</td>
+                      <td>{off&&index===0?`Выходной: ${r.data.no_work_reason||'причина не указана'}`:work?`${work.type}${work.quantity!=null?` · ${work.quantity} ${work.unit||''}`:''}`:index===0&&!off?'Не указаны':''}</td>
+                    </tr>;
+                  })}</tbody>
+                </table>
+              </div>
+            </section>
             <div className="control-detail-check"><OwnerIcon name="review"/>{!imported&&r.status==='reviewed'?'Отчёт проверен':'Проверка отчёта не подтверждена'}. Приёмка работ отдельно не подтверждена.</div>
             {!!r.data.incidents?.length&&<section className="control-detail-attention"><h3 className="control-heading"><OwnerIcon name="event"/>Требует внимания</h3>{r.data.incidents.map((e,i)=><p className="report-comment" key={i}>{e.description}</p>)}<div className="control-action"><span>Действие, ответственный и срок: не указаны</span><span>Состояние решения: неизвестно</span></div></section>}
             <section>

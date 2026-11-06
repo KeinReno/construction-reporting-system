@@ -4,6 +4,7 @@ import { formatDate } from './date';
 import { ReportStatus } from './reports/ReportStatus';
 import { buildReportView, primaryWorks } from './reports/reportView';
 import { OwnerIcon } from './ui/OwnerIcon';
+import { SiteCalendar } from './sites/SiteCalendar';
 
 const moneyKind = { expense: 'Расход', funding_received: 'Поступление', advance_issued: 'Аванс' } as const;
 const movementLabel = { received: 'Поступило', consumed: 'Израсходовано', mentioned: 'Упоминание' } as const;
@@ -61,7 +62,9 @@ export function SiteCard({ site, reports, ready, token, authorName, onOpen, onBa
   }
   return <article className="object-card owner-object" aria-label={`Карточка объекта ${site.name}`}>
     <div className="section-heading"><span className="muted">Сведения по объекту</span><button type="button" className="link-button" onClick={onBack}>Все объекты</button></div>
-    {!ready ? <p className="empty">Загрузка сведений объекта…</p> : !ordered.length ? <p className="empty">Нет отчётов за выбранный период.</p> : <>
+    {!ready ? <p className="empty">Загрузка сведений объекта…</p> : <>
+      <SiteCalendar key={site.id} reports={ordered} onOpen={onOpen}/>
+      {!ordered.length ? <p className="empty">Нет отчётов за выбранный период.</p> : <>
       <header className="owner-object-brief">
         <div><p className="owner-object-last"><OwnerIcon name="calendar"/> Последний отчёт · {formatDate(latest.data.work_date)} <ReportStatus status={latest.status} label={latestView?.statusLabel || ''} archive={latest.origin==='imported'}/></p>
           {reportWorkState(latest) === 'no_work' ? <p>Работ не было: {latest.data.no_work_reason || 'причина не указана'}</p> : <p>{latestWorks.length ? latestWorks.slice(0,2).map(work => work.description || work.type).join('; ') : 'Работы не указаны'}</p>}
@@ -126,7 +129,7 @@ export function SiteCard({ site, reports, ready, token, authorName, onOpen, onBa
         <h3>Техника</h3><div className="object-resource-list">{machines.length ? (showAllResources?machines:machines.slice(0,10)).map(({row,report,index})=><button type="button" className="owner-object-entry" key={`${report.id}-${index}`} onClick={()=>onOpen(report)}>{row.type} · {row.hours} ч · {equipmentOwnership(row.hired).toLocaleLowerCase('ru-RU')} · отчёт {formatDate(report.data.work_date)}</button>) : <p className="empty">Часы техники не указаны.</p>}</div>
         {(materials.length>10||machines.length>10)&&<button type="button" className="secondary owner-show-more" onClick={()=>setShowAllResources(!showAllResources)}>{showAllResources?'Показать меньше':'Показать все записи'}</button>}
       </section>}
-    </>}
+    </>}</>}
     {photoIndex != null && activePhotos[photoIndex] && <dialog className="modal report-dialog" aria-label="Просмотр фото" onCancel={()=>setPhotoIndex(null)} ref={node=>{if(node&&!node.open)node.showModal();}}><div>
       <div className="section-heading"><h2>Фото {photoIndex+1} из {activePhotos.length}</h2><button type="button" className="quiet" onClick={()=>setPhotoIndex(null)}>Закрыть</button></div>
       <PhotoButton id={activePhotos[photoIndex].id} token={token} label="Крупное фото" onOpen={()=>undefined}/><p>{formatDate(activePhotos[photoIndex].report.data.work_date)} · {photoGroup==='direct'?'Фото отчёта':'Другие фото за дату'}</p>

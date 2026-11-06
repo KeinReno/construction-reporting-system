@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { formatDate } from './date';
 import { ConversationDock } from './ConversationDock';
 import { OwnerOperations } from './OwnerOperations';
+import { TariffGrid } from './TariffGrid';
 import { AdminPanel } from './AdminPanel';
 import { AnalyticsOverview } from './AnalyticsOverview';
 import { AnalyticsProduction } from './AnalyticsProduction';
@@ -33,11 +34,11 @@ import './design/owner-simple.css';
 import './design/owner-visual.css';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
-type Page = 'overview' | 'objects' | 'reports' | 'submit' | 'money' | 'analytics' | 'ai' | 'admin' | 'catalog' | 'labor';
+type Page = 'overview' | 'objects' | 'reports' | 'submit' | 'money' | 'analytics' | 'ai' | 'admin' | 'catalog' | 'labor' | 'staff';
 type Interval = 'day' | 'month' | 'year';
 const reportFromLocation = () => /^#report\/([0-9a-f-]{36})$/i.exec(window.location.hash)?.[1] ?? null;
 const labels: Record<Page, string> = {
-  catalog:'Виды работ',labor:'Табель',overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', submit:'Сдать отчёт', money: 'Деньги', analytics: 'Аналитика', ai: 'Помощник', admin:'Управление'
+  catalog:'Виды работ',labor:'Табель',staff:'Сотрудники',overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', submit:'Сдать отчёт', money: 'Деньги', analytics: 'Аналитика', ai: 'Помощник', admin:'Управление'
 };
 const dateText = formatDate;
 const moneyLabels = {funding_received:'Поступление',expense:'Расход',advance_issued:'Выдача аванса'} as const;
@@ -52,6 +53,7 @@ function NavIcon({page}:{page:Page}) {
     ai:<><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z"/></>,
     catalog:<path d="M4 5h16M4 12h16M4 19h16"/>,
     labor:<path d="M4 3h16v18H4zM8 8h8M8 12h8M8 16h8"/>,
+    staff:<><circle cx="9" cy="8" r="2.2"/><circle cx="15" cy="8" r="2.2"/><path d="M4.5 18c.6-2.4 2.4-3.6 4.5-3.6s3.9 1.2 4.5 3.6M12.5 14.6c.7-1.3 2-2.1 3.6-2.1 1.8 0 3.3 1 4 2.8"/></>,
     admin:<><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M19 5l-1.5 1.5m-11 11L5 19"/></>
   };
   return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[page]}</svg>;
@@ -211,11 +213,11 @@ export default function App() {
     return Array.from(buckets,([key,item])=>({key,count:item.count,ids:item.ids,label:interval==='day'?dateText(key):interval==='month'?new Date(key+'-01T12:00:00').toLocaleDateString('ru-RU',{month:'long',year:'numeric'}):key}));
   },[currentSummary,interval]);
   const pageTitle = labels[page];
-  const morePages: Page[] = ['money','analytics','ai','catalog',...(profile?.is_owner?['labor' as Page]:[]),...((profile?.role==='admin'||!!profile?.is_owner)?['admin' as Page]:[])];
+  const morePages: Page[] = ['money','analytics','ai','catalog',...(profile?.is_owner?['labor' as Page]:[]),...((profile?.role==='admin'||!!profile?.is_owner)?['staff' as Page,'admin' as Page]:[])];
   if (!token) return <Login onSuccess={setToken} demo={demo}/>;
   return <AuthorColorsProvider authors={authors}><div className={`app-shell wb-shell owner-simple${chatOpen?' has-conversation':''}`}>
     <CrSidebar<Page>
-      entries={(Object.keys(labels) as Page[]).filter(key=>(key!=='admin'||profile?.role==='admin'||profile?.is_owner)&&(key!=='labor'||profile?.is_owner)).map(key=>({key,label:labels[key]}))}
+      entries={(Object.keys(labels) as Page[]).filter(key=>(key!=='admin'||profile?.role==='admin'||profile?.is_owner)&&(key!=='labor'||profile?.is_owner)&&(key!=='staff'||profile?.role==='admin'||profile?.is_owner)).map(key=>({key,label:labels[key]}))}
       current={page}
       onSelect={navigate}
       renderIcon={key=><NavIcon page={key}/>}
@@ -226,12 +228,12 @@ export default function App() {
         <div hidden={!!reportId}>
         {demo&&<div className="card"><strong>ДЕМО · локальная база</strong><p>{demo.notice}</p></div>}
         {page!=='overview' && <CrBreadcrumbs items={[{label:"СтройКонтроль",onSelect:()=>{navigate("overview");setSiteId("all");}},{label:pageTitle},...(page==="objects"&&siteId!=="all"?[{label:siteName(siteId)}]:[])]}/>}
-        {page==='overview' ? <div className="owner-heading"><div><h1>Объекты и отчёты</h1><p>Выберите объект или откройте отчёт для проверки.</p></div><button className="secondary" onClick={()=>void refresh()} disabled={loading}>{loading?'Обновление…':'Обновить'}</button></div> : <WorkbenchMasthead title={page==='objects' && siteId!=='all'?siteName(siteId):pageTitle} index="" subtitle={page==='reports'?'Отчёты по выбранным условиям':page==='money'?'Денежные операции':page==='analytics'?'Итоги по отчётам':page==='objects'?'Работы и отчёты по объектам':page==='ai'?'Анализ отчётов':page==='catalog'?'Основные, вспомогательные и особые работы':page==='labor'?'Люди, дни и начисления':page==='submit'?'Отчёт за смену с телефона и компьютера':'Пользователи и доступ'} onRefresh={()=>{if(page==='catalog'||page==='labor')setOwnerReload(v=>v+1);void refresh();}} refreshing={loading} />}
+        {page==='overview' ? <div className="owner-heading"><div><h1>Объекты и отчёты</h1><p>Выберите объект или откройте отчёт для проверки.</p></div><button className="secondary" onClick={()=>void refresh()} disabled={loading}>{loading?'Обновление…':'Обновить'}</button></div> : <WorkbenchMasthead title={page==='objects' && siteId!=='all'?siteName(siteId):pageTitle} index="" subtitle={page==='reports'?'Отчёты по выбранным условиям':page==='money'?'Денежные операции':page==='analytics'?'Итоги по отчётам':page==='objects'?'Работы и отчёты по объектам':page==='ai'?'Анализ отчётов':page==='catalog'?'Основные, вспомогательные и особые работы':page==='labor'?'Люди, дни и начисления':page==='staff'?'Фамилии и суммы, которые задаёт администратор':page==='submit'?'Отчёт за смену с телефона и компьютера':'Пользователи и доступ'} onRefresh={()=>{if(page==='catalog'||page==='labor'||page==='staff')setOwnerReload(v=>v+1);void refresh();}} refreshing={loading} />}
          {error && <div className="error" role="alert">Ошибка: {error}</div>}
-        {(page!=='admin' && page!=='overview' && page!=='catalog' && page!=='submit') && <><div className="owner-filter-bar"><button type="button" className="secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'}</button><span>{siteId==='all'?'Все объекты':siteName(siteId)} · {page==='labor'?'Все работники':authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}{page==='money'?' · даты операций':' · даты смен'}</span>{(siteId!=='all'||(page!=='labor'&&authorId!=='all')||startDate||endDate)&&<button type="button" className="link-button" onClick={()=>{setSiteId('all');setAuthorId('all');setStartDate('');setEndDate('');}}>Сбросить</button>}</div><div id="report-filters" className="filters filters-open" hidden={!filtersOpen}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
+        {(page!=='admin' && page!=='overview' && page!=='catalog' && page!=='submit' && page!=='staff') && <><div className="owner-filter-bar"><button type="button" className="secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'}</button><span>{siteId==='all'?'Все объекты':siteName(siteId)} · {page==='labor'?'Все работники':authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}{page==='money'?' · даты операций':' · даты смен'}</span>{(siteId!=='all'||(page!=='labor'&&authorId!=='all')||startDate||endDate)&&<button type="button" className="link-button" onClick={()=>{setSiteId('all');setAuthorId('all');setStartDate('');setEndDate('');}}>Сбросить</button>}</div><div id="report-filters" className="filters filters-open" hidden={!filtersOpen}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
           {page!=='labor'&&<CrCombobox label="Автор" value={authorId} onChange={setAuthorId} options={[{value:'all',label:'Все авторы'},...authors.filter(a=>!a.imported_only).map(a=>({value:a.id,label:displayAuthor(a.login)}))]}/>}
           <CrDateField label="С" value={startDate} onChange={setStartDate}/><CrDateField label="По" value={endDate} onChange={setEndDate}/></div></>}
-        {page === 'catalog' || page==='labor' ? <OwnerOperations key={page} mode={page==='catalog'?'catalog':'labor'} token={token} sites={sites} isOwner={!!profile?.is_owner} siteId={siteId} fromDate={startDate} toDate={endDate} reloadKey={ownerReload}/> : page === 'submit' && profile ? <section className="employee-app employee-embedded" aria-label="Сдать отчёт"><Workspace embedded token={token} profile={profile} onExpired={endSession} onLogout={()=>undefined}/></section> : page === 'admin' ? <AdminPanel token={token} onExpired={endSession} allowUsers={profile?.role==='admin'}/> :
+        {page === 'staff' ? <TariffGrid token={token} reloadKey={ownerReload}/> : page === 'catalog' || page==='labor' ? <OwnerOperations key={page} mode={page==='catalog'?'catalog':'labor'} token={token} sites={sites} isOwner={!!profile?.is_owner} siteId={siteId} fromDate={startDate} toDate={endDate} reloadKey={ownerReload}/> : page === 'submit' && profile ? <section className="employee-app employee-embedded" aria-label="Сдать отчёт"><Workspace embedded token={token} profile={profile} onExpired={endSession} onLogout={()=>undefined}/></section> : page === 'admin' ? <AdminPanel token={token} onExpired={endSession} allowUsers={profile?.role==='admin'}/> :
          page === 'ai' && (startDate.startsWith('!') || endDate.startsWith('!') || (!!startDate && !!endDate && startDate>endDate)) ? <p className="error">Исправьте период перед формированием анализа.</p> :
          page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={openById} siteName={siteName} onChanged={refresh}/> : <>
           {page==='overview' && <section className="owner-home" aria-label="Объекты и отчёты">
@@ -311,7 +313,7 @@ export default function App() {
             <NavIcon page={key}/><span>{labels[key]}</span>
           </button>
         ))}
-        <button type="button" className={`crs-more-toggle${(['money','analytics','ai','admin','catalog','labor'] as Page[]).includes(page)?' active':''}`}
+        <button type="button" className={`crs-more-toggle${(['money','analytics','ai','admin','catalog','labor','staff'] as Page[]).includes(page)?' active':''}`}
           aria-label="Дополнительные разделы" aria-expanded={mobileMoreOpen}
           aria-controls="crs-more-menu" onClick={()=>setMobileMoreOpen(open=>!open)}>
           <span aria-hidden="true" style={{fontSize:22,lineHeight:1}}>⋯</span><span>Ещё</span>
