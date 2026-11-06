@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"><title>CRS — концепция рабочего дня</title><link rel="icon" href="mark.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css"></head>
+<body>
+<a class="skip" href="#main">К содержимому</a>
+<header class="prototype"><span><strong>CRS / Концепция 01</strong><span class="prototype-note">Синтетические данные · действия только в этом браузере</span></span><nav aria-label="Предпросмотр платформы"><a href="#web/overview">Web заказчика</a><a href="#app/today">Аапп бригадира</a></nav><button type="button" class="quiet" id="reset">Начать заново</button></header>
+<div id="root"></div><div id="notice" role="status" class="notice" hidden></div>
+<dialog id="confirm"><form method="dialog"><h2>Начать демонстрацию заново?</h2><p>Изменения только этого прототипа будут сброшены. Данные CRS не затрагиваются.</p><div class="actions"><button value="cancel">Продолжить просмотр</button><button value="reset" class="primary">Сбросить прототип</button></div></form></dialog>
+<dialog id="lightbox"><form method="dialog"><img alt=""><p></p><div class="actions"><button type="button" id="lightbox-prev">Предыдущее</button><button type="button" id="lightbox-next">Следующее</button><button value="close">Закрыть</button></div></form></dialog>
+<script src="data.js" defer></script><script src="app.js" defer></script><script src="form.js" defer></script><script src="analytics.js" defer></script>
+</body></html>

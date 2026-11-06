@@ -1,0 +1,14 @@
+import {useEffect,useState} from 'react';
+import {http,type Report} from './api';
+import {AnalysisPanel} from './AnalysisPanel';
+type Conversation={work_date:string;items:Array<{id:string;date:string;text:string;report_id:string|null;relation:string}>;limitations:string[]};
+export function ConversationDock({token,reports,reportId,onClose,onReport,siteName,onChanged,siteId,authorId,fromDate,toDate}:{token:string;reports:Report[];reportId:string|null;onClose:()=>void;onReport:(id:string)=>void;siteName:(id:string)=>string;onChanged:()=>Promise<void>;siteId:string;authorId:string;fromDate:string;toDate:string}){
+ const [tab,setTab]=useState<'chat'|'ai'>('chat'),[selected,setSelected]=useState(reportId||reports[0]?.id||''),[data,setData]=useState<Conversation|null>(null),[error,setError]=useState('');
+ useEffect(()=>{if(reportId){setSelected(reportId);setTab('chat');}},[reportId]);
+ useEffect(()=>{setSelected(current=>reports.some(r=>r.id===current)?current:reports[0]?.id||'');},[reports]);
+ useEffect(()=>{let active=true;setData(null);setError('');if(selected)void http<Conversation>('/reports/'+selected+'/conversation',token).then(d=>{if(active)setData(d);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[selected,token]);
+ return <aside className="conversation-dock" aria-label="Переписка и помощник"><header><h2>Переписка и помощник</h2><button type="button" className="quiet" onClick={onClose}>Закрыть панель</button></header><nav aria-label="Режим панели"><button aria-pressed={tab==='chat'} onClick={()=>setTab('chat')}>Переписка</button><button aria-pressed={tab==='ai'} onClick={()=>setTab('ai')}>ИИ</button></nav><div className="conversation-scroll">
+ <div hidden={tab!=='chat'}><label>Отчёт и дата<select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Выберите отчёт</option>{reports.map(r=><option key={r.id} value={r.id}>{r.data.work_date} · {siteName(r.site_id)}</option>)}</select></label>{error&&<p role="alert">{error}</p>}{selected&&!data&&!error&&<p role="status">Загрузка переписки…</p>}{data&&<><p>Рабочая дата: {data.work_date}</p>{data.items.map(m=><article key={m.id} className="conversation-message"><small>{m.date} · {m.relation==='same_report'?'Источник отчёта':'Совпадение даты'}</small><p>{m.text}</p>{m.report_id&&<button type="button" className="quiet" onClick={()=>onReport(m.report_id!)}>Открыть связанный отчёт</button>}</article>)}{!data.items.length&&<p>Для этого отчёта сохранённой переписки нет.</p>}{data.limitations.map(line=><p className="muted" key={line}>{line}</p>)}</>}</div>
+ <div hidden={tab!=='ai'}><AnalysisPanel token={token} siteId={siteId} authorId={authorId} fromDate={fromDate} toDate={toDate} siteName={siteName} onChanged={onChanged} onSource={id=>{setSelected(id);setTab('chat');}}/></div>
+ </div></aside>;
+}

@@ -1,0 +1,46 @@
+name: Web build
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r ../backend/requirements.lock.txt
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: web-e2e-failure
+          path: web/test-results/
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        if: success() && github.ref_name == 'feat/crs-web-workbench-v4'
+        with:
+          name: crs-workbench-v4-screenshots
+          path: web/test-results/workbench-v4-*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: success() && github.ref_name == 'feat/crs-demo-readiness-20261104'
+        with:
+          name: crs-latest-ui-screenshots
+          path: web/test-results/crs-*.png
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,69 @@
+/* CRS Industrial Premium 2.0 — design tokens */
+:root {
+  color-scheme: dark;
+
+  --crs-bg: #0e1518;
+  --crs-bg-graphite: #121a1e;
+  --crs-surface: #182328;
+  --crs-surface-raised: #1f2c32;
+  --crs-surface-sunken: #10191d;
+  --crs-line: #35434a;
+  --crs-line-strong: #4a5b62;
+  --crs-text: #edf1f1;
+  --crs-text-secondary: #c5d0d2;
+  --crs-muted: #9aadb2;
+  --crs-accent: #ffbd45;
+  --crs-accent-hover: #ffd078;
+  --crs-accent-muted: #e9ad4a;
+  --crs-accent-ink: #221900;
+  --crs-focus: #ffd284;
+
+  --crs-status-draft: #8a9aa0;
+  --crs-status-submitted-bg: #2a4550;
+  --crs-status-submitted: #b8dff0;
+  --crs-status-reviewed-bg: #1f4638;
+  --crs-status-reviewed: #a8dfbc;
+  --crs-status-revision-bg: #4f3a1c;
+  --crs-status-revision: #ffdb9b;
+  --crs-danger-bg: #5a2928;
+  --crs-danger: #ffd6d2;
+  --crs-ok: #73bf91;
+
+  --crs-space-1: 4px;
+  --crs-space-2: 8px;
+  --crs-space-3: 12px;
+  --crs-space-4: 16px;
+  --crs-space-5: 20px;
+  --crs-space-6: 24px;
+  --crs-space-7: 32px;
+  --crs-space-8: 40px;
+
+  --crs-radius-sm: 3px;
+  --crs-radius: 5px;
+  --crs-radius-md: 8px;
+
+  --crs-font-sans: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  --crs-font-mono: "IBM Plex Mono", "Consolas", monospace;
+  --crs-font-display: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+
+  --crs-text-xs: 11px;
+  --crs-text-sm: 12px;
+  --crs-text-md: 14px;
+  --crs-text-lg: 16px;
+  --crs-text-xl: 20px;
+  --crs-text-2xl: 27px;
+  --crs-text-3xl: 32px;
+
+  --crs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --crs-duration: 180ms;
+  --crs-density: 0.92;
+
+  /* Bridge to existing industrial overrides */
+  --bg: var(--crs-bg);
+  --surface: var(--crs-surface);
+  --raised: var(--crs-surface-raised);
+  --line: var(--crs-line);
+  --text: var(--crs-text);
+  --muted: var(--crs-muted);
+  --accent: var(--crs-accent);
+}

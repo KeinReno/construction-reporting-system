@@ -1,0 +1,137 @@
+[
+  {
+    "name": "layout 1440 web/overview",
+    "pass": true,
+    "detail": "{\"scroll\":1440,\"client\":1440}"
+  },
+  {
+    "name": "layout 1440 web/object",
+    "pass": true,
+    "detail": "{\"scroll\":1440,\"client\":1440}"
+  },
+  {
+    "name": "layout 1440 web/report",
+    "pass": true,
+    "detail": "{\"scroll\":1440,\"client\":1440}"
+  },
+  {
+    "name": "layout 1440 app/today",
+    "pass": true,
+    "detail": "{\"scroll\":1440,\"client\":1440}"
+  },
+  {
+    "name": "layout 1440 app/form",
+    "pass": true,
+    "detail": "{\"scroll\":1440,\"client\":1440}"
+  },
+  {
+    "name": "layout 1440 app/preview",
+    "pass": true,
+    "detail": "{\"scroll\":1440,\"client\":1440}"
+  },
+  {
+    "name": "layout 390 web/overview",
+    "pass": true,
+    "detail": "{\"scroll\":390,\"client\":390}"
+  },
+  {
+    "name": "layout 390 web/object",
+    "pass": true,
+    "detail": "{\"scroll\":390,\"client\":390}"
+  },
+  {
+    "name": "layout 390 web/report",
+    "pass": true,
+    "detail": "{\"scroll\":390,\"client\":390}"
+  },
+  {
+    "name": "layout 390 app/today",
+    "pass": true,
+    "detail": "{\"scroll\":390,\"client\":390}"
+  },
+  {
+    "name": "layout 390 app/form",
+    "pass": true,
+    "detail": "{\"scroll\":390,\"client\":390}"
+  },
+  {
+    "name": "layout 390 app/preview",
+    "pass": true,
+    "detail": "{\"scroll\":390,\"client\":390}"
+  },
+  {
+    "name": "layout 320 web/overview",
+    "pass": true,
+    "detail": "{\"scroll\":320,\"client\":320}"
+  },
+  {
+    "name": "layout 320 web/object",
+    "pass": true,
+    "detail": "{\"scroll\":320,\"client\":320}"
+  },
+  {
+    "name": "layout 320 web/report",
+    "pass": true,
+    "detail": "{\"scroll\":320,\"client\":320}"
+  },
+  {
+    "name": "layout 320 app/today",
+    "pass": true,
+    "detail": "{\"scroll\":320,\"client\":320}"
+  },
+  {
+    "name": "layout 320 app/form",
+    "pass": true,
+    "detail": "{\"scroll\":320,\"client\":320}"
+  },
+  {
+    "name": "layout 320 app/preview",
+    "pass": true,
+    "detail": "{\"scroll\":320,\"client\":320}"
+  },
+  {
+    "name": "input survives reload",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "no_work reason required",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "no_work valid preview",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "queued hidden from customer",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "sync submits",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "customer retains submitted payload before resubmit",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "revision increment",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "accepted immutable",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "name": "no page errors",
+    "pass": true,
+    "detail": ""
+  }
+]

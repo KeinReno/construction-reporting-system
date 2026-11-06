@@ -34,3 +34,25 @@ local.properties
 # OS and editors
 .DS_Store
 Thumbs.db
+*.tsbuildinfo
+
+web/test-results/
+web/playwright-report/
+
+construction-windows-runtime.zip
+config.local.json
+demo/generated/
+android/app/src/demo/assets/
+*.spec
+construction-windows-demo.zip
+
+android/.kotlin/
+
+# Local agent settings, scratch exports and private QA artifacts
+/.autopilot.json
+/.cursor/
+/tmp/
+/web/tmp/
+/outputs/
+/web/playwright.local*.config.ts
+/test-results/
