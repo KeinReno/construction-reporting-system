@@ -24,6 +24,8 @@ try {
     $env:WEB_DIR=$settings.WebDir
     $env:AUTO_CREATE_SCHEMA='0'
     $env:CRS_OWNER_USER_ID=$settings.OwnerUserId
+    $env:CRS_HOLD_FILE=Join-Path (Split-Path -Parent $settings.DataDir) 'service-hold.json'
+    $env:CRS_RELEASE_ROOT=$settings.Root
     Set-Location -LiteralPath (Join-Path $settings.Root 'backend')
     & $runtime -m alembic upgrade head
     if ($LASTEXITCODE -ne 0) { throw 'Database migration failed; inspect private server logs' }

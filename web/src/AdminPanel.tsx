@@ -1,3 +1,4 @@
+import { ServerConsole } from './ServerConsole';
 import { formatTimestamp } from './date';
 import { useCallback,useEffect,useRef,useState } from 'react';
 import { ApiError,http,type Site } from './api';
@@ -6,7 +7,7 @@ type Assignment={id:string;user_id:string;site_id:string};
 type Audit={id:string;action:string;target_id:string;details:Record<string,unknown>;occurred_at:string};
 const roles={foreman:'Бригадир',manager:'Руководитель',admin:'Администратор'};
 const actions:Record<string,string>={user_created:'Пользователь создан',user_updated:'Пользователь обновлён',site_created:'Объект создан',access_granted:'Доступ выдан',access_revoked:'Доступ отозван'};
-export function AdminPanel({token,onExpired}:{token:string;onExpired:()=>void}) {
+export function AdminPanel({token,onExpired,allowUsers=true}:{token:string;onExpired:()=>void;allowUsers?:boolean}) {
   const [users,setUsers]=useState<User[]>([]),[sites,setSites]=useState<Site[]>([]),[assignments,setAssignments]=useState<Assignment[]>([]),[audit,setAudit]=useState<Audit[]>([]);
   const [name,setName]=useState(''),[password,setPassword]=useState(''),[role,setRole]=useState<User['role']>('foreman'),[siteName,setSiteName]=useState('');
   const [userId,setUserId]=useState(''),[siteId,setSiteId]=useState(''),[resetUser,setResetUser]=useState(''),[newPassword,setNewPassword]=useState('');
@@ -17,13 +18,15 @@ export function AdminPanel({token,onExpired}:{token:string;onExpired:()=>void}) 
     const [u,s,a,h]=await Promise.all([http<User[]>('/admin/users',token),http<Site[]>('/sites',token),http<Assignment[]>('/admin/assignments',token),http<Audit[]>('/admin/audit',token)]);
     if(active.current){setUsers(u);setSites(s);setAssignments(a);setAudit(h);}
   },[token]);
-  useEffect(()=>{active.current=true;void load().catch(fail);return ()=>{active.current=false;};},[load,fail]);
+  useEffect(()=>{if(!allowUsers)return;active.current=true;void load().catch(fail);return ()=>{active.current=false;};},[allowUsers,load,fail]);
   async function execute(action:()=>Promise<void>) {
     setBusy(true);setError('');setMessage('');
     try {await action();if(active.current){setMessage('Изменения сохранены');await load();}}
     catch(e){fail(e);}finally{if(active.current)setBusy(false);}
   }
   return <section aria-label="Администрирование">
+    <ServerConsole token={token} onExpired={onExpired}/>
+    {allowUsers && <>
     <p>Пользователи, объекты и разрешения. Отзыв доступа не удаляет историю отчётов.</p>
     <p className="muted">Отправители: {users.filter(u=>u.role==='foreman'&&u.active).length} из 5 планируемых. Проверяющий заказчик: {users.filter(u=>u.role==='manager'&&u.active).length}. Логины и доступы к объектам настраиваются здесь.</p>
     {error&&<p className="error" role="alert">{error}</p>}{message&&<p className="crs-toast crs-toast-success" role="status">{message}</p>}
@@ -49,5 +52,6 @@ export function AdminPanel({token,onExpired}:{token:string;onExpired:()=>void}) 
     </form></div>
     <section className="card"><h2>Выданные доступы</h2><ul>{assignments.map(a=><li key={a.id}>{users.find(u=>u.id===a.user_id)?.login||a.user_id} → {sites.find(s=>s.id===a.site_id)?.name||a.site_id} <button disabled={busy} className="quiet" onClick={()=>void execute(async()=>{await http('/admin/assignments/'+a.id,token,{method:'DELETE'});})}>Отозвать доступ</button></li>)}</ul>{!assignments.length&&<p>Назначений пока нет.</p>}</section>
     <section className="card"><h2>Журнал управления</h2><ol>{audit.map(e=><li key={e.id}>{actions[e.action]||e.action} · {users.find(u=>u.id===e.target_id)?.login||sites.find(s=>s.id===e.target_id)?.name||''} · {formatTimestamp(e.occurred_at)}</li>)}</ol></section>
+    </>}
   </section>;
 }

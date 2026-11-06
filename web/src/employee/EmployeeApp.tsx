@@ -33,7 +33,7 @@ export default function EmployeeApp(){
   </div>;
 }
 
-function Workspace({token,profile,onExpired,onLogout}:{token:string;profile:Profile;onExpired:(token:string)=>void;onLogout:()=>void}){
+export function Workspace({token,profile,onExpired,onLogout,embedded=false}:{token:string;profile:Profile;onExpired:(token:string)=>void;onLogout:()=>void;embedded?:boolean}){
   const [catalog,setCatalog]=useState<string[]>([]);
   useEffect(()=>{let active=true;void http<Array<{name:string;active:boolean}>>('/reference/work-types',token).then(items=>{if(active)setCatalog(items.filter(w=>w.active).map(w=>w.name));}).catch(()=>{});return()=>{active=false;};},[token]);
   const [sites,setSites]=useState<Site[]>([]);const [form,setForm]=useState<Form|null>(null);const [page,setPage]=useState<'form'|'history'>('form');
@@ -84,8 +84,8 @@ function Workspace({token,profile,onExpired,onLogout}:{token:string;profile:Prof
   }
   const remoteIds=new Set(reports.map(r=>r.client_report_id));
   return <>
-    <header className="employee-header"><span className="employee-brand">СтройКонтроль</span><div><span>{profile.login}</span><button type="button" onClick={onLogout} className="employee-link">Выйти</button></div></header>
-    <main className="employee-content"><div className="employee-title"><h1>{page==='form'?(form?.base?'Исправить отчёт':'Отчёт за смену'):'Мои отчёты'}</h1><span className="employee-connection">{online?'Есть связь':'Без сети'}</span></div>
+    {!embedded && <header className="employee-header"><span className="employee-brand">СтройКонтроль</span><div><span>{profile.login}</span><button type="button" onClick={onLogout} className="employee-link">Выйти</button></div></header>}
+    <main className="employee-content">{embedded && <div className="employee-kind" role="group" aria-label="Раздел отчёта"><button type="button" aria-pressed={page==='form'} onClick={()=>{setPage('form');setNotice('');}}>Новый отчёт</button><button type="button" aria-pressed={page==='history'} onClick={()=>{setPage('history');void refreshReports();}}>Мои отчёты</button></div>}<div className="employee-title"><h1>{page==='form'?(form?.base?'Исправить отчёт':'Отчёт за смену'):'Мои отчёты'}</h1><span className="employee-connection">{online?'Есть связь':'Без сети'}</span></div>
       {error&&<p role="alert" className="employee-error">{error}</p>}{notice&&<p role="status" className="employee-notice">{notice}</p>}
       {page==='form'&&(!form?<p>Открываем сохранённый черновик…</p>:<form ref={formElement} onSubmit={submit} noValidate><fieldset disabled={busy||conflict} className="employee-editor">
         {form.base?.reason&&<aside className="employee-return"><strong>Замечание проверяющего</strong><p>{form.base.reason}</p></aside>}
@@ -112,6 +112,6 @@ function Workspace({token,profile,onExpired,onLogout}:{token:string;profile:Prof
         {!local.length&&!reports.length&&<div className="employee-empty"><h2>Отчётов пока нет</h2><p>Заполните первый отчёт за смену</p><button className="employee-primary" onClick={()=>setPage('form')}>Заполнить отчёт</button></div>}
       </section>}
     </main>
-    <nav className="employee-nav" aria-label="Разделы сотрудника"><button aria-current={page==='form'?'page':undefined} onClick={()=>{setPage('form');setNotice('');}}><Icon/><span>Отчёт</span></button><button aria-current={page==='history'?'page':undefined} onClick={()=>{setPage('history');void refreshReports();}}><Icon history/><span>Мои отчёты</span></button></nav>
+    {!embedded && <nav className="employee-nav" aria-label="Разделы сотрудника"><button aria-current={page==='form'?'page':undefined} onClick={()=>{setPage('form');setNotice('');}}><Icon/><span>Отчёт</span></button><button aria-current={page==='history'?'page':undefined} onClick={()=>{setPage('history');void refreshReports();}}><Icon history/><span>Мои отчёты</span></button></nav>}
   </>;
 }

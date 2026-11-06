@@ -27,15 +27,17 @@ import { OwnerIcon } from './ui/OwnerIcon';
 import { OwnerActivity } from './OwnerActivity';
 import { ImportData } from './ImportData';
 import { HostAddress } from './HostAddress';
+import { Workspace } from './employee/EmployeeApp';
+import './employee/employee.css';
 import './design/owner-simple.css';
 import './design/owner-visual.css';
 
 type DemoInfo = {notice:string;accounts:Record<string,string>;password:string};
-type Page = 'overview' | 'objects' | 'reports' | 'money' | 'analytics' | 'ai' | 'admin' | 'catalog' | 'labor';
+type Page = 'overview' | 'objects' | 'reports' | 'submit' | 'money' | 'analytics' | 'ai' | 'admin' | 'catalog' | 'labor';
 type Interval = 'day' | 'month' | 'year';
 const reportFromLocation = () => /^#report\/([0-9a-f-]{36})$/i.exec(window.location.hash)?.[1] ?? null;
 const labels: Record<Page, string> = {
-  catalog:'Виды работ',labor:'Табель',overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', money: 'Деньги', analytics: 'Аналитика', ai: 'Помощник', admin:'Управление'
+  catalog:'Виды работ',labor:'Табель',overview: 'Главная', objects: 'Объекты', reports: 'Отчёты', submit:'Сдать отчёт', money: 'Деньги', analytics: 'Аналитика', ai: 'Помощник', admin:'Управление'
 };
 const dateText = formatDate;
 const moneyLabels = {funding_received:'Поступление',expense:'Расход',advance_issued:'Выдача аванса'} as const;
@@ -44,6 +46,7 @@ function NavIcon({page}:{page:Page}) {
     overview:<><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></>,
     objects:<><path d="M3 21h18M5 21V7l7-4 7 4v14M9 11h2m3 0h2m-7 4h2m3 0h2"/></>,
     reports:<><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 11h6M9 15h6"/></>,
+    submit:<><path d="M6 3h9l3 3v15H6zM14 3v4h4"/><path d="M12 11v6M9 14h6"/></>,
     money:<><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M12 14h.01"/></>,
     analytics:<><path d="M4 20V11m5 9V5m5 15v-7m5 7V3M2 21h20"/></>,
     ai:<><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z"/></>,
@@ -208,10 +211,11 @@ export default function App() {
     return Array.from(buckets,([key,item])=>({key,count:item.count,ids:item.ids,label:interval==='day'?dateText(key):interval==='month'?new Date(key+'-01T12:00:00').toLocaleDateString('ru-RU',{month:'long',year:'numeric'}):key}));
   },[currentSummary,interval]);
   const pageTitle = labels[page];
+  const morePages: Page[] = ['money','analytics','ai','catalog',...(profile?.is_owner?['labor' as Page]:[]),...((profile?.role==='admin'||!!profile?.is_owner)?['admin' as Page]:[])];
   if (!token) return <Login onSuccess={setToken} demo={demo}/>;
   return <AuthorColorsProvider authors={authors}><div className={`app-shell wb-shell owner-simple${chatOpen?' has-conversation':''}`}>
     <CrSidebar<Page>
-      entries={(Object.keys(labels) as Page[]).filter(key=>(key!=='admin'||profile?.role==='admin')&&(key!=='labor'||profile?.is_owner)).map(key=>({key,label:labels[key]}))}
+      entries={(Object.keys(labels) as Page[]).filter(key=>(key!=='admin'||profile?.role==='admin'||profile?.is_owner)&&(key!=='labor'||profile?.is_owner)).map(key=>({key,label:labels[key]}))}
       current={page}
       onSelect={navigate}
       renderIcon={key=><NavIcon page={key}/>}
@@ -222,12 +226,12 @@ export default function App() {
         <div hidden={!!reportId}>
         {demo&&<div className="card"><strong>ДЕМО · локальная база</strong><p>{demo.notice}</p></div>}
         {page!=='overview' && <CrBreadcrumbs items={[{label:"СтройКонтроль",onSelect:()=>{navigate("overview");setSiteId("all");}},{label:pageTitle},...(page==="objects"&&siteId!=="all"?[{label:siteName(siteId)}]:[])]}/>}
-        {page==='overview' ? <div className="owner-heading"><div><h1>Объекты и отчёты</h1><p>Выберите объект или откройте отчёт для проверки.</p></div><button className="secondary" onClick={()=>void refresh()} disabled={loading}>{loading?'Обновление…':'Обновить'}</button></div> : <WorkbenchMasthead title={page==='objects' && siteId!=='all'?siteName(siteId):pageTitle} index="" subtitle={page==='reports'?'Отчёты по выбранным условиям':page==='money'?'Денежные операции':page==='analytics'?'Итоги по отчётам':page==='objects'?'Работы и отчёты по объектам':page==='ai'?'Анализ отчётов':page==='catalog'?'Основные, вспомогательные и особые работы':page==='labor'?'Люди, дни и начисления':'Пользователи и доступ'} onRefresh={()=>{if(page==='catalog'||page==='labor')setOwnerReload(v=>v+1);void refresh();}} refreshing={loading} />}
+        {page==='overview' ? <div className="owner-heading"><div><h1>Объекты и отчёты</h1><p>Выберите объект или откройте отчёт для проверки.</p></div><button className="secondary" onClick={()=>void refresh()} disabled={loading}>{loading?'Обновление…':'Обновить'}</button></div> : <WorkbenchMasthead title={page==='objects' && siteId!=='all'?siteName(siteId):pageTitle} index="" subtitle={page==='reports'?'Отчёты по выбранным условиям':page==='money'?'Денежные операции':page==='analytics'?'Итоги по отчётам':page==='objects'?'Работы и отчёты по объектам':page==='ai'?'Анализ отчётов':page==='catalog'?'Основные, вспомогательные и особые работы':page==='labor'?'Люди, дни и начисления':page==='submit'?'Отчёт за смену с телефона и компьютера':'Пользователи и доступ'} onRefresh={()=>{if(page==='catalog'||page==='labor')setOwnerReload(v=>v+1);void refresh();}} refreshing={loading} />}
          {error && <div className="error" role="alert">Ошибка: {error}</div>}
-        {(page!=='admin' && page!=='overview' && page!=='catalog') && <><div className="owner-filter-bar"><button type="button" className="secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'}</button><span>{siteId==='all'?'Все объекты':siteName(siteId)} · {page==='labor'?'Все работники':authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}{page==='money'?' · даты операций':' · даты смен'}</span>{(siteId!=='all'||(page!=='labor'&&authorId!=='all')||startDate||endDate)&&<button type="button" className="link-button" onClick={()=>{setSiteId('all');setAuthorId('all');setStartDate('');setEndDate('');}}>Сбросить</button>}</div><div id="report-filters" className="filters filters-open" hidden={!filtersOpen}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
+        {(page!=='admin' && page!=='overview' && page!=='catalog' && page!=='submit') && <><div className="owner-filter-bar"><button type="button" className="secondary" aria-expanded={filtersOpen} aria-controls="report-filters" onClick={()=>setFiltersOpen(v=>!v)}>{filtersOpen?'Скрыть фильтры':'Фильтры'}</button><span>{siteId==='all'?'Все объекты':siteName(siteId)} · {page==='labor'?'Все работники':authorId==='all'?'Все авторы':displayAuthor(authors.find(a=>a.id===authorId)?.login)} · {startDate.startsWith('!') || endDate.startsWith('!')?'Исправьте дату':`${startDate?formatDate(startDate):'начало'} — ${endDate?formatDate(endDate):'без ограничения'}`}{page==='money'?' · даты операций':' · даты смен'}</span>{(siteId!=='all'||(page!=='labor'&&authorId!=='all')||startDate||endDate)&&<button type="button" className="link-button" onClick={()=>{setSiteId('all');setAuthorId('all');setStartDate('');setEndDate('');}}>Сбросить</button>}</div><div id="report-filters" className="filters filters-open" hidden={!filtersOpen}><CrCombobox label="Объект" value={siteId} onChange={setSiteId} options={[{value:'all',label:'Все объекты'},...sites.map(s=>({value:s.id,label:s.name}))]}/>
           {page!=='labor'&&<CrCombobox label="Автор" value={authorId} onChange={setAuthorId} options={[{value:'all',label:'Все авторы'},...authors.filter(a=>!a.imported_only).map(a=>({value:a.id,label:displayAuthor(a.login)}))]}/>}
           <CrDateField label="С" value={startDate} onChange={setStartDate}/><CrDateField label="По" value={endDate} onChange={setEndDate}/></div></>}
-        {page === 'catalog' || page==='labor' ? <OwnerOperations key={page} mode={page==='catalog'?'catalog':'labor'} token={token} sites={sites} isOwner={!!profile?.is_owner} siteId={siteId} fromDate={startDate} toDate={endDate} reloadKey={ownerReload}/> : page === 'admin' ? <AdminPanel token={token} onExpired={endSession}/> :
+        {page === 'catalog' || page==='labor' ? <OwnerOperations key={page} mode={page==='catalog'?'catalog':'labor'} token={token} sites={sites} isOwner={!!profile?.is_owner} siteId={siteId} fromDate={startDate} toDate={endDate} reloadKey={ownerReload}/> : page === 'submit' && profile ? <section className="employee-app employee-embedded" aria-label="Сдать отчёт"><Workspace embedded token={token} profile={profile} onExpired={endSession} onLogout={()=>undefined}/></section> : page === 'admin' ? <AdminPanel token={token} onExpired={endSession} allowUsers={profile?.role==='admin'}/> :
          page === 'ai' && (startDate.startsWith('!') || endDate.startsWith('!') || (!!startDate && !!endDate && startDate>endDate)) ? <p className="error">Исправьте период перед формированием анализа.</p> :
          page === 'ai' ? <AnalysisPanel key={JSON.stringify([siteId,authorId,startDate,endDate])} token={token} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate} onSource={openById} siteName={siteName} onChanged={refresh}/> : <>
           {page==='overview' && <section className="owner-home" aria-label="Объекты и отчёты">
@@ -300,20 +304,20 @@ export default function App() {
       <button type="button" className="conversation-toggle" aria-expanded={chatOpen} onClick={()=>setChatOpen(v=>!v)}>Переписка / ИИ</button>
       {chatOpen&&<ConversationDock key={filterKey} token={token} reports={visible} reportId={visible.some(r=>r.id===chatReport)?chatReport:null} onClose={()=>setChatOpen(false)} onReport={openById} siteName={siteName} onChanged={refresh} siteId={siteId} authorId={authorId} fromDate={startDate} toDate={endDate}/>}
       <nav className="bottom-nav crs-bottom-nav" aria-label="Мобильная навигация">
-        {(['overview','objects','reports','money'] as Page[]).map(key=>(
+        {(['overview','objects','submit','reports'] as Page[]).map(key=>(
           <button key={key} type="button" className={page===key?'active':''}
             aria-current={page===key?'page':undefined}
             onClick={()=>{navigate(key);setMobileMoreOpen(false);}}>
             <NavIcon page={key}/><span>{labels[key]}</span>
           </button>
         ))}
-        <button type="button" className={`crs-more-toggle${(['analytics','ai','admin'] as Page[]).includes(page)?' active':''}`}
+        <button type="button" className={`crs-more-toggle${(['money','analytics','ai','admin','catalog','labor'] as Page[]).includes(page)?' active':''}`}
           aria-label="Дополнительные разделы" aria-expanded={mobileMoreOpen}
           aria-controls="crs-more-menu" onClick={()=>setMobileMoreOpen(open=>!open)}>
           <span aria-hidden="true" style={{fontSize:22,lineHeight:1}}>⋯</span><span>Ещё</span>
         </button>
         {mobileMoreOpen && <div id="crs-more-menu" className="crs-more-menu" role="menu" aria-label="Дополнительные разделы">
-          {(['analytics','ai','catalog',...(profile?.is_owner?['labor']:[]),...(profile?.role==='admin'?['admin']:[])] as Page[]).map(key=>(
+          {morePages.map(key=>(
             <button type="button" key={key} role="menuitem" aria-current={page===key?'page':undefined}
               onClick={()=>{navigate(key);setMobileMoreOpen(false);}}>
               <NavIcon page={key}/><span>{labels[key]}</span>

@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 from app.contracts import Input, Work, ReportData, HistoricalSource, report_payload
+from app.server_console import accepting, set_accepting, status as server_status
 from app.normalize_import import current_normalization, analysis_payload
 from app.production_analytics import production_metrics
 from sqlalchemy import create_engine, select, JSON, String, ForeignKey, DateTime, Integer, UniqueConstraint, delete, text, update
@@ -16,6 +17,9 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker,
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError
 
+
+class ServerPower(BaseModel):
+    running: bool
 
 def new_id(): return str(uuid.uuid4())
 def utcnow(): return datetime.now(timezone.utc)
@@ -363,6 +367,18 @@ def create_app(database_url=None, storage=None, initialize=False):
     def host_address(u:User=Depends(current)):
         if u.role not in ('manager','admin'):raise HTTPException(403,'Manager role required')
         return JSONResponse({'public_url':getattr(api.state,'public_url',None)},headers={'Cache-Control':'no-store'})
+    def operator(u:User)->bool:
+        return u.role=='admin' or (u.role=='manager' and u.id==api.state.owner_user_id)
+    @api.get('/api/v1/server/status')
+    def server_status_route(u:User=Depends(current)):
+        if not operator(u):raise HTTPException(403,'Owner or admin required')
+        return JSONResponse(server_status(),headers={'Cache-Control':'no-store'})
+    @api.post('/api/v1/server/power')
+    def server_power(body:ServerPower,u:User=Depends(current)):
+        if not operator(u):raise HTTPException(403,'Owner or admin required')
+        try:set_accepting(body.running)
+        except RuntimeError:raise HTTPException(503,'Server control file is not configured')
+        return JSONResponse(server_status(),headers={'Cache-Control':'no-store'})
     @api.get('/api/v1/sites')
     def sites(db:Session=Depends(dbdep),u:User=Depends(current)):
         q=select(Site)
@@ -882,5 +898,20 @@ def create_app(database_url=None, storage=None, initialize=False):
             sql_file=Path(engine.url.database).resolve()
             if sql_file==public or public in sql_file.parents:raise RuntimeError('SQLite database cannot be public')
         api.mount('/',PublicAssets(directory=public,html=True),name='web')
+    @api.middleware('http')
+    async def maintenance(request:Request,call_next):
+        if accepting():return await call_next(request)
+        path=request.url.path
+        if not path.startswith('/api/') or path in {'/api/v1/auth/login','/api/v1/auth/logout','/api/v1/me','/api/v1/server/status','/api/v1/server/power'}:
+            return await call_next(request)
+        header=request.headers.get('authorization','')
+        user=None
+        if header.startswith('Bearer '):
+            with SessionLocal() as db:
+                token=db.get(Token,hashlib.sha256(header[7:].encode()).hexdigest())
+                if token:user=db.get(User,token.user_id)
+        if user and (user.role=='admin' or (user.role=='manager' and user.id==api.state.owner_user_id)):
+            return await call_next(request)
+        return JSONResponse(status_code=503,content={'detail':'CRS is stopped'})
     return api
 app=create_app()
