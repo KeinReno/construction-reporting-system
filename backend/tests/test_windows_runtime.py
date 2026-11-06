@@ -38,18 +38,19 @@ def test_windows_release_lifecycle(tmp_path):
     assert json.loads(task.stdout)['Trigger']=='MSFT_TaskBootTrigger'
     process=subprocess.Popen([str(ps),'-NoProfile','-ExecutionPolicy','Bypass','-File',str(root/'scripts/windows/Run.ps1'),*args],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
     try:
+        # Local lifecycle probes must bypass environment and Windows registry proxies.
         deadline=time.monotonic()+45
         while time.monotonic()<deadline:
             try:
-                if httpx.get(base_url+'/ready').status_code==200:break
+                if httpx.get(base_url+'/ready',trust_env=False).status_code==200:break
             except httpx.HTTPError:pass
             time.sleep(.25)
         else:pytest.fail('Windows server did not become ready')
-        index=httpx.get(base_url+'/');assert index.status_code==200
+        index=httpx.get(base_url+'/',trust_env=False);assert index.status_code==200
         assets=re.findall(r'(?:src|href)="([^"]+)"',index.text);assert len(assets)>=2
         for path in assets:
-            asset=httpx.get(base_url+path);assert asset.status_code==200 and len(asset.content)>100
-        assert httpx.get(base_url+'/api/v1/sites').status_code==401
+            asset=httpx.get(base_url+path,trust_env=False);assert asset.status_code==200 and len(asset.content)>100
+        assert httpx.get(base_url+'/api/v1/sites',trust_env=False).status_code==401
         duplicate=run('Run.ps1',*args,timeout=30)
         assert duplicate.returncode!=0 and 'Another server' in duplicate.stderr
     finally:
