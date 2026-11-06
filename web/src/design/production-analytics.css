@@ -93,3 +93,15 @@
 .owner-simple .labor-day-selection{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 @media(max-width:1000px){.owner-simple .labor-summary-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.owner-simple .labor-summary-stats{grid-template-columns:minmax(0,1fr)}}
+
+.owner-simple .ops-form>fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:12px;min-width:0}
+.owner-simple .labor-history{min-width:0;overflow-wrap:anywhere}
+.owner-simple .labor-history ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:16px}
+.owner-simple .labor-history li{border-top:1px solid var(--crs-line);padding-top:12px}
+.owner-simple .labor-history-versions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.owner-simple .labor-history-snapshot{min-width:0;border:1px solid var(--crs-line);border-radius:var(--crs-radius-sm);padding:12px;background:var(--crs-surface-sunken)}
+.owner-simple .labor-history-snapshot h4{margin:0 0 8px}
+.owner-simple .labor-history-snapshot dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px}
+.owner-simple .labor-history-snapshot dd{margin:0;font-family:var(--crs-font-mono)}
+.owner-simple .labor-history-reason{white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:700px){.owner-simple .labor-history-versions{grid-template-columns:minmax(0,1fr)}}

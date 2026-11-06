@@ -266,7 +266,7 @@ def create_app(database_url=None, storage=None, initialize=False):
         db.add(AdminEvent(actor_id=u.id,action=action,target_id=target,details=details))
     def user_view(u):return {'id':u.id,'login':u.login,'role':u.role,'active':u.active}
     from app.owner_operations import install as install_owner_operations
-    install_owner_operations(api,dbdep,current,allowed,admin_log,WorkType,Worker,LaborDay)
+    install_owner_operations(api,dbdep,current,allowed,admin_log,WorkType,Worker,LaborDay,AdminEvent,User,stamp)
     @api.get('/api/v1/admin/users')
     def admin_users(db:Session=Depends(dbdep),u:User=Depends(admin_only)):
         return [user_view(x) for x in db.scalars(select(User).order_by(User.login))]

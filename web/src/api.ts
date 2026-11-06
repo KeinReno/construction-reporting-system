@@ -86,6 +86,7 @@ function apiMessage(status:number,detail:unknown):string {
     'Archive auxiliary work first':'Сначала уберите из выбора связанные вспомогательные работы.',
     'Work type name already used in history':'Это название уже используется или сохранено в истории другого вида работы.',
     'Active worker required':'Выберите действующего работника.',
+    'History snapshot cannot be scoped':'Историю нельзя показать: не удалось проверить объект сохранённой версии.',
     'Revision/status conflict':'Версия или статус отчёта изменились. Обновите данные.',
     'Reason required':'Укажите причину возврата.',
     'Object access denied':'Нет доступа к объекту.',

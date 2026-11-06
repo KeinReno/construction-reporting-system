@@ -40,7 +40,7 @@ test('labor totals follow dates, preserve identity and drill into the same snaps
     await expect(people.locator('tbody tr')).toHaveCount(2);
     const value=new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB'}).format((2*500000+1000-200)/100);
     await expect(summary.locator('.labor-summary-stats').getByText(value,{exact:true})).toBeVisible();
-    release();await oldSettled;
+    release();await oldSettled;await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>resolve())));
     await expect(summary.locator('.labor-summary-stats').getByText(value,{exact:true})).toBeVisible();
     await people.getByRole('button',{name:names[0],exact:true}).click();
     const ledger=page.getByRole('table',{name:'Дни табеля',exact:true});

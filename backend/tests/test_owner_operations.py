@@ -99,6 +99,8 @@ def test_labor_summary_filters_acl_and_distinct_worker_identity(env):
     result=c.get(path,headers=m).json()
     assert result['totals']['worked_days']==3
     assert result['totals']['worked_calendar_days']==2
+    assert result['totals']['standard_hours']==3*8
+    assert result['totals']['avg_standard_hours_per_workday']=='12.00'
     assert result['totals']['total_kopecks']==3*500000+1000+300-200
     assert set(result['totals']['source_day_ids'])=={d['id'] for d in result['days']}
     assert len(result['by_worker'])==2, 'identical display names must not merge identities'
@@ -115,3 +117,37 @@ def test_labor_summary_filters_acl_and_distinct_worker_identity(env):
     assert fourth not in visible['totals']['source_day_ids']
     assert c.get(path+'?site_id='+other,headers=m).status_code==403
     assert c.get(path+'?from_date=2026-03-03&to_date=2026-03-01',headers=m).status_code==422
+
+
+def test_labor_history_preserves_revisions_and_checks_previous_object_access(env):
+    from app.main import Assignment
+    from sqlalchemy import delete
+    c,f,m,sid,other=env;owner(c)
+    worker=c.post('/api/v1/owner/workers',headers=m,json={'name':'Synthetic history worker'}).json()['id']
+    did=str(uuid.uuid4());path='/api/v1/owner/labor-days/'+did
+    data={'id':did,'worker_id':worker,'site_id':sid,'work_date':'2026-03-01'}
+    assert c.put(path,headers=m,json=data).status_code==200
+    assert c.get(path+'/history').status_code==401
+    assert c.get(path+'/history',headers=f).status_code==403
+    changed={**data,'worked':False,'business_trip':True,'allowance_kopecks':10000,'reason':'Synthetic correction','expected_revision':1}
+    assert c.put(path,headers=m,json=changed).status_code==200
+    assert c.put(path,headers=m,json=changed).status_code==200
+    entries=c.get(path+'/history',headers=m).json()['events']
+    assert len(entries)==2, 'an identical retry must not manufacture another correction'
+    assert entries[0]['before'] is None and entries[0]['after']['revision']==1
+    assert entries[1]['before']['base_kopecks']==500000
+    assert entries[1]['after']['base_kopecks']==0 and entries[1]['after']['total_kopecks']==10000
+    assert entries[1]['after']['reason']=='Synthetic correction'
+    assert entries[1]['actor_login']=='manager'
+    assert entries[1]['actor_id']==c.api.state.owner_user_id
+    assert entries[1]['occurred_at'].endswith(('+00:00','Z'))
+    snapshot=c.get('/api/v1/owner/labor-summary',headers=m).json()
+    assert c.get(path+'/history',headers=m).json()['events']==entries
+    assert c.get('/api/v1/owner/labor-summary',headers=m).json()==snapshot, 'history reads must not change payroll'
+    with c.api.state.db() as db:
+        db.add(Assignment(user_id=c.api.state.owner_user_id,site_id=other));db.commit()
+    assert c.put(path,headers=m,json={**changed,'site_id':other,'expected_revision':2}).status_code==200
+    with c.api.state.db() as db:
+        db.execute(delete(Assignment).where(Assignment.user_id==c.api.state.owner_user_id,Assignment.site_id==sid));db.commit()
+    assert len(c.get('/api/v1/owner/labor-days',headers=m).json())==1
+    assert c.get(path+'/history',headers=m).status_code==403, 'the current object must not grant access to an older private object'

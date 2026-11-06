@@ -1,6 +1,7 @@
 """Explicit owner operations. Never infer payroll from historical names or modify source reports."""
 import uuid
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 from fastapi import Depends, HTTPException
 from pydantic import Field, model_validator
@@ -40,7 +41,7 @@ class DayData(Input):
         if (self.allowance_kopecks or self.fine_kopecks) and not self.reason.strip():raise ValueError('Adjustment reason required')
         return self
 
-def install(api, dbdep, current, allowed, admin_log, WorkType, Worker, LaborDay):
+def install(api, dbdep, current, allowed, admin_log, WorkType, Worker, LaborDay, AdminEvent, User, stamp):
     def owner(u=Depends(current)):
         if u.role!='manager' or u.id!=api.state.owner_user_id:raise HTTPException(403,'Owner role required')
         return u
@@ -78,6 +79,25 @@ def install(api, dbdep, current, allowed, admin_log, WorkType, Worker, LaborDay)
     def create_worker(data:WorkerData,db:Session=Depends(dbdep),u=Depends(owner)):
         w=Worker(name=data.name.strip());db.add(w);db.flush();admin_log(db,u,'worker_created',w.id,{'name':w.name});db.commit();return {'id':w.id,'name':w.name,'active':w.active}
     def day_view(d):return {'id':d.id,'worker_id':d.worker_id,'site_id':d.site_id,'work_date':d.work_date,'revision':d.revision,**d.payload}
+    @api.get('/api/v1/owner/labor-days/{did}/history')
+    def day_history(did:uuid.UUID,db:Session=Depends(dbdep),u=Depends(owner)):
+        row=db.get(LaborDay,str(did))
+        if not row:raise HTTPException(404,'Unknown labor day')
+        allowed(db,u,row.site_id)
+        events=[]
+        entries=list(db.scalars(select(AdminEvent).where(AdminEvent.action=='labor_day_saved',AdminEvent.target_id==row.id).order_by(AdminEvent.occurred_at,AdminEvent.id)))
+        for entry in entries:
+            before=entry.details.get('before');after=entry.details.get('after')
+            if not isinstance(after,dict):raise HTTPException(409,'History snapshot cannot be scoped')
+            for snapshot in (before,after):
+                if snapshot is None:continue
+                if not isinstance(snapshot,dict) or not snapshot.get('site_id'):raise HTTPException(409,'History snapshot cannot be scoped')
+                allowed(db,u,snapshot['site_id'])
+            events.append({'id':entry.id,'actor_id':entry.actor_id,'occurred_at':stamp(entry.occurred_at),'before':before,'after':after})
+        actors=dict(db.execute(select(User.id,User.login).where(User.id.in_({event['actor_id'] for event in events}))).all())
+        for event in events:event['actor_login']=actors.get(event['actor_id'])
+        events.sort(key=lambda event:(event['after']['revision'],event['id']))
+        return {'id':row.id,'events':events}
     @api.get('/api/v1/owner/labor-days')
     def labor_days(site_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None,db:Session=Depends(dbdep),u=Depends(owner)):
         if from_date and to_date and from_date>to_date:raise HTTPException(422,'Invalid date range')
@@ -100,9 +120,13 @@ def install(api, dbdep, current, allowed, admin_log, WorkType, Worker, LaborDay)
         rows=labor_days(site_id=site_id,from_date=from_date,to_date=to_date,db=db,u=u)
         names={w.id:w.name for w in db.scalars(select(Worker).where(Worker.id.in_({r['worker_id'] for r in rows})))}
         def totals(items):
+            standard_hours=sum(r['standard_hours'] for r in items if r['worked'])
+            calendar_days=len({r['work_date'] for r in items if r['worked']})
             return {'record_count':len(items),'worker_count':len({r['worker_id'] for r in items}),
                     'worked_days':sum(bool(r['worked']) for r in items),
-                    'worked_calendar_days':len({r['work_date'] for r in items if r['worked']}),
+                    'worked_calendar_days':calendar_days,
+                    'standard_hours':standard_hours,
+                    'avg_standard_hours_per_workday':str((Decimal(standard_hours)/calendar_days).quantize(Decimal('0.01'))) if calendar_days else None,
                     'business_trip_days':sum(bool(r['business_trip']) for r in items),
                     **{key:sum(r[key] for r in items) for key in ('base_kopecks','allowance_kopecks','fine_kopecks','total_kopecks')},
                     'source_day_ids':[r['id'] for r in items]}

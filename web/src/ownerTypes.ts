@@ -31,6 +31,8 @@ export type LaborTotals = {
   worker_count: number;
   worked_days: number;
   worked_calendar_days: number;
+  standard_hours: number;
+  avg_standard_hours_per_workday: string | null;
   business_trip_days: number;
   base_kopecks: number;
   allowance_kopecks: number;
