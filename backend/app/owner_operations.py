@@ -83,16 +83,38 @@ def install(api, dbdep, current, allowed, admin_log, WorkType, Worker, LaborDay)
         if from_date and to_date and from_date>to_date:raise HTTPException(422,'Invalid date range')
         q=select(LaborDay)
         if site_id:allowed(db,u,str(site_id));q=q.where(LaborDay.site_id==str(site_id))
+        if from_date:q=q.where(LaborDay.work_date>=str(from_date))
+        if to_date:q=q.where(LaborDay.work_date<=str(to_date))
         # Owner is still restricted to explicitly assigned objects.
-        rows=db.scalars(q.order_by(LaborDay.work_date,LaborDay.worker_id)).all();result=[]
+        rows=db.scalars(q.order_by(LaborDay.work_date,LaborDay.worker_id)).all();result=[];access={}
         for row in rows:
-            if from_date and row.work_date<str(from_date) or to_date and row.work_date>str(to_date):continue
-            try:allowed(db,u,row.site_id)
-            except HTTPException as e:
-                if e.status_code==403:continue
-                raise
-            result.append(day_view(row))
+            if row.site_id not in access:
+                try:allowed(db,u,row.site_id);access[row.site_id]=True
+                except HTTPException as e:
+                    if e.status_code!=403:raise
+                    access[row.site_id]=False
+            if access[row.site_id]:result.append(day_view(row))
         return result
+    @api.get('/api/v1/owner/labor-summary')
+    def labor_summary(site_id:uuid.UUID|None=None,from_date:date|None=None,to_date:date|None=None,db:Session=Depends(dbdep),u=Depends(owner)):
+        rows=labor_days(site_id=site_id,from_date=from_date,to_date=to_date,db=db,u=u)
+        names={w.id:w.name for w in db.scalars(select(Worker).where(Worker.id.in_({r['worker_id'] for r in rows})))}
+        def totals(items):
+            return {'record_count':len(items),'worker_count':len({r['worker_id'] for r in items}),
+                    'worked_days':sum(bool(r['worked']) for r in items),
+                    'worked_calendar_days':len({r['work_date'] for r in items if r['worked']}),
+                    'business_trip_days':sum(bool(r['business_trip']) for r in items),
+                    **{key:sum(r[key] for r in items) for key in ('base_kopecks','allowance_kopecks','fine_kopecks','total_kopecks')},
+                    'source_day_ids':[r['id'] for r in items]}
+        worker_rows={};site_rows={}
+        for row in rows:
+            worker_rows.setdefault(row['worker_id'],[]).append(row)
+            site_rows.setdefault(row['site_id'],[]).append(row)
+        return {'period':{'from_date':str(from_date) if from_date else None,'to_date':str(to_date) if to_date else None},
+                'totals':totals(rows),
+                'days':rows,
+                'by_worker':[{'worker_id':wid,'name':names[wid],**totals(items)} for wid,items in sorted(worker_rows.items(),key=lambda item:(names[item[0]],item[0]))],
+                'by_site':[{'site_id':sid,**totals(items)} for sid,items in sorted(site_rows.items())]}
     @api.put('/api/v1/owner/labor-days/{did}')
     def save_day(did:uuid.UUID,data:DayData,db:Session=Depends(dbdep),u=Depends(owner)):
         if did!=data.id:raise HTTPException(422,'Identity cannot change')

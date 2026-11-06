@@ -84,3 +84,12 @@
 .owner-simple .conversation-dock .ai-workspace{min-width:0;display:block}
 @media(min-width:1300px){.owner-simple.has-conversation>.workspace{margin-right:440px}}
 @media(max-width:900px){.owner-simple .conversation-toggle{bottom:80px;right:12px}.owner-simple .conversation-dock{bottom:70px}.owner-simple .conversation-dock .ai-workspace{display:block}}
+
+.owner-simple .owner-operations>.card{min-width:0}
+.owner-simple .labor-summary-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.owner-simple .labor-summary-stats>div{display:flex;flex-direction:column;gap:6px;min-width:0;padding:12px;border:1px solid var(--crs-line);border-radius:var(--crs-radius-sm);background:var(--crs-surface-sunken)}
+.owner-simple .labor-summary-stats span{font-size:var(--crs-text-xs);color:var(--crs-text-secondary)}
+.owner-simple .labor-summary-stats strong{font-size:clamp(18px,2vw,28px);font-family:var(--crs-font-mono);overflow-wrap:anywhere}
+.owner-simple .labor-day-selection{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+@media(max-width:1000px){.owner-simple .labor-summary-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.owner-simple .labor-summary-stats{grid-template-columns:minmax(0,1fr)}}
