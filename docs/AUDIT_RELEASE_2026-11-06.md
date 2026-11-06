@@ -74,3 +74,6 @@ Backup/restore теперь читают major сервера и до опера
 
 
 CI42133081423 показал, что ubuntu-latest уже выбирает Ubuntu26.04.1, где стандартный apt не содержит postgresql-client-16. Backend runner закреплён на поддерживаемом Ubuntu24.04 с явной установкой клиента16 ([официальный пакет Ubuntu](https://packages.ubuntu.com/noble/postgresql-client-16)). Это делает среду воспроизводимой; production-код и проверки backup/restore не ослабляются.
+
+
+Один из завершающих Android-запусков на Ubuntu26.04 не дошёл до тестов: sdkmanager сообщил о повреждённом ZIP системного образа Google APIs35 (Error reading Zip content from a SeekableByteChannel). Это не падение тестов приложения; выполнен отдельный retry только Android job. Первый успешный прогон20instrumentation использовал Ubuntu24.04. Чтобы исключить перемену платформы при rollout ubuntu-latest, основной и демонстрационный Android workflow закреплены на той же проверенной Ubuntu24.04; версия Android/API35 и сами тесты сохранены. Актуальные окончательные результаты всех проверок — в PR7 и локальном FINAL_HANDOFF после завершения.
